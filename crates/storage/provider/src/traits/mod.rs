@@ -43,7 +43,10 @@ mod withdrawals;
 pub use withdrawals::WithdrawalsProvider;
 
 mod executor;
-pub use executor::{BlockExecutor, BlockExecutorStats, ExecutorFactory, PrunableBlockExecutor};
+pub use executor::{
+    BlockExecutor, BlockExecutorStats, BlockRangeExecutor, BlockRangeExecutorWrapper,
+    ExecutorFactory, PrunableBlockExecutor, PrunableBlockRangeExecutor, RangeExecutorFactory,
+};
 
 mod chain;
 pub use chain::{

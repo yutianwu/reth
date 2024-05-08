@@ -1,9 +1,11 @@
 //! Executor Factory
 
-use crate::{bundle_state::BundleStateWithReceipts, StateProvider};
-use reth_interfaces::executor::BlockExecutionError;
+use crate::{
+    bundle_state::BundleStateWithReceipts, BlockReader, StateProvider, TransactionVariant,
+};
+use reth_interfaces::{executor::BlockExecutionError, provider::ProviderError};
 use reth_primitives::{Address, Block, BlockNumber, ChainSpec, PruneModes, U256};
-use std::time::Duration;
+use std::{fmt::Debug, ops::RangeInclusive, time::Duration};
 use tracing::debug;
 
 /// Executor factory that would create the EVM with particular state provider.
@@ -13,14 +15,51 @@ pub trait ExecutorFactory: Send + Sync + 'static {
     /// Executor with [`StateProvider`]
     fn with_state<'a, SP: StateProvider + 'a>(
         &'a self,
-        _sp: SP,
+        sp: SP,
     ) -> Box<dyn PrunableBlockExecutor + 'a>;
 
     /// Return internal chainspec
     fn chain_spec(&self) -> &ChainSpec;
 }
 
+/// Executor factory that would create the range block executor with a state provider.
+pub trait RangeExecutorFactory: Send + Sync + 'static {
+    /// Executor with [`StateProvider`]
+    fn with_provider_and_state<'a, Provider, SP>(
+        &'a self,
+        provider: Provider,
+        sp: SP,
+    ) -> Box<dyn PrunableBlockRangeExecutor + 'a>
+    where
+        Provider: BlockReader + 'a,
+        SP: StateProvider + 'a;
+
+    /// Return internal chainspec
+    fn chain_spec(&self) -> &ChainSpec;
+}
+
+impl<T: ExecutorFactory> RangeExecutorFactory for T {
+    fn with_provider_and_state<'a, Provider, SP>(
+        &'a self,
+        provider: Provider,
+        sp: SP,
+    ) -> Box<dyn PrunableBlockRangeExecutor + 'a>
+    where
+        Provider: BlockReader + 'a,
+        SP: StateProvider + 'a,
+    {
+        let executor = self.with_state(sp);
+        Box::new(BlockRangeExecutorWrapper { provider, executor })
+            as Box<dyn PrunableBlockRangeExecutor>
+    }
+
+    fn chain_spec(&self) -> &ChainSpec {
+        <T as ExecutorFactory>::chain_spec(self)
+    }
+}
+
 /// An executor capable of executing a block.
+#[auto_impl::auto_impl(Box)]
 pub trait BlockExecutor {
     /// Execute a block.
     ///
@@ -56,12 +95,113 @@ pub trait BlockExecutor {
 }
 
 /// A [BlockExecutor] capable of in-memory pruning of the data that will be written to the database.
+#[auto_impl::auto_impl(Box)]
 pub trait PrunableBlockExecutor: BlockExecutor {
     /// Set tip - highest known block number.
     fn set_tip(&mut self, tip: BlockNumber);
 
     /// Set prune modes.
     fn set_prune_modes(&mut self, prune_modes: PruneModes);
+}
+
+/// A block executor with range execution implementations.
+pub trait BlockRangeExecutor {
+    /// Execute the range of blocks.
+    fn execute_range(
+        &mut self,
+        range: RangeInclusive<BlockNumber>,
+        should_verify_receipts: bool,
+    ) -> Result<(), BlockExecutionError>;
+
+    /// Return bundle state. This is output of executed blocks.
+    fn take_output_state(&mut self) -> BundleStateWithReceipts;
+
+    /// Internal statistics of execution.
+    fn stats(&self) -> BlockExecutorStats;
+
+    /// Returns the size hint of current in-memory changes.
+    fn size_hint(&self) -> Option<usize>;
+}
+
+/// Wrapper for [BlockExecutor] that implements [BlockRangeExecutor]
+#[derive(Debug)]
+pub struct BlockRangeExecutorWrapper<Provider, Executor> {
+    provider: Provider,
+    executor: Executor,
+}
+
+impl<Provider, Executor> BlockRangeExecutor for BlockRangeExecutorWrapper<Provider, Executor>
+where
+    Provider: BlockReader,
+    Executor: BlockExecutor,
+{
+    /// Execute the range of blocks.
+    fn execute_range(
+        &mut self,
+        range: RangeInclusive<BlockNumber>,
+        should_verify_receipts: bool,
+    ) -> Result<(), BlockExecutionError> {
+        for block_number in range {
+            let td = self
+                .provider
+                .header_td_by_number(block_number)
+                .unwrap() // TODO:
+                .ok_or_else(|| ProviderError::HeaderNotFound(block_number.into()))?;
+
+            // we need the block's transactions but we don't need the transaction hashes
+            let block = self
+                .provider
+                .block_with_senders(block_number, TransactionVariant::NoHash)
+                .unwrap() // TODO:
+                .ok_or_else(|| ProviderError::BlockNotFound(block_number.into()))?;
+
+            let (block, senders) = block.into_components();
+            if should_verify_receipts {
+                self.executor.execute_and_verify_receipt(&block, td, Some(senders))?;
+            } else {
+                self.executor.execute(&block, td, Some(senders))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn take_output_state(&mut self) -> BundleStateWithReceipts {
+        self.executor.take_output_state()
+    }
+
+    fn stats(&self) -> BlockExecutorStats {
+        self.executor.stats()
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        self.executor.size_hint()
+    }
+}
+
+/// An [AsyncBlockExecutor] capable of in-memory pruning of the data that will be written to the
+/// database.
+pub trait PrunableBlockRangeExecutor: BlockRangeExecutor {
+    /// Set tip - highest known block number.
+    fn set_tip(&mut self, tip: BlockNumber);
+
+    /// Set prune modes.
+    fn set_prune_modes(&mut self, prune_modes: PruneModes);
+}
+
+impl<Provider, Executor> PrunableBlockRangeExecutor
+    for BlockRangeExecutorWrapper<Provider, Executor>
+where
+    Provider: BlockReader,
+    Executor: PrunableBlockExecutor,
+{
+    fn set_tip(&mut self, tip: BlockNumber) {
+        self.executor.set_tip(tip)
+    }
+
+    fn set_prune_modes(&mut self, prune_modes: PruneModes) {
+        self.executor.set_prune_modes(prune_modes)
+    }
 }
 
 /// Block execution statistics. Contains duration of each step of block execution.

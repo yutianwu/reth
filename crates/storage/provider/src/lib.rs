@@ -17,15 +17,16 @@
 mod traits;
 pub use traits::{
     AccountExtReader, AccountReader, BlockExecutionWriter, BlockExecutor, BlockExecutorStats,
-    BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt, BlockSource,
-    BlockWriter, BlockchainTreePendingStateProvider, BundleStateDataProvider, CanonChainTracker,
-    CanonStateNotification, CanonStateNotificationSender, CanonStateNotifications,
-    CanonStateSubscriptions, ChainSpecProvider, ChangeSetReader, EvmEnvProvider, ExecutorFactory,
-    HashingWriter, HeaderProvider, HistoryWriter, PrunableBlockExecutor, PruneCheckpointReader,
-    PruneCheckpointWriter, ReceiptProvider, ReceiptProviderIdExt, StageCheckpointReader,
-    StageCheckpointWriter, StateProvider, StateProviderBox, StateProviderFactory,
-    StateRootProvider, StorageReader, TransactionVariant, TransactionsProvider,
-    TransactionsProviderExt, WithdrawalsProvider,
+    BlockHashReader, BlockIdReader, BlockNumReader, BlockRangeExecutor, BlockRangeExecutorWrapper,
+    BlockReader, BlockReaderIdExt, BlockSource, BlockWriter, BlockchainTreePendingStateProvider,
+    BundleStateDataProvider, CanonChainTracker, CanonStateNotification,
+    CanonStateNotificationSender, CanonStateNotifications, CanonStateSubscriptions,
+    ChainSpecProvider, ChangeSetReader, EvmEnvProvider, ExecutorFactory, HashingWriter,
+    HeaderProvider, HistoryWriter, PrunableBlockExecutor, PrunableBlockRangeExecutor,
+    PruneCheckpointReader, PruneCheckpointWriter, RangeExecutorFactory, ReceiptProvider,
+    ReceiptProviderIdExt, StageCheckpointReader, StageCheckpointWriter, StateProvider,
+    StateProviderBox, StateProviderFactory, StateRootProvider, StorageReader, TransactionVariant,
+    TransactionsProvider, TransactionsProviderExt, WithdrawalsProvider,
 };
 
 /// Provider trait implementations.

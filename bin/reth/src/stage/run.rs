@@ -2,9 +2,13 @@
 //!
 //! Stage debugging tool
 use crate::{
-    args::{get_secret_key, utils::chain_spec_value_parser, DatabaseArgs, NetworkArgs, StageEnum},
+    args::{
+        get_secret_key, utils::chain_spec_value_parser, DatabaseArgs, ExecutionArgs, NetworkArgs,
+        StageEnum,
+    },
     dirs::{DataDirPath, MaybePlatformPath},
     prometheus_exporter,
+    runner::CliContext,
     version::SHORT_VERSION,
 };
 use clap::Parser;
@@ -96,6 +100,9 @@ pub struct Command {
     #[clap(flatten)]
     db: DatabaseArgs,
 
+    #[clap(flatten)]
+    execution: ExecutionArgs,
+
     /// Commits the changes in the database. WARNING: potentially destructive.
     ///
     /// Useful when you want to run diagnostics on the database.
@@ -107,7 +114,7 @@ pub struct Command {
 
 impl Command {
     /// Execute `stage` command
-    pub async fn execute(self) -> eyre::Result<()> {
+    pub async fn execute(self, ctx: CliContext) -> eyre::Result<()> {
         // Raise the fd limit of the process.
         // Does not do anything on windows.
         fdlimit::raise_fd_limit();
@@ -195,7 +202,10 @@ impl Command {
                 }
                 StageEnum::Senders => (Box::new(SenderRecoveryStage::new(batch_size)), None),
                 StageEnum::Execution => {
-                    let factory = reth_revm::Factory::new(self.chain.clone());
+                    let factory = self.execution.pipeline_executor_factory(
+                        self.chain.clone(),
+                        Box::new(ctx.task_executor.clone()),
+                    )?;
                     (
                         Box::new(ExecutionStage::new(
                             factory,

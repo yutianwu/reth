@@ -1,0 +1,34 @@
+[package]
+name = "reth-revm-parallel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "revm parallel execution"
+
+[dependencies]
+# reth 
+reth-primitives.workspace = true
+reth-interfaces.workspace = true
+reth-provider.workspace = true
+reth-tasks.workspace = true
+reth-revm-database = { path = "../revm-database" }
+reth-revm-executor = { path = "../revm-executor" }
+
+# revm
+revm.workspace = true
+
+# misc
+derive_more = "0.99"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+eyre.workspace = true # TODO:
+rayon.workspace = true
+dashmap = { version = "5", features = ["rayon", "raw-api"] }
+tracing.workspace = true
+async-trait.workspace = true
+parking_lot.workspace = true
+itertools.workspace = true
+tokio = { workspace = true, features = ["sync"] }
