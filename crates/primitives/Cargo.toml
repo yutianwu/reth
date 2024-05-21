@@ -108,6 +108,11 @@ optimism = [
     "reth-ethereum-forks/optimism",
     "revm/optimism",
 ]
+opbnb = [
+    "reth-ethereum-forks/opbnb",
+    "revm/opbnb",
+]
+
 alloy-compat = ["alloy-rpc-types"]
 test-utils = ["dep:plain_hasher", "dep:hash-db"]
 

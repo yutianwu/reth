@@ -7,6 +7,9 @@ pub use spec::{
 #[cfg(feature = "optimism")]
 pub use spec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET};
+
 #[cfg(feature = "optimism")]
 #[cfg(test)]
 pub(crate) use spec::{OP_BASE_FEE_PARAMS, OP_SEPOLIA_BASE_FEE_PARAMS};

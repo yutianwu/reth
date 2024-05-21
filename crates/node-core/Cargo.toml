@@ -109,6 +109,9 @@ optimism = [
     "reth-rpc-types-compat/optimism",
     "reth-beacon-consensus/optimism",
 ]
+opbnb = [
+    "reth-primitives/opbnb",
+]
 
 jemalloc = ["dep:tikv-jemalloc-ctl"]
 
