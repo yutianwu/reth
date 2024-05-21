@@ -68,11 +68,20 @@ pub enum Hardfork {
     /// Ecotone: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#ecotone>.
     #[cfg(feature = "optimism")]
     Ecotone,
+    /// PreContractForkBlock
+    #[cfg(all(feature = "optimism", feature = "opbnb"))]
+    PreContractForkBlock,
+    /// Fermat
+    #[cfg(all(feature = "optimism", feature = "opbnb"))]
+    Fermat,
     // ArbOS20Atlas,
 
     // Upcoming
     /// Prague: <https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/prague.md>
     Prague,
+    /// Fjord: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#fjord>
+    #[cfg(feature = "optimism")]
+    Fjord,
 }
 
 impl Hardfork {
@@ -551,6 +560,10 @@ impl FromStr for Hardfork {
             "bedrock" => Hardfork::Bedrock,
             #[cfg(feature = "optimism")]
             "regolith" => Hardfork::Regolith,
+            #[cfg(all(feature = "optimism", feature = "opbnb"))]
+            "precontractforkblock" => Hardfork::PreContractForkBlock,
+            #[cfg(all(feature = "optimism", feature = "opbnb"))]
+            "fermat" => Hardfork::Fermat,
             #[cfg(feature = "optimism")]
             "canyon" => Hardfork::Canyon,
             #[cfg(feature = "optimism")]
