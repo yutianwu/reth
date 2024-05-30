@@ -103,7 +103,7 @@ rust.missing_debug_implementations = "warn"
 rust.missing_docs = "warn"
 rust.unreachable_pub = "warn"
 rust.unused_must_use = "deny"
-rust.rust_2018_idioms = "deny"
+rust.rust_2018_idioms = { level = "deny", priority = -1 }
 rustdoc.all = "warn"
 
 [workspace.lints.clippy]
@@ -401,6 +401,6 @@ similar-asserts = "1.5.0"
 test-fuzz = "5"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm.git", rev = "f5cc71d" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm.git", rev = "f5cc71d" }
+revm = { git = "https://github.com/bnb-chain/revm.git", rev = "4be2578" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm.git", rev = "4be2578" }
 alloy-chains = { git = "https://github.com/alloy-rs/chains.git", rev = "906d6fb" }
