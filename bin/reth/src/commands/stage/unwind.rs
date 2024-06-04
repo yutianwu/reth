@@ -10,16 +10,12 @@ use reth_exex::ExExManagerHandle;
 use reth_node_core::args::NetworkArgs;
 use reth_primitives::{BlockHashOrNumber, ChainSpec, PruneModes, B256};
 use reth_provider::{
-    BlockExecutionWriter, BlockNumReader, ChainSpecProvider, HeaderSyncMode, ProviderFactory,
-    StaticFileProviderFactory,
+    providers::StaticFileProvider, BlockExecutionWriter, BlockNumReader, ChainSpecProvider,
+    HeaderSyncMode, ProviderFactory, StaticFileProviderFactory,
 };
 use reth_stages::{
     sets::DefaultStages,
-    stages::{
-        AccountHashingStage, ExecutionStage, ExecutionStageThresholds, IndexAccountHistoryStage,
-        IndexStorageHistoryStage, MerkleStage, SenderRecoveryStage, StorageHashingStage,
-        TransactionLookupStage,
-    },
+    stages::{ExecutionStage, ExecutionStageThresholds},
     Pipeline, StageSet,
 };
 use reth_static_file::StaticFileProducer;
@@ -30,25 +26,14 @@ use tracing::info;
 use crate::{
     args::{
         utils::{chain_help, genesis_value_parser, SUPPORTED_CHAINS},
-        DatabaseArgs,
+        DatabaseArgs, DatadirArgs,
     },
-    dirs::{DataDirPath, MaybePlatformPath},
     macros::block_executor,
 };
 
 /// `reth stage unwind` command
 #[derive(Debug, Parser)]
 pub struct Command {
-    /// The path to the data dir for all reth files and subdirectories.
-    ///
-    /// Defaults to the OS-specific data directory:
-    ///
-    /// - Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
-    /// - Windows: `{FOLDERID_RoamingAppData}/reth/`
-    /// - macOS: `$HOME/Library/Application Support/reth/`
-    #[arg(long, value_name = "DATA_DIR", verbatim_doc_comment, default_value_t, global = true)]
-    datadir: MaybePlatformPath<DataDirPath>,
-
     /// The chain this node is running.
     ///
     /// Possible values are either a built-in chain or the path to a chain specification file.
@@ -61,6 +46,9 @@ pub struct Command {
         global = true
     )]
     chain: Arc<ChainSpec>,
+
+    #[command(flatten)]
+    datadir: DatadirArgs,
 
     #[command(flatten)]
     db: DatabaseArgs,
@@ -76,7 +64,7 @@ impl Command {
     /// Execute `db stage unwind` command
     pub async fn execute(self) -> eyre::Result<()> {
         // add network name to data dir
-        let data_dir = self.datadir.unwrap_or_chain_default(self.chain.chain);
+        let data_dir = self.datadir.clone().resolve_datadir(self.chain.chain);
         let db_path = data_dir.db();
         if !db_path.exists() {
             eyre::bail!("Database {db_path:?} does not exist.")
@@ -85,8 +73,11 @@ impl Command {
         let config: Config = confy::load_path(config_path).unwrap_or_default();
 
         let db = Arc::new(open_db(db_path.as_ref(), self.db.database_args())?);
-        let provider_factory =
-            ProviderFactory::new(db, self.chain.clone(), data_dir.static_files())?;
+        let provider_factory = ProviderFactory::new(
+            db,
+            self.chain.clone(),
+            StaticFileProvider::read_write(data_dir.static_files())?,
+        );
 
         let range = self.command.unwind_range(provider_factory.clone())?;
         if *range.start() == 0 {
@@ -133,6 +124,7 @@ impl Command {
         let consensus: Arc<dyn Consensus> =
             Arc::new(EthBeaconConsensus::new(provider_factory.chain_spec()));
         let stage_conf = &config.stages;
+        let prune_modes = config.prune.clone().map(|prune| prune.segments).unwrap_or_default();
 
         let (tip_tx, tip_rx) = watch::channel(B256::ZERO);
         let executor = block_executor!(provider_factory.chain_spec());
@@ -148,11 +140,9 @@ impl Command {
                     NoopHeaderDownloader::default(),
                     NoopBodiesDownloader::default(),
                     executor.clone(),
-                    stage_conf.etl.clone(),
+                    stage_conf.clone(),
+                    prune_modes.clone(),
                 )
-                .set(SenderRecoveryStage {
-                    commit_threshold: stage_conf.sender_recovery.commit_threshold,
-                })
                 .set(ExecutionStage::new(
                     executor,
                     ExecutionStageThresholds {
@@ -161,20 +151,10 @@ impl Command {
                         max_cumulative_gas: None,
                         max_duration: None,
                     },
-                    stage_conf
-                        .merkle
-                        .clean_threshold
-                        .max(stage_conf.account_hashing.clean_threshold)
-                        .max(stage_conf.storage_hashing.clean_threshold),
-                    config.prune.clone().map(|prune| prune.segments).unwrap_or_default(),
+                    stage_conf.execution_external_clean_threshold(),
+                    prune_modes,
                     ExExManagerHandle::empty(),
-                ))
-                .set(AccountHashingStage::default())
-                .set(StorageHashingStage::default())
-                .set(MerkleStage::default_unwind())
-                .set(TransactionLookupStage::default())
-                .set(IndexAccountHistoryStage::default())
-                .set(IndexStorageHistoryStage::default()),
+                )),
             )
             .build(
                 provider_factory.clone(),
@@ -212,13 +192,13 @@ impl Subcommands {
         let provider = factory.provider()?;
         let last = provider.last_block_number()?;
         let target = match self {
-            Subcommands::ToBlock { target } => match target {
+            Self::ToBlock { target } => match target {
                 BlockHashOrNumber::Hash(hash) => provider
                     .block_number(*hash)?
                     .ok_or_else(|| eyre::eyre!("Block hash not found in database: {hash:?}"))?,
                 BlockHashOrNumber::Number(num) => *num,
             },
-            Subcommands::NumBlocks { amount } => last.saturating_sub(*amount),
+            Self::NumBlocks { amount } => last.saturating_sub(*amount),
         } + 1;
         if target > last {
             eyre::bail!("Target block number is higher than the latest block number")

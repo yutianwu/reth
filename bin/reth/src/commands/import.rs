@@ -3,9 +3,8 @@
 use crate::{
     args::{
         utils::{chain_help, genesis_value_parser, SUPPORTED_CHAINS},
-        DatabaseArgs,
+        DatabaseArgs, DatadirArgs,
     },
-    dirs::{DataDirPath, MaybePlatformPath},
     macros::block_executor,
     version::SHORT_VERSION,
 };
@@ -16,28 +15,24 @@ use reth_beacon_consensus::EthBeaconConsensus;
 use reth_config::{config::EtlConfig, Config};
 use reth_consensus::Consensus;
 use reth_db::{database::Database, init_db, tables, transaction::DbTx};
+use reth_db_common::init::init_genesis;
 use reth_downloaders::{
     bodies::bodies::BodiesDownloaderBuilder,
     file_client::{ChunkedFileReader, FileClient, DEFAULT_BYTE_LEN_CHUNK_CHAIN_FILE},
     headers::reverse_headers::ReverseHeadersDownloaderBuilder,
 };
-use reth_exex::ExExManagerHandle;
-use reth_interfaces::p2p::{
+use reth_network_p2p::{
     bodies::downloader::BodyDownloader,
     headers::downloader::{HeaderDownloader, SyncTarget},
 };
-use reth_node_core::init::init_genesis;
 use reth_node_events::node::NodeEvent;
 use reth_primitives::{stage::StageId, ChainSpec, PruneModes, B256};
 use reth_provider::{
-    BlockNumReader, ChainSpecProvider, HeaderProvider, HeaderSyncMode, ProviderError,
-    ProviderFactory, StageCheckpointReader, StaticFileProviderFactory,
+    providers::StaticFileProvider, BlockNumReader, ChainSpecProvider, HeaderProvider,
+    HeaderSyncMode, ProviderError, ProviderFactory, StageCheckpointReader,
+    StaticFileProviderFactory,
 };
-use reth_stages::{
-    prelude::*,
-    stages::{ExecutionStage, ExecutionStageThresholds, SenderRecoveryStage},
-    Pipeline, StageSet,
-};
+use reth_stages::{prelude::*, Pipeline, StageSet};
 use reth_static_file::StaticFileProducer;
 use std::{path::PathBuf, sync::Arc};
 use tokio::sync::watch;
@@ -49,16 +44,6 @@ pub struct ImportCommand {
     /// The path to the configuration file to use.
     #[arg(long, value_name = "FILE", verbatim_doc_comment)]
     config: Option<PathBuf>,
-
-    /// The path to the data dir for all reth files and subdirectories.
-    ///
-    /// Defaults to the OS-specific data directory:
-    ///
-    /// - Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
-    /// - Windows: `{FOLDERID_RoamingAppData}/reth/`
-    /// - macOS: `$HOME/Library/Application Support/reth/`
-    #[arg(long, value_name = "DATA_DIR", verbatim_doc_comment, default_value_t)]
-    datadir: MaybePlatformPath<DataDirPath>,
 
     /// The chain this node is running.
     ///
@@ -76,9 +61,12 @@ pub struct ImportCommand {
     #[arg(long, verbatim_doc_comment)]
     no_state: bool,
 
-    /// Chunk byte length.
+    /// Chunk byte length to read from file.
     #[arg(long, value_name = "CHUNK_LEN", verbatim_doc_comment)]
     chunk_len: Option<u64>,
+
+    #[command(flatten)]
+    datadir: DatadirArgs,
 
     #[command(flatten)]
     db: DatabaseArgs,
@@ -106,7 +94,7 @@ impl ImportCommand {
         );
 
         // add network name to data dir
-        let data_dir = self.datadir.unwrap_or_chain_default(self.chain.chain);
+        let data_dir = self.datadir.resolve_datadir(self.chain.chain);
         let config_path = self.config.clone().unwrap_or_else(|| data_dir.config());
 
         let mut config: Config = load_config(config_path.clone())?;
@@ -122,8 +110,11 @@ impl ImportCommand {
         info!(target: "reth::cli", path = ?db_path, "Opening database");
         let db = Arc::new(init_db(db_path, self.db.database_args())?);
         info!(target: "reth::cli", "Database opened");
-        let provider_factory =
-            ProviderFactory::new(db.clone(), self.chain.clone(), data_dir.static_files())?;
+        let provider_factory = ProviderFactory::new(
+            db.clone(),
+            self.chain.clone(),
+            StaticFileProvider::read_write(data_dir.static_files())?,
+        );
 
         debug!(target: "reth::cli", chain=%self.chain.chain, genesis=?self.chain.genesis_hash(), "Initializing genesis");
 
@@ -224,7 +215,7 @@ pub async fn build_import_pipeline<DB, C>(
     consensus: &Arc<C>,
     file_client: Arc<FileClient>,
     static_file_producer: StaticFileProducer<DB>,
-    should_exec: bool,
+    disable_exec: bool,
 ) -> eyre::Result<(Pipeline<DB>, impl Stream<Item = NodeEvent>)>
 where
     DB: Database + Clone + Unpin + 'static,
@@ -262,7 +253,7 @@ where
 
     let max_block = file_client.max_block().unwrap_or(0);
 
-    let mut pipeline = Pipeline::builder()
+    let pipeline = Pipeline::builder()
         .with_tip_sender(tip_tx)
         // we want to sync all blocks the file client provides or 0 if empty
         .with_max_block(max_block)
@@ -273,30 +264,12 @@ where
                 consensus.clone(),
                 header_downloader,
                 body_downloader,
-                executor.clone(),
-                config.stages.etl.clone(),
-            )
-            .set(SenderRecoveryStage {
-                commit_threshold: config.stages.sender_recovery.commit_threshold,
-            })
-            .set(ExecutionStage::new(
                 executor,
-                ExecutionStageThresholds {
-                    max_blocks: config.stages.execution.max_blocks,
-                    max_changes: config.stages.execution.max_changes,
-                    max_cumulative_gas: config.stages.execution.max_cumulative_gas,
-                    max_duration: config.stages.execution.max_duration,
-                },
-                config
-                    .stages
-                    .merkle
-                    .clean_threshold
-                    .max(config.stages.account_hashing.clean_threshold)
-                    .max(config.stages.storage_hashing.clean_threshold),
-                config.prune.as_ref().map(|prune| prune.segments.clone()).unwrap_or_default(),
-                ExExManagerHandle::empty(),
-            ))
-            .disable_all_if(&StageId::STATE_REQUIRED, || should_exec),
+                config.stages.clone(),
+                PruneModes::default(),
+            )
+            .builder()
+            .disable_all_if(&StageId::STATE_REQUIRED, || disable_exec),
         )
         .build(provider_factory, static_file_producer);
 

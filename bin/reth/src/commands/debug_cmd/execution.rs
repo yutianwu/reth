@@ -4,9 +4,8 @@ use crate::{
     args::{
         get_secret_key,
         utils::{chain_help, genesis_value_parser, SUPPORTED_CHAINS},
-        DatabaseArgs, NetworkArgs,
+        DatabaseArgs, DatadirArgs, NetworkArgs,
     },
-    dirs::{DataDirPath, MaybePlatformPath},
     macros::block_executor,
     utils::get_single_header,
 };
@@ -17,25 +16,26 @@ use reth_cli_runner::CliContext;
 use reth_config::{config::EtlConfig, Config};
 use reth_consensus::Consensus;
 use reth_db::{database::Database, init_db, DatabaseEnv};
+use reth_db_common::init::init_genesis;
 use reth_downloaders::{
     bodies::bodies::BodiesDownloaderBuilder,
     headers::reverse_headers::ReverseHeadersDownloaderBuilder,
 };
 use reth_exex::ExExManagerHandle;
-use reth_interfaces::p2p::{bodies::client::BodiesClient, headers::client::HeadersClient};
+use reth_fs_util as fs;
 use reth_network::{NetworkEvents, NetworkHandle};
 use reth_network_api::NetworkInfo;
-use reth_node_core::init::init_genesis;
+use reth_network_p2p::{bodies::client::BodiesClient, headers::client::HeadersClient};
 use reth_primitives::{
-    fs, stage::StageId, BlockHashOrNumber, BlockNumber, ChainSpec, PruneModes, B256,
+    stage::StageId, BlockHashOrNumber, BlockNumber, ChainSpec, PruneModes, B256,
 };
 use reth_provider::{
-    BlockExecutionWriter, HeaderSyncMode, ProviderFactory, StageCheckpointReader,
-    StaticFileProviderFactory,
+    providers::StaticFileProvider, BlockExecutionWriter, HeaderSyncMode, ProviderFactory,
+    StageCheckpointReader, StaticFileProviderFactory,
 };
 use reth_stages::{
     sets::DefaultStages,
-    stages::{ExecutionStage, ExecutionStageThresholds, SenderRecoveryStage},
+    stages::{ExecutionStage, ExecutionStageThresholds},
     Pipeline, StageSet,
 };
 use reth_static_file::StaticFileProducer;
@@ -47,16 +47,6 @@ use tracing::*;
 /// `reth debug execution` command
 #[derive(Debug, Parser)]
 pub struct Command {
-    /// The path to the data dir for all reth files and subdirectories.
-    ///
-    /// Defaults to the OS-specific data directory:
-    ///
-    /// - Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
-    /// - Windows: `{FOLDERID_RoamingAppData}/reth/`
-    /// - macOS: `$HOME/Library/Application Support/reth/`
-    #[arg(long, value_name = "DATA_DIR", verbatim_doc_comment, default_value_t)]
-    datadir: MaybePlatformPath<DataDirPath>,
-
     /// The chain this node is running.
     ///
     /// Possible values are either a built-in chain or the path to a chain specification file.
@@ -68,6 +58,9 @@ pub struct Command {
         value_parser = genesis_value_parser
     )]
     chain: Arc<ChainSpec>,
+
+    #[command(flatten)]
+    datadir: DatadirArgs,
 
     #[command(flatten)]
     network: NetworkArgs,
@@ -109,6 +102,7 @@ impl Command {
             .into_task_with(task_executor);
 
         let stage_conf = &config.stages;
+        let prune_modes = config.prune.clone().map(|prune| prune.segments).unwrap_or_default();
 
         let (tip_tx, tip_rx) = watch::channel(B256::ZERO);
         let executor = block_executor!(self.chain.clone());
@@ -124,11 +118,9 @@ impl Command {
                     header_downloader,
                     body_downloader,
                     executor.clone(),
-                    stage_conf.etl.clone(),
+                    stage_conf.clone(),
+                    prune_modes.clone(),
                 )
-                .set(SenderRecoveryStage {
-                    commit_threshold: stage_conf.sender_recovery.commit_threshold,
-                })
                 .set(ExecutionStage::new(
                     executor,
                     ExecutionStageThresholds {
@@ -137,12 +129,8 @@ impl Command {
                         max_cumulative_gas: None,
                         max_duration: None,
                     },
-                    stage_conf
-                        .merkle
-                        .clean_threshold
-                        .max(stage_conf.account_hashing.clean_threshold)
-                        .max(stage_conf.storage_hashing.clean_threshold),
-                    config.prune.clone().map(|prune| prune.segments).unwrap_or_default(),
+                    stage_conf.execution_external_clean_threshold(),
+                    prune_modes,
                     ExExManagerHandle::empty(),
                 )),
             )
@@ -155,7 +143,7 @@ impl Command {
         &self,
         config: &Config,
         task_executor: TaskExecutor,
-        db: Arc<DatabaseEnv>,
+        provider_factory: ProviderFactory<Arc<DatabaseEnv>>,
         network_secret_path: PathBuf,
         default_peers_path: PathBuf,
     ) -> eyre::Result<NetworkHandle> {
@@ -169,11 +157,7 @@ impl Command {
                 self.network.discovery.addr,
                 self.network.discovery.port,
             ))
-            .build(ProviderFactory::new(
-                db,
-                self.chain.clone(),
-                self.datadir.unwrap_or_chain_default(self.chain.chain).static_files(),
-            )?)
+            .build(provider_factory)
             .start_network()
             .await?;
         info!(target: "reth::cli", peer_id = %network.peer_id(), local_addr = %network.local_addr(), "Connected to P2P network");
@@ -204,7 +188,7 @@ impl Command {
     pub async fn execute(self, ctx: CliContext) -> eyre::Result<()> {
         let mut config = Config::default();
 
-        let data_dir = self.datadir.unwrap_or_chain_default(self.chain.chain);
+        let data_dir = self.datadir.clone().resolve_datadir(self.chain.chain);
         let db_path = data_dir.db();
 
         // Make sure ETL doesn't default to /tmp/, but to whatever datadir is set to
@@ -214,8 +198,11 @@ impl Command {
 
         fs::create_dir_all(&db_path)?;
         let db = Arc::new(init_db(db_path, self.db.database_args())?);
-        let provider_factory =
-            ProviderFactory::new(db.clone(), self.chain.clone(), data_dir.static_files())?;
+        let provider_factory = ProviderFactory::new(
+            db.clone(),
+            self.chain.clone(),
+            StaticFileProvider::read_write(data_dir.static_files())?,
+        );
 
         debug!(target: "reth::cli", chain=%self.chain.chain, genesis=?self.chain.genesis_hash(), "Initializing genesis");
         init_genesis(provider_factory.clone())?;
@@ -230,7 +217,7 @@ impl Command {
             .build_network(
                 &config,
                 ctx.task_executor.clone(),
-                db.clone(),
+                provider_factory.clone(),
                 network_secret_path,
                 data_dir.known_peers(),
             )

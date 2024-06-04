@@ -4,9 +4,8 @@ use crate::{
     args::{
         get_secret_key,
         utils::{chain_help, genesis_value_parser, SUPPORTED_CHAINS},
-        DatabaseArgs, NetworkArgs,
+        DatabaseArgs, DatadirArgs, NetworkArgs,
     },
-    dirs::{DataDirPath, MaybePlatformPath},
     macros::block_executor,
     utils::{get_single_body, get_single_header},
 };
@@ -15,15 +14,16 @@ use clap::Parser;
 use reth_cli_runner::CliContext;
 use reth_config::Config;
 use reth_db::{init_db, DatabaseEnv};
+use reth_errors::BlockValidationError;
 use reth_evm::execute::{BlockExecutionOutput, BlockExecutorProvider, Executor};
-use reth_interfaces::executor::BlockValidationError;
+use reth_fs_util as fs;
 use reth_network::NetworkHandle;
 use reth_network_api::NetworkInfo;
-use reth_primitives::{fs, stage::StageId, BlockHashOrNumber, ChainSpec, Receipts};
+use reth_primitives::{stage::StageId, BlockHashOrNumber, ChainSpec, Receipts};
 use reth_provider::{
-    AccountExtReader, BundleStateWithReceipts, HashingWriter, HeaderProvider,
-    LatestStateProviderRef, OriginalValuesKnown, ProviderFactory, StageCheckpointReader,
-    StateWriter, StaticFileProviderFactory, StorageReader,
+    providers::StaticFileProvider, AccountExtReader, BundleStateWithReceipts, HashingWriter,
+    HeaderProvider, LatestStateProviderRef, OriginalValuesKnown, ProviderFactory,
+    StageCheckpointReader, StateWriter, StaticFileProviderFactory, StorageReader,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_tasks::TaskExecutor;
@@ -37,16 +37,6 @@ use tracing::*;
 /// merkle root for it.
 #[derive(Debug, Parser)]
 pub struct Command {
-    /// The path to the data dir for all reth files and subdirectories.
-    ///
-    /// Defaults to the OS-specific data directory:
-    ///
-    /// - Linux: `$XDG_DATA_HOME/reth/` or `$HOME/.local/share/reth/`
-    /// - Windows: `{FOLDERID_RoamingAppData}/reth/`
-    /// - macOS: `$HOME/Library/Application Support/reth/`
-    #[arg(long, value_name = "DATA_DIR", verbatim_doc_comment, default_value_t)]
-    datadir: MaybePlatformPath<DataDirPath>,
-
     /// The chain this node is running.
     ///
     /// Possible values are either a built-in chain or the path to a chain specification file.
@@ -58,6 +48,9 @@ pub struct Command {
         value_parser = genesis_value_parser
     )]
     chain: Arc<ChainSpec>,
+
+    #[command(flatten)]
+    datadir: DatadirArgs,
 
     #[command(flatten)]
     db: DatabaseArgs,
@@ -79,7 +72,7 @@ impl Command {
         &self,
         config: &Config,
         task_executor: TaskExecutor,
-        db: Arc<DatabaseEnv>,
+        provider_factory: ProviderFactory<Arc<DatabaseEnv>>,
         network_secret_path: PathBuf,
         default_peers_path: PathBuf,
     ) -> eyre::Result<NetworkHandle> {
@@ -93,11 +86,7 @@ impl Command {
                 self.network.discovery.addr,
                 self.network.discovery.port,
             ))
-            .build(ProviderFactory::new(
-                db,
-                self.chain.clone(),
-                self.datadir.unwrap_or_chain_default(self.chain.chain).static_files(),
-            )?)
+            .build(provider_factory)
             .start_network()
             .await?;
         info!(target: "reth::cli", peer_id = %network.peer_id(), local_addr = %network.local_addr(), "Connected to P2P network");
@@ -110,13 +99,15 @@ impl Command {
         let config = Config::default();
 
         // add network name to data dir
-        let data_dir = self.datadir.unwrap_or_chain_default(self.chain.chain);
+        let data_dir = self.datadir.clone().resolve_datadir(self.chain.chain);
         let db_path = data_dir.db();
         fs::create_dir_all(&db_path)?;
 
         // initialize the database
         let db = Arc::new(init_db(db_path, self.db.database_args())?);
-        let factory = ProviderFactory::new(&db, self.chain.clone(), data_dir.static_files())?;
+        let static_file_provider = StaticFileProvider::read_write(data_dir.static_files())?;
+        let factory =
+            ProviderFactory::new(db.clone(), self.chain.clone(), static_file_provider.clone());
         let provider = factory.provider()?;
 
         // Look up merkle checkpoint
@@ -133,7 +124,7 @@ impl Command {
             .build_network(
                 &config,
                 ctx.task_executor.clone(),
-                db.clone(),
+                factory.clone(),
                 network_secret_path,
                 data_dir.known_peers(),
             )

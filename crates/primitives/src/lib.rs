@@ -19,6 +19,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 mod account;
+#[cfg(feature = "alloy-compat")]
+mod alloy_compat;
 pub mod basefee;
 mod block;
 mod chain;
@@ -28,7 +30,6 @@ pub mod constants;
 pub mod eip4844;
 mod error;
 mod exex;
-pub mod fs;
 pub mod genesis;
 mod header;
 mod integer_list;
@@ -37,16 +38,15 @@ mod net;
 pub mod proofs;
 mod prune;
 mod receipt;
+mod request;
 /// Helpers for working with revm
 pub mod revm;
 pub mod stage;
-pub mod static_file;
+pub use reth_static_file_types as static_file;
 mod storage;
-/// Helpers for working with transactions
 pub mod transaction;
 pub mod trie;
 mod withdrawal;
-
 pub use account::{Account, Bytecode};
 #[cfg(any(test, feature = "arbitrary"))]
 pub use block::{generate_valid_header, valid_header_strategy};
@@ -56,14 +56,14 @@ pub use block::{
 };
 pub use chain::{
     AllGenesisFormats, BaseFeeParams, BaseFeeParamsKind, Chain, ChainInfo, ChainKind, ChainSpec,
-    ChainSpecBuilder, DisplayHardforks, ForkBaseFeeParams, ForkCondition, NamedChain, DEV, GOERLI,
-    HOLESKY, MAINNET, SEPOLIA,
+    ChainSpecBuilder, DepositContract, DisplayHardforks, ForkBaseFeeParams, ForkCondition,
+    NamedChain, DEV, GOERLI, HOLESKY, MAINNET, SEPOLIA,
 };
 #[cfg(feature = "zstd-codec")]
 pub use compression::*;
 pub use constants::{
     DEV_GENESIS_HASH, EMPTY_OMMER_ROOT_HASH, GOERLI_GENESIS_HASH, HOLESKY_GENESIS_HASH,
-    KECCAK_EMPTY, MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
+    KECCAK_EMPTY, MAINNET_DEPOSIT_CONTRACT, MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
 };
 pub use error::{GotExpected, GotExpectedBoxed};
 pub use exex::FinishedExExHeight;
@@ -81,7 +81,10 @@ pub use prune::{
     PrunePurpose, PruneSegment, PruneSegmentError, ReceiptsLogPruneConfig,
     MINIMUM_PRUNING_DISTANCE,
 };
-pub use receipt::{Receipt, ReceiptWithBloom, ReceiptWithBloomRef, Receipts};
+pub use receipt::{
+    gas_spent_by_transactions, Receipt, ReceiptWithBloom, ReceiptWithBloomRef, Receipts,
+};
+pub use request::Requests;
 pub use static_file::StaticFileSegment;
 pub use storage::StorageEntry;
 
@@ -106,6 +109,7 @@ pub use withdrawal::{Withdrawal, Withdrawals};
 
 // Re-exports
 pub use self::ruint::UintTryTo;
+pub use alloy_consensus::Request;
 pub use alloy_primitives::{
     self, address, b256, bloom, bytes,
     bytes::{Buf, BufMut, BytesMut},
@@ -115,7 +119,7 @@ pub use alloy_primitives::{
     StorageValue, TxHash, TxIndex, TxKind, TxNumber, B128, B256, B512, B64, U128, U256, U64, U8,
 };
 pub use reth_ethereum_forks::*;
-pub use revm_primitives::{self, JumpMap};
+pub use revm_primitives::{self, JumpTable};
 
 #[doc(hidden)]
 #[deprecated = "use B64 instead"]
