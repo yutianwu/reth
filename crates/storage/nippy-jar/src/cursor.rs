@@ -53,12 +53,12 @@ impl<'a, H: NippyJarHeader> NippyJarCursor<'a, H> {
     }
 
     /// Returns a reference to the related [`NippyJar`]
-    pub fn jar(&self) -> &NippyJar<H> {
+    pub const fn jar(&self) -> &NippyJar<H> {
         self.jar
     }
 
     /// Returns current row index of the cursor
-    pub fn row_index(&self) -> u64 {
+    pub const fn row_index(&self) -> u64 {
         self.row
     }
 
@@ -86,11 +86,11 @@ impl<'a, H: NippyJarHeader> NippyJarCursor<'a, H> {
                         .offsets_index
                         .access(row_index as usize)
                         .expect("built from same set") as u64;
-                    return self.next_row()
+                    return self.next_row();
                 }
             }
         } else {
-            return Err(NippyJarError::UnsupportedFilterQuery)
+            return Err(NippyJarError::UnsupportedFilterQuery);
         }
 
         Ok(None)
@@ -108,7 +108,7 @@ impl<'a, H: NippyJarHeader> NippyJarCursor<'a, H> {
 
         if self.row as usize >= self.jar.rows {
             // Has reached the end
-            return Ok(None)
+            return Ok(None);
         }
 
         let mut row = Vec::with_capacity(self.jar.columns);
@@ -154,11 +154,11 @@ impl<'a, H: NippyJarHeader> NippyJarCursor<'a, H> {
                         .offsets_index
                         .access(row_index as usize)
                         .expect("built from same set") as u64;
-                    return self.next_row_with_cols(mask)
+                    return self.next_row_with_cols(mask);
                 }
             }
         } else {
-            return Err(NippyJarError::UnsupportedFilterQuery)
+            return Err(NippyJarError::UnsupportedFilterQuery);
         }
 
         Ok(None)
@@ -182,7 +182,7 @@ impl<'a, H: NippyJarHeader> NippyJarCursor<'a, H> {
 
         if self.row as usize >= self.jar.rows {
             // Has reached the end
-            return Ok(None)
+            return Ok(None);
         }
 
         let columns = self.jar.columns;
