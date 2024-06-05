@@ -23,7 +23,6 @@ use reth_primitives::{GOERLI, HOLESKY, MAINNET, SEPOLIA};
 
 #[cfg(feature = "optimism")]
 /// Chains supported by op-reth. First value should be used as the default.
-pub const SUPPORTED_CHAINS: &[&str] = &["optimism", "optimism-sepolia", "base", "base-sepolia"];
 pub const SUPPORTED_CHAINS: &[&str] =
     &["optimism", "optimism-sepolia", "base", "base-sepolia", "opbnb-mainnet", "opbnb-testnet"];
 #[cfg(not(feature = "optimism"))]

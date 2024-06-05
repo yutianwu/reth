@@ -68,7 +68,7 @@ pub enum Hardfork {
     /// Ecotone: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#ecotone>.
     #[cfg(feature = "optimism")]
     Ecotone,
-    /// PreContractForkBlock
+    /// `PreContractForkBlock`
     #[cfg(all(feature = "optimism", feature = "opbnb"))]
     PreContractForkBlock,
     /// Fermat
@@ -564,18 +564,18 @@ impl FromStr for Hardfork {
             #[cfg(feature = "optimism")]
             "regolith" => Self::Regolith,
             #[cfg(all(feature = "optimism", feature = "opbnb"))]
-            "precontractforkblock" => Hardfork::PreContractForkBlock,
+            "precontractforkblock" => Self::PreContractForkBlock,
             #[cfg(all(feature = "optimism", feature = "opbnb"))]
-            "fermat" => Hardfork::Fermat,
+            "fermat" => Self::Fermat,
             #[cfg(all(feature = "optimism", feature = "opbnb"))]
-            "haber" => Hardfork::Haber,
+            "haber" => Self::Haber,
             #[cfg(feature = "optimism")]
             "canyon" => Self::Canyon,
             #[cfg(feature = "optimism")]
             "ecotone" => Self::Ecotone,
             "prague" => Self::Prague,
-            // "arbos11" => Hardfork::ArbOS11,
-            // "arbos20atlas" => Hardfork::ArbOS20Atlas,
+            // "arbos11" => Self::ArbOS11,
+            // "arbos20atlas" => Self::ArbOS20Atlas,
             _ => return Err(format!("Unknown hardfork: {s}")),
         })
     }

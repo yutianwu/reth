@@ -433,7 +433,11 @@ similar-asserts = "1.5.0"
 test-fuzz = "5"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm.git", rev = "2f38e6c" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm.git", rev = "2f38e6c" }
-revm-precompile = { git = "https://github.com/bnb-chain/revm.git", rev = "2f38e6c" }
+revm = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
+revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
+revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
 alloy-chains = { git = "https://github.com/alloy-rs/chains.git", rev = "906d6fb" }
+
+[patch."https://github.com/bluealloy/revm"]
+revm = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }

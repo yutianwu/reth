@@ -10,8 +10,8 @@ use reth_evm::{
 };
 use reth_optimism_consensus::validate_block_post_execution;
 use reth_primitives::{
-    Address, BlockNumber, BlockWithSenders, ChainSpec,  Hardfork, Header, PruneModes,
-    Receipt, Receipts, TxType, Withdrawals, U256,
+    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header, PruneModes, Receipt,
+    Receipts, TxType, Withdrawals, U256,
 };
 use reth_revm::{
     batch::{BlockBatchRecord, BlockExecutorStats},
@@ -19,9 +19,10 @@ use reth_revm::{
     state_change::{apply_beacon_root_contract_call, post_block_balance_increments},
     Evm, State,
 };
+use revm::db::states::StorageSlot;
 use revm_primitives::{
     db::{Database, DatabaseCommit},
-    BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ResultAndState, StorageSlot,
+    BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ResultAndState,
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tracing::trace;

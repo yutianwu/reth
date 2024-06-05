@@ -63,7 +63,7 @@ build: ## Build the reth binary into `target` directory.
 
 .PHONY: build-op
 build-op: ## Build the op-reth binary into `target` directory.
-	cargo build --bin op-reth --features "optimism,$(FEATURES)" --profile "$(PROFILE)"
+	cargo build --bin op-reth --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)"
 
 # Builds the reth binary natively.
 build-native-%:
