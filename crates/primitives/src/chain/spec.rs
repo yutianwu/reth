@@ -544,6 +544,49 @@ pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     .into()
 });
 
+/// The opBNB qa spec
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
+    ChainSpec {
+        chain: Chain::opbnb_qa(),
+        genesis: serde_json::from_str(include_str!("../../res/genesis/opbnb_qa.json"))
+            .expect("Can't deserialize opBNB qa genesis json"),
+        genesis_hash: Some(b256!(
+            "5f13c16ce5db9be85e3e86d29272e3f0ef6f8737c574928ad93315cd3e664c8c"
+        )),
+        paris_block_and_final_difficulty: Some((0, U256::from(0))),
+        hardforks: BTreeMap::from([
+            (Hardfork::Frontier, ForkCondition::Block(0)),
+            (Hardfork::Homestead, ForkCondition::Block(0)),
+            (Hardfork::Tangerine, ForkCondition::Block(0)),
+            (Hardfork::SpuriousDragon, ForkCondition::Block(0)),
+            (Hardfork::Byzantium, ForkCondition::Block(0)),
+            (Hardfork::Constantinople, ForkCondition::Block(0)),
+            (Hardfork::Petersburg, ForkCondition::Block(0)),
+            (Hardfork::Istanbul, ForkCondition::Block(0)),
+            (Hardfork::MuirGlacier, ForkCondition::Block(0)),
+            (Hardfork::Berlin, ForkCondition::Block(0)),
+            (Hardfork::London, ForkCondition::Block(0)),
+            (Hardfork::ArrowGlacier, ForkCondition::Block(0)),
+            (Hardfork::GrayGlacier, ForkCondition::Block(0)),
+            (
+                Hardfork::Paris,
+                ForkCondition::TTD { fork_block: Some(0), total_difficulty: U256::from(0) },
+            ),
+            (Hardfork::Bedrock, ForkCondition::Block(0)),
+            (Hardfork::Regolith, ForkCondition::Timestamp(0)),
+            (Hardfork::Shanghai, ForkCondition::Timestamp(1713343221)),
+            (Hardfork::Canyon, ForkCondition::Timestamp(1713343221)),
+        ]),
+        base_fee_params: BaseFeeParamsKind::Variable(
+            vec![(Hardfork::London, BaseFeeParams::ethereum())].into(),
+        ),
+        prune_delete_limit: 0,
+        ..Default::default()
+    }
+    .into()
+});
+
 /// A wrapper around [`BaseFeeParams`] that allows for specifying constant or dynamic EIP-1559
 /// parameters based on the active [Hardfork].
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

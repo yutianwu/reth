@@ -437,7 +437,7 @@ revm = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b0
 revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
 revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
 revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }
-alloy-chains = { git = "https://github.com/alloy-rs/chains.git", rev = "906d6fb" }
+alloy-chains = { git = "https://github.com/j75689/alloy-rs-chains", rev = "ddf6cffc23d60c267c0dada3066b1f0b802ed7f9" }
 
 [patch."https://github.com/bluealloy/revm"]
 revm = { git = "https://github.com/bnb-chain/revm", rev = "b4c100bec637244f2c5b018f592c96c6e33eecbd" }

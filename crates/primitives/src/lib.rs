@@ -147,7 +147,7 @@ pub use c_kzg as kzg;
 #[cfg(feature = "optimism")]
 mod optimism {
     #[cfg(all(feature = "optimism", feature = "opbnb"))]
-    pub use crate::chain::{OPBNB_MAINNET, OPBNB_TESTNET};
+    pub use crate::chain::{OPBNB_MAINNET, OPBNB_TESTNET, OPBNB_QA};
     pub use crate::{
         chain::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA},
         net::{

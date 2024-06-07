@@ -9,7 +9,7 @@ pub use spec::{
 pub use spec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 
 #[cfg(all(feature = "optimism", feature = "opbnb"))]
-pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET};
+pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET, OPBNB_QA};
 
 #[cfg(feature = "optimism")]
 #[cfg(test)]
