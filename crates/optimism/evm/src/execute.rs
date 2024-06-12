@@ -25,7 +25,7 @@ use revm_primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ResultAndState,
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
-use tracing::trace;
+use tracing::{info, trace};
 
 /// Provides executors to execute regular ethereum blocks
 #[derive(Debug, Clone)]
@@ -185,9 +185,10 @@ where
                 }
             })?;
 
-            trace!(
+            info!(
                 target: "evm",
                 ?transaction,
+                ?result,
                 "Executed transaction"
             );
 
