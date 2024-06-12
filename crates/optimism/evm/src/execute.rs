@@ -217,6 +217,13 @@ where
         }
         drop(evm);
 
+        info!(
+            target: "evm",
+            ?receipts,
+            ?cumulative_gas_used,
+            "Executed transactions"
+        );
+
         Ok((receipts, cumulative_gas_used))
     }
 }
