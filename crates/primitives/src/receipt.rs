@@ -13,6 +13,7 @@ use std::{
     cmp::Ordering,
     ops::{Deref, DerefMut},
 };
+use tracing::info;
 
 /// Receipt containing result of transaction execution.
 #[cfg_attr(feature = "zstd-codec", main_codec(no_arbitrary, zstd))]
@@ -537,6 +538,7 @@ impl<'a> ReceiptWithBloomEncoder<'a> {
             }
             #[cfg(feature = "optimism")]
             TxType::Deposit => {
+                info!("Encoding deposit receipt with type 0x7E");
                 out.put_u8(0x7E);
             }
         }

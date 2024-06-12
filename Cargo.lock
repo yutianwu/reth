@@ -7763,6 +7763,7 @@ dependencies = [
  "derive_more",
  "hash-db",
  "itertools 0.12.1",
+ "log",
  "modular-bitfield",
  "nybbles",
  "once_cell",
@@ -7787,6 +7788,7 @@ dependencies = [
  "test-fuzz",
  "thiserror",
  "toml",
+ "tracing",
  "triehash",
  "zstd",
 ]

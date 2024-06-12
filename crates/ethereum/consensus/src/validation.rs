@@ -57,6 +57,7 @@ fn verify_receipts(
 ) -> Result<(), ConsensusError> {
     // Calculate receipts root.
     let receipts_with_bloom = receipts.iter().map(Receipt::with_bloom_ref).collect::<Vec<_>>();
+
     let receipts_root = reth_primitives::proofs::calculate_receipt_root_ref(&receipts_with_bloom);
 
     // Calculate header logs bloom.

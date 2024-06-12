@@ -29,6 +29,7 @@ use std::{
     ops::{Deref, DerefMut},
     time::Instant,
 };
+use tracing::info;
 
 /// A chain in the blockchain tree that has functionality to execute blocks and append them to
 /// itself.
@@ -211,6 +212,12 @@ impl AppendableChain {
 
         let state = executor.execute((&block, U256::MAX).into())?;
         let BlockExecutionOutput { state, receipts, requests, .. } = state;
+
+        info!(
+            target: "blockchain_tree::chain",
+            ?receipts,
+            "Executed block"
+        );
         externals
             .consensus
             .validate_block_post_execution(&block, PostExecutionInput::new(&receipts, &requests))?;
