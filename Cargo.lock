@@ -7680,9 +7680,11 @@ dependencies = [
 name = "reth-optimism-consensus"
 version = "0.2.0-beta.8"
 dependencies = [
+ "log",
  "reth-consensus",
  "reth-consensus-common",
  "reth-primitives",
+ "tracing",
 ]
 
 [[package]]

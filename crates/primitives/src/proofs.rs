@@ -93,7 +93,10 @@ pub fn calculate_receipt_root_optimism(
     if chain_spec.is_fork_active_at_timestamp(crate::Hardfork::Regolith, timestamp) &&
         !chain_spec.is_fork_active_at_timestamp(crate::Hardfork::Canyon, timestamp)
     {
-        info!("Calculating receipt root for Regolith hardfork");
+        info!(
+            target: "blockchain_tree::chain",
+            "Calculating receipt root for Regolith hardfork",
+        );
         let receipts = receipts
             .iter()
             .cloned()
@@ -108,7 +111,10 @@ pub fn calculate_receipt_root_optimism(
         })
     }
 
-    info!("Calculating receipt root for Canyon hardfork");
+    info!(
+            target: "blockchain_tree::chain",
+            "Calculating receipt root for Canyon hardfork",
+    );
     ordered_trie_root_with_encoder(receipts, |r, buf| r.encode_inner(buf, false))
 }
 

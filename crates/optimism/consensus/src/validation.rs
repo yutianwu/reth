@@ -1,3 +1,4 @@
+use tracing::info;
 use reth_consensus::ConsensusError;
 use reth_primitives::{
     gas_spent_by_transactions, proofs::calculate_receipt_root_optimism, BlockWithSenders, Bloom,
@@ -13,6 +14,12 @@ pub fn validate_block_post_execution(
     chain_spec: &ChainSpec,
     receipts: &[Receipt],
 ) -> Result<(), ConsensusError> {
+    info!(
+        target: "consensus",
+        ?receipts,
+        "validate_block_post_execution",
+    );
+
     // Before Byzantium, receipts contained state root that would mean that expensive
     // operation as hashing that is required for state root got calculated in every
     // transaction This was replaced with is_success flag.
@@ -48,10 +55,19 @@ fn verify_receipts(
     chain_spec: &ChainSpec,
     timestamp: u64,
 ) -> Result<(), ConsensusError> {
+
+
     // Calculate receipts root.
     let receipts_with_bloom = receipts.iter().cloned().map(Receipt::with_bloom).collect::<Vec<_>>();
     let receipts_root =
         calculate_receipt_root_optimism(&receipts_with_bloom, chain_spec, timestamp);
+
+    info!(
+        target: "consensus",
+        ?receipts,
+        ?receipts_root,
+        "verify receipts in optimism",
+    );
 
     // Calculate header logs bloom.
     let logs_bloom = receipts_with_bloom.iter().fold(Bloom::ZERO, |bloom, r| bloom | r.bloom);
