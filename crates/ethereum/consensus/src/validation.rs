@@ -1,3 +1,4 @@
+use tracing::info;
 use reth_consensus::ConsensusError;
 use reth_primitives::{
     gas_spent_by_transactions, BlockWithSenders, Bloom, ChainSpec, GotExpected, Receipt, Request,
@@ -14,6 +15,13 @@ pub fn validate_block_post_execution(
     receipts: &[Receipt],
     requests: &[Request],
 ) -> Result<(), ConsensusError> {
+
+    info!(
+        target: "blockchain_tree::chain",
+        ?receipts,
+        "eth validate_block_post_execution"
+        );
+
     // Before Byzantium, receipts contained state root that would mean that expensive
     // operation as hashing that is required for state root got calculated in every
     // transaction This was replaced with is_success flag.
