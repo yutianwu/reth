@@ -141,8 +141,8 @@ where
         // blocks will always have at least a single transaction in them (the L1 info transaction),
         // so we can safely assume that this will always be triggered upon the transition and that
         // the above check for empty blocks will never be hit on OP chains.
-        ensure_create2_deployer(self.chain_spec.clone(), block.timestamp, evm.db_mut())
-            .map_err(|_| OptimismBlockExecutionError::ForceCreate2DeployerFail)?;
+        // ensure_create2_deployer(self.chain_spec.clone(), block.timestamp, evm.db_mut())
+        //     .map_err(|_| OptimismBlockExecutionError::ForceCreate2DeployerFail)?;
 
         let mut cumulative_gas_used = 0;
         let mut receipts = Vec::with_capacity(block.body.len());
