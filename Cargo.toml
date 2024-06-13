@@ -403,4 +403,4 @@ test-fuzz = "5"
 [patch.crates-io]
 revm = { git = "https://github.com/bnb-chain/revm.git", rev = "2f38e6c" }
 revm-primitives = { git = "https://github.com/bnb-chain/revm.git", rev = "2f38e6c" }
-alloy-chains = { git = "https://github.com/alloy-rs/chains.git", rev = "906d6fb" }
+alloy-chains = { git = "https://github.com/j75689/alloy-rs-chains", rev = "ddf6cffc23d60c267c0dada3066b1f0b802ed7f9" }

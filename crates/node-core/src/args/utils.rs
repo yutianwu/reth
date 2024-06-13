@@ -15,7 +15,7 @@ use reth_primitives::DEV;
 use reth_primitives::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 
 #[cfg(all(feature = "optimism", feature = "opbnb"))]
-use reth_primitives::{OPBNB_MAINNET, OPBNB_TESTNET};
+use reth_primitives::{OPBNB_MAINNET, OPBNB_TESTNET, OPBNB_QA};
 
 #[cfg(not(feature = "optimism"))]
 use reth_primitives::{GOERLI, HOLESKY, MAINNET, SEPOLIA};
@@ -60,6 +60,8 @@ pub fn chain_spec_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Er
         "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.clone(),
         #[cfg(all(feature = "optimism", feature = "opbnb"))]
         "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.clone(),
+        #[cfg(all(feature = "optimism", feature = "opbnb"))]
+        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.clone(),
         _ => {
             let raw = fs::read_to_string(PathBuf::from(shellexpand::full(s)?.into_owned()))?;
             serde_json::from_str(&raw)?
@@ -100,6 +102,8 @@ pub fn genesis_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error
         "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.clone(),
         #[cfg(all(feature = "optimism", feature = "opbnb"))]
         "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.clone(),
+        #[cfg(all(feature = "optimism", feature = "opbnb"))]
+        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.clone(),
         _ => {
             // try to read json from path first
             let raw = match fs::read_to_string(PathBuf::from(shellexpand::full(s)?.into_owned())) {

@@ -119,7 +119,7 @@ checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
 [[package]]
 name = "alloy-chains"
 version = "0.1.18"
-source = "git+https://github.com/alloy-rs/chains.git?rev=906d6fb#906d6fbc4828d533e33811a3fe7c5b38ae30cbfa"
+source = "git+https://github.com/j75689/alloy-rs-chains?rev=ddf6cffc23d60c267c0dada3066b1f0b802ed7f9#ddf6cffc23d60c267c0dada3066b1f0b802ed7f9"
 dependencies = [
  "alloy-rlp",
  "arbitrary",
@@ -4843,7 +4843,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.5",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
