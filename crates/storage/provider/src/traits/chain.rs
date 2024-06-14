@@ -60,7 +60,7 @@ impl Stream for CanonStateNotificationStream {
 }
 
 /// Chain action that is triggered when a new block is imported or old block is reverted.
-/// and will return all [`crate::BundleStateWithReceipts`] and
+/// and will return all [`crate::ExecutionOutcome`] and
 /// [`reth_primitives::SealedBlockWithSenders`] of both reverted and committed blocks.
 #[derive(Clone, Debug)]
 pub enum CanonStateNotification {
@@ -107,8 +107,7 @@ impl CanonStateNotification {
     /// Returns the new committed [Chain] for [`Self::Reorg`] and [`Self::Commit`] variants.
     pub fn committed(&self) -> Arc<Chain> {
         match self {
-            Self::Commit { new } => new.clone(),
-            Self::Reorg { new, .. } => new.clone(),
+            Self::Commit { new } | Self::Reorg { new, .. } => new.clone(),
         }
     }
 
@@ -118,8 +117,7 @@ impl CanonStateNotification {
     /// 1 new block.
     pub fn tip(&self) -> &SealedBlockWithSenders {
         match self {
-            Self::Commit { new } => new.tip(),
-            Self::Reorg { new, .. } => new.tip(),
+            Self::Commit { new } | Self::Reorg { new, .. } => new.tip(),
         }
     }
 

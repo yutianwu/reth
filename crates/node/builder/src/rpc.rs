@@ -3,18 +3,13 @@
 use futures::TryFutureExt;
 use reth_network::NetworkHandle;
 use reth_node_api::FullNodeComponents;
-use reth_node_core::{
-    cli::config::RethRpcConfig,
-    node_config::NodeConfig,
-    rpc::{
-        api::EngineApiServer,
-        builder::{
-            auth::{AuthRpcModule, AuthServerHandle},
-            RethModuleRegistry, RpcModuleBuilder, RpcServerHandle, TransportRpcModules,
-        },
-    },
-};
+use reth_node_core::{node_config::NodeConfig, rpc::api::EngineApiServer};
 use reth_payload_builder::PayloadBuilderHandle;
+use reth_rpc_builder::{
+    auth::{AuthRpcModule, AuthServerHandle},
+    config::RethRpcServerConfig,
+    RethModuleRegistry, RpcModuleBuilder, RpcServerHandle, TransportRpcModules,
+};
 use reth_rpc_layer::JwtSecret;
 use reth_tasks::TaskExecutor;
 use reth_tracing::tracing::{debug, info};
@@ -291,8 +286,8 @@ where
 
     let server_config = config.rpc.rpc_server_config();
     let launch_rpc = modules.clone().start_server(server_config).map_ok(|handle| {
-        if let Some(url) = handle.ipc_endpoint() {
-            info!(target: "reth::cli", url=%url, "RPC IPC server started");
+        if let Some(path) = handle.ipc_endpoint() {
+            info!(target: "reth::cli", %path, "RPC IPC server started");
         }
         if let Some(addr) = handle.http_local_addr() {
             info!(target: "reth::cli", url=%addr, "RPC HTTP server started");

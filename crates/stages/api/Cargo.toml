@@ -14,13 +14,14 @@ workspace = true
 # reth
 reth-primitives.workspace = true
 reth-provider.workspace = true
-reth-db.workspace = true
+reth-db-api.workspace = true
 reth-static-file.workspace = true
 reth-network-p2p.workspace = true
 reth-tokio-util.workspace = true
 reth-consensus.workspace = true
 reth-prune.workspace = true
 reth-errors.workspace = true
+reth-stages-types.workspace = true
 
 # metrics
 reth-metrics.workspace = true

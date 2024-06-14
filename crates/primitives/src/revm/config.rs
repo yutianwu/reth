@@ -42,6 +42,8 @@ pub fn revm_spec(chain_spec: &ChainSpec, block: Head) -> revm_primitives::SpecId
     if chain_spec.is_optimism() {
         if chain_spec.fork(Hardfork::Haber).active_at_head(&block) {
             return revm_primitives::HABER
+        } else if chain_spec.fork(Hardfork::Fjord).active_at_head(&block) {
+            return revm_primitives::FJORD
         } else if chain_spec.fork(Hardfork::Ecotone).active_at_head(&block) {
             return revm_primitives::ECOTONE
         } else if chain_spec.fork(Hardfork::Canyon).active_at_head(&block) {
@@ -157,7 +159,10 @@ mod tests {
                 let cs = ChainSpecBuilder::mainnet().chain(crate::Chain::from_id(10));
                 f(cs).build()
             }
-
+            assert_eq!(
+                revm_spec(&op_cs(|cs| cs.fjord_activated()), Head::default()),
+                revm_primitives::FJORD
+            );
             assert_eq!(
                 revm_spec(&op_cs(|cs| cs.ecotone_activated()), Head::default()),
                 revm_primitives::ECOTONE

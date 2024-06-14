@@ -9,7 +9,7 @@ use reth_network_p2p::{
     headers::client::HeadersRequest,
     priority::Priority,
 };
-use reth_network_types::PeerId;
+use reth_network_peers::PeerId;
 use reth_primitives::{BlockBody, Header, B256};
 use std::{
     collections::{HashMap, VecDeque},
@@ -431,8 +431,9 @@ impl DownloadRequest {
     /// Returns the requested priority of this request
     const fn get_priority(&self) -> &Priority {
         match self {
-            Self::GetBlockHeaders { priority, .. } => priority,
-            Self::GetBlockBodies { priority, .. } => priority,
+            Self::GetBlockHeaders { priority, .. } | Self::GetBlockBodies { priority, .. } => {
+                priority
+            }
         }
     }
 

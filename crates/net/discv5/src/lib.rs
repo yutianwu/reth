@@ -22,7 +22,7 @@ use enr::{discv4_id_to_discv5_id, EnrCombinedKeyWrapper};
 use futures::future::join_all;
 use itertools::Itertools;
 use rand::{Rng, RngCore};
-use reth_network_types::PeerId;
+use reth_network_peers::PeerId;
 use reth_primitives::{bytes::Bytes, EnrForkIdEntry, ForkId, NodeRecord};
 use secp256k1::SecretKey;
 use tokio::{sync::mpsc, task};
@@ -222,6 +222,7 @@ impl Discv5 {
 
     /// Process an event from the underlying [`discv5::Discv5`] node.
     pub fn on_discv5_update(&self, update: discv5::Event) -> Option<DiscoveredPeer> {
+        #[allow(clippy::match_same_arms)]
         match update {
             discv5::Event::SocketUpdated(_) | discv5::Event::TalkRequest(_) |
             // `Discovered` not unique discovered peers

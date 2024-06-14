@@ -1,8 +1,7 @@
 #![allow(missing_docs)]
 
-use crate::{ExecInput, ExecOutput, Stage, StageError, UnwindInput, UnwindOutput};
-use reth_db::database::Database;
-use reth_primitives::stage::StageId;
+use crate::{ExecInput, ExecOutput, Stage, StageError, StageId, UnwindInput, UnwindOutput};
+use reth_db_api::database::Database;
 use reth_provider::DatabaseProviderRW;
 use std::collections::VecDeque;
 

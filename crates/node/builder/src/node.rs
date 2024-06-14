@@ -4,14 +4,12 @@ use reth_node_api::FullNodeComponents;
 use reth_node_core::{
     dirs::{ChainPath, DataDirPath},
     node_config::NodeConfig,
-    rpc::{
-        api::EngineApiClient,
-        builder::{auth::AuthServerHandle, RpcServerHandle},
-    },
+    rpc::api::EngineApiClient,
 };
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_primitives::ChainSpec;
 use reth_provider::ChainSpecProvider;
+use reth_rpc_builder::{auth::AuthServerHandle, RpcServerHandle};
 use reth_tasks::TaskExecutor;
 use std::sync::Arc;
 
@@ -37,6 +35,8 @@ pub trait Node<N: FullNodeTypes>: NodeTypes + Clone {
 pub struct FullNode<Node: FullNodeComponents> {
     /// The evm configuration.
     pub evm_config: Node::Evm,
+    /// The executor of the node.
+    pub block_executor: Node::Executor,
     /// The node's transaction pool.
     pub pool: Node::Pool,
     /// Handle to the node's network.
@@ -100,6 +100,7 @@ impl<Node: FullNodeComponents> Clone for FullNode<Node> {
     fn clone(&self) -> Self {
         Self {
             evm_config: self.evm_config.clone(),
+            block_executor: self.block_executor.clone(),
             pool: self.pool.clone(),
             network: self.network.clone(),
             provider: self.provider.clone(),

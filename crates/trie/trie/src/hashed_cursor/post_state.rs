@@ -374,9 +374,8 @@ mod tests {
     use super::*;
     use crate::{HashedPostState, HashedStorage};
     use proptest::prelude::*;
-    use reth_db::{
-        database::Database, tables, test_utils::create_test_rw_db, transaction::DbTxMut,
-    };
+    use reth_db::{tables, test_utils::create_test_rw_db};
+    use reth_db_api::{database::Database, transaction::DbTxMut};
     use reth_primitives::StorageEntry;
     use std::collections::BTreeMap;
 
@@ -442,7 +441,7 @@ mod tests {
 
         let db = create_test_rw_db();
         db.update(|tx| {
-            for (key, account) in accounts.iter() {
+            for (key, account) in &accounts {
                 tx.put::<tables::HashedAccounts>(*key, *account).unwrap();
             }
         })
@@ -518,7 +517,7 @@ mod tests {
 
         let db = create_test_rw_db();
         db.update(|tx| {
-            for (key, _) in accounts.iter() {
+            for (key, _) in &accounts {
                 // insert zero value accounts to the database
                 tx.put::<tables::HashedAccounts>(*key, Account::default()).unwrap();
             }
@@ -541,7 +540,7 @@ mod tests {
         proptest!(ProptestConfig::with_cases(10), |(db_accounts: BTreeMap<B256, Account>, post_state_accounts: BTreeMap<B256, Option<Account>>)| {
                 let db = create_test_rw_db();
                 db.update(|tx| {
-                    for (key, account) in db_accounts.iter() {
+                    for (key, account) in &db_accounts {
                         tx.put::<tables::HashedAccounts>(*key, *account).unwrap();
                     }
                 })
@@ -554,7 +553,7 @@ mod tests {
 
                 let mut expected = db_accounts;
                 // overwrite or remove accounts from the expected result
-                for (key, account) in post_state_accounts.iter() {
+                for (key, account) in &post_state_accounts {
                     if let Some(account) = account {
                         expected.insert(*key, *account);
                     } else {
@@ -587,7 +586,7 @@ mod tests {
         let db_storage =
             BTreeMap::from_iter((0..10).map(|key| (B256::with_last_byte(key), U256::from(key))));
         db.update(|tx| {
-            for (slot, value) in db_storage.iter() {
+            for (slot, value) in &db_storage {
                 // insert zero value accounts to the database
                 tx.put::<tables::HashedStorages>(
                     address,
@@ -665,7 +664,7 @@ mod tests {
 
         let db = create_test_rw_db();
         db.update(|tx| {
-            for (slot, value) in db_storage.iter() {
+            for (slot, value) in &db_storage {
                 // insert zero value accounts to the database
                 tx.put::<tables::HashedStorages>(
                     address,
@@ -678,7 +677,7 @@ mod tests {
 
         let wiped = false;
         let mut hashed_storage = HashedStorage::new(wiped);
-        for (slot, value) in post_state_storage.iter() {
+        for (slot, value) in &post_state_storage {
             hashed_storage.storage.insert(*slot, *value);
         }
 
@@ -714,7 +713,7 @@ mod tests {
 
         let wiped = false;
         let mut hashed_storage = HashedStorage::new(wiped);
-        for (slot, value) in post_state_storage.iter() {
+        for (slot, value) in &post_state_storage {
             hashed_storage.storage.insert(*slot, *value);
         }
 
@@ -751,7 +750,7 @@ mod tests {
 
         let wiped = true;
         let mut hashed_storage = HashedStorage::new(wiped);
-        for (slot, value) in post_state_storage.iter() {
+        for (slot, value) in &post_state_storage {
             hashed_storage.storage.insert(*slot, *value);
         }
 
@@ -773,7 +772,7 @@ mod tests {
 
         let db = create_test_rw_db();
         db.update(|tx| {
-            for (slot, _) in storage.iter() {
+            for slot in storage.keys() {
                 // insert zero value accounts to the database
                 tx.put::<tables::HashedStorages>(
                     address,
@@ -786,7 +785,7 @@ mod tests {
 
         let wiped = false;
         let mut hashed_storage = HashedStorage::new(wiped);
-        for (slot, value) in storage.iter() {
+        for (slot, value) in &storage {
             hashed_storage.storage.insert(*slot, *value);
         }
 
@@ -810,7 +809,7 @@ mod tests {
         {
             let db = create_test_rw_db();
             db.update(|tx| {
-                for (address, storage) in db_storages.iter() {
+                for (address, storage) in &db_storages {
                     for (slot, value) in storage {
                         let entry = StorageEntry { key: *slot, value: *value };
                         tx.put::<tables::HashedStorages>(*address, entry).unwrap();

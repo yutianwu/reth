@@ -6,7 +6,7 @@ use crate::{
 };
 use futures::Stream;
 use reth_consensus::{Consensus, ConsensusError};
-use reth_network_types::WithPeerId;
+use reth_network_peers::WithPeerId;
 use reth_primitives::{
     BlockBody, GotExpected, Header, HeadersDirection, SealedBlock, SealedHeader, B256,
 };
@@ -409,7 +409,7 @@ where
 
     /// Inserts multiple block bodies.
     fn insert_bodies(&mut self, bodies: impl IntoIterator<Item = BodyResponse>) {
-        for body in bodies.into_iter() {
+        for body in bodies {
             self.insert_body(body);
         }
     }

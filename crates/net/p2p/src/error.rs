@@ -1,7 +1,7 @@
 use super::headers::client::HeadersRequest;
 use reth_consensus::ConsensusError;
 use reth_network_api::ReputationChangeKind;
-use reth_network_types::WithPeerId;
+use reth_network_peers::WithPeerId;
 use reth_primitives::{
     BlockHashOrNumber, BlockNumber, GotExpected, GotExpectedBoxed, Header, B256,
 };
@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
 
-/// Result with [`PeerId`][reth_network_types::PeerId]
+/// Result with [`PeerId`][reth_network_peers::PeerId]
 pub type PeerRequestResult<T> = RequestResult<WithPeerId<T>>;
 
 /// Helper trait used to validate responses.
@@ -61,11 +61,11 @@ impl EthResponseValidator for RequestResult<Vec<Header>> {
     fn reputation_change_err(&self) -> Option<ReputationChangeKind> {
         if let Err(err) = self {
             match err {
-                RequestError::ChannelClosed => None,
-                RequestError::ConnectionDropped => None,
-                RequestError::UnsupportedCapability => None,
-                RequestError::Timeout => Some(ReputationChangeKind::Timeout),
+                RequestError::ChannelClosed |
+                RequestError::ConnectionDropped |
+                RequestError::UnsupportedCapability |
                 RequestError::BadResponse => None,
+                RequestError::Timeout => Some(ReputationChangeKind::Timeout),
             }
         } else {
             None

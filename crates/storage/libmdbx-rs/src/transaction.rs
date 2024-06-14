@@ -504,7 +504,7 @@ impl Transaction<RW> {
     /// Begins a new nested transaction inside of this transaction.
     pub fn begin_nested_txn(&mut self) -> Result<Self> {
         if self.inner.env.is_write_map() {
-            return Err(Error::NestedTransactionsUnsupportedWithWriteMap);
+            return Err(Error::NestedTransactionsUnsupportedWithWriteMap)
         }
         self.txn_execute(|txn| {
             let (tx, rx) = sync_channel(0);
@@ -523,27 +523,35 @@ impl Transaction<RW> {
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionPtr {
     txn: *mut ffi::MDBX_txn,
+    #[cfg(feature = "read-tx-timeouts")]
     timed_out: Arc<AtomicBool>,
     lock: Arc<Mutex<()>>,
 }
 
 impl TransactionPtr {
     fn new(txn: *mut ffi::MDBX_txn) -> Self {
-        Self { txn, timed_out: Arc::new(AtomicBool::new(false)), lock: Arc::new(Mutex::new(())) }
+        Self {
+            txn,
+            #[cfg(feature = "read-tx-timeouts")]
+            timed_out: Arc::new(AtomicBool::new(false)),
+            lock: Arc::new(Mutex::new(())),
+        }
     }
 
-    // Returns `true` if the transaction is timed out.
-    //
-    // When transaction is timed out via `TxnManager`, it's actually reset using
-    // `mdbx_txn_reset`. It makes the transaction unusable (MDBX fails on any usages of such
-    // transactions).
-    //
-    // Importantly, we can't rely on `MDBX_TXN_FINISHED` flag to check if the transaction is timed
-    // out using `mdbx_txn_reset`, because MDBX uses it in other cases too.
+    /// Returns `true` if the transaction is timed out.
+    ///
+    /// When transaction is timed out via `TxnManager`, it's actually reset using
+    /// `mdbx_txn_reset`. It makes the transaction unusable (MDBX fails on any usages of such
+    /// transactions).
+    ///
+    /// Importantly, we can't rely on `MDBX_TXN_FINISHED` flag to check if the transaction is timed
+    /// out using `mdbx_txn_reset`, because MDBX uses it in other cases too.
+    #[cfg(feature = "read-tx-timeouts")]
     fn is_timed_out(&self) -> bool {
         self.timed_out.load(std::sync::atomic::Ordering::SeqCst)
     }
 
+    #[cfg(feature = "read-tx-timeouts")]
     pub(crate) fn set_timed_out(&self) {
         self.timed_out.store(true, std::sync::atomic::Ordering::SeqCst);
     }
@@ -575,8 +583,9 @@ impl TransactionPtr {
         // No race condition with the `TxnManager` timing out the transaction is possible here,
         // because we're taking a lock for any actions on the transaction pointer, including a call
         // to the `mdbx_txn_reset`.
+        #[cfg(feature = "read-tx-timeouts")]
         if self.is_timed_out() {
-            return Err(Error::ReadTransactionTimeout);
+            return Err(Error::ReadTransactionTimeout)
         }
 
         Ok((f)(self.txn))
@@ -594,6 +603,7 @@ impl TransactionPtr {
         let _lck = self.lock();
 
         // To be able to do any operations on the transaction, we need to renew it first.
+        #[cfg(feature = "read-tx-timeouts")]
         if self.is_timed_out() {
             mdbx_result(unsafe { mdbx_txn_renew(self.txn) })?;
         }

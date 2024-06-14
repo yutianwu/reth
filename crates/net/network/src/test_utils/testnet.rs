@@ -14,7 +14,7 @@ use futures::{FutureExt, StreamExt};
 use pin_project::pin_project;
 use reth_eth_wire::{protocol::Protocol, DisconnectReason, HelloMessageWithProtocols};
 use reth_network_api::{NetworkInfo, Peers};
-use reth_network_types::PeerId;
+use reth_network_peers::PeerId;
 use reth_primitives::MAINNET;
 use reth_provider::{
     test_utils::NoopProvider, BlockReader, BlockReaderIdExt, HeaderProvider, StateProviderFactory,
@@ -260,7 +260,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-        for peer in this.peers.iter_mut() {
+        for peer in &mut this.peers {
             let _ = peer.poll_unpin(cx);
         }
         Poll::Pending

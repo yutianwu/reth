@@ -3,16 +3,18 @@
 use crate::{l1::ensure_create2_deployer, OptimismBlockExecutionError, OptimismEvmConfig};
 use reth_evm::{
     execute::{
-        BatchBlockExecutionOutput, BatchExecutor, BlockExecutionError, BlockExecutionInput,
-        BlockExecutionOutput, BlockExecutorProvider, BlockValidationError, Executor, ProviderError,
+        BatchExecutor, BlockExecutionError, BlockExecutionInput, BlockExecutionOutput,
+        BlockExecutorProvider, BlockValidationError, Executor, ProviderError,
     },
     ConfigureEvm,
 };
 use reth_optimism_consensus::validate_block_post_execution;
 use reth_primitives::{
-    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header, PruneModes, Receipt,
+    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header,  Receipt,
     Receipts, TxType, Withdrawals, U256,
 };
+use reth_provider::ExecutionOutcome;
+use reth_prune_types::PruneModes;
 use reth_revm::{
     batch::{BlockBatchRecord, BlockExecutorStats},
     db::states::bundle_state::BundleRetention,
@@ -438,7 +440,7 @@ where
     DB: Database<Error = ProviderError>,
 {
     type Input<'a> = BlockExecutionInput<'a, BlockWithSenders>;
-    type Output = BatchBlockExecutionOutput;
+    type Output = ExecutionOutcome;
     type Error = BlockExecutionError;
 
     fn execute_and_verify_one(&mut self, input: Self::Input<'_>) -> Result<(), Self::Error> {
@@ -465,11 +467,11 @@ where
     fn finalize(mut self) -> Self::Output {
         self.stats.log_debug();
 
-        BatchBlockExecutionOutput::new(
+        ExecutionOutcome::new(
             self.executor.state.take_bundle(),
             self.batch_record.take_receipts(),
-            self.batch_record.take_requests(),
             self.batch_record.first_block().unwrap_or_default(),
+            self.batch_record.take_requests(),
         )
     }
 

@@ -3,10 +3,11 @@
 //! This basis of this file has been taken from the discv5 codebase:
 //! <https://github.com/sigp/discv5>
 
+use alloy_primitives::bytes::Bytes;
 use alloy_rlp::Encodable;
 use reth_net_common::ban_list::BanList;
 use reth_net_nat::{NatResolver, ResolveNatInterval};
-use reth_primitives::{bytes::Bytes, NodeRecord};
+use reth_network_peers::NodeRecord;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{
@@ -91,7 +92,7 @@ impl Discv4Config {
         &mut self,
         pairs: impl IntoIterator<Item = (impl Into<Vec<u8>>, Bytes)>,
     ) -> &mut Self {
-        for (k, v) in pairs.into_iter() {
+        for (k, v) in pairs {
             self.add_eip868_rlp_pair(k, v);
         }
         self
@@ -252,7 +253,7 @@ impl Discv4ConfigBuilder {
         &mut self,
         pairs: impl IntoIterator<Item = (impl Into<Vec<u8>>, Bytes)>,
     ) -> &mut Self {
-        for (k, v) in pairs.into_iter() {
+        for (k, v) in pairs {
             self.add_eip868_rlp_pair(k, v);
         }
         self
