@@ -10,8 +10,8 @@ use reth_evm::{
 };
 use reth_optimism_consensus::validate_block_post_execution;
 use reth_primitives::{
-    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header,  Receipt,
-    Receipts, TxType, Withdrawals, U256,
+    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header, Receipt, Receipts, TxType,
+    Withdrawals, U256,
 };
 use reth_provider::ExecutionOutcome;
 use reth_prune_types::PruneModes;
