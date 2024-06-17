@@ -1,13 +1,12 @@
 use super::setup;
 use crate::{macros::block_executor, utils::DbTool};
-use reth_db::{
-    cursor::DbCursorRO, database::Database, table::TableImporter, tables, transaction::DbTx,
-    DatabaseEnv,
+use reth_db::{tables, DatabaseEnv};
+use reth_db_api::{
+    cursor::DbCursorRO, database::Database, table::TableImporter, transaction::DbTx,
 };
 use reth_node_core::dirs::{ChainPath, DataDirPath};
-use reth_primitives::stage::StageCheckpoint;
 use reth_provider::{providers::StaticFileProvider, ChainSpecProvider, ProviderFactory};
-use reth_stages::{stages::ExecutionStage, Stage, UnwindInput};
+use reth_stages::{stages::ExecutionStage, Stage, StageCheckpoint, UnwindInput};
 use tracing::info;
 
 pub(crate) async fn dump_execution_stage<DB: Database>(
@@ -27,7 +26,7 @@ pub(crate) async fn dump_execution_stage<DB: Database>(
         dry_run(
             ProviderFactory::new(
                 output_db,
-                db_tool.chain.clone(),
+                db_tool.chain(),
                 StaticFileProvider::read_write(output_datadir.static_files())?,
             ),
             to,
@@ -128,7 +127,7 @@ async fn unwind_and_copy<DB: Database>(
 ) -> eyre::Result<()> {
     let provider = db_tool.provider_factory.provider_rw()?;
 
-    let executor = block_executor!(db_tool.chain.clone());
+    let executor = block_executor!(db_tool.chain());
     let mut exec_stage = ExecutionStage::new_with_executor(executor);
 
     exec_stage.unwind(

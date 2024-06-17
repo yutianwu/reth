@@ -28,6 +28,7 @@ use crate::{
     error::{DecodePacketError, Discv4Error},
     proto::{FindNode, Message, Neighbours, Packet, Ping, Pong},
 };
+use alloy_primitives::{bytes::Bytes, hex, B256};
 use discv5::{
     kbucket,
     kbucket::{
@@ -39,8 +40,8 @@ use discv5::{
 use enr::Enr;
 use parking_lot::Mutex;
 use proto::{EnrRequest, EnrResponse};
-use reth_network_types::{pk2id, PeerId};
-use reth_primitives::{bytes::Bytes, hex, ForkId, B256};
+use reth_ethereum_forks::ForkId;
+use reth_network_peers::{pk2id, PeerId};
 use secp256k1::SecretKey;
 use std::{
     cell::RefCell,
@@ -76,7 +77,7 @@ use node::{kad_key, NodeKey};
 mod table;
 
 // reexport NodeRecord primitive
-pub use reth_primitives::NodeRecord;
+pub use reth_network_peers::NodeRecord;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
@@ -214,7 +215,7 @@ impl Discv4 {
     /// # use std::io;
     /// use rand::thread_rng;
     /// use reth_discv4::{Discv4, Discv4Config};
-    /// use reth_network_types::{pk2id, PeerId};
+    /// use reth_network_peers::{pk2id, PeerId};
     /// use reth_primitives::NodeRecord;
     /// use secp256k1::SECP256K1;
     /// use std::{net::SocketAddr, str::FromStr};
@@ -552,7 +553,7 @@ impl Discv4Service {
                 builder.tcp6(local_node_record.tcp_port);
             }
 
-            for (key, val) in config.additional_eip868_rlp_pairs.iter() {
+            for (key, val) in &config.additional_eip868_rlp_pairs {
                 builder.add_value_rlp(key, val.clone());
             }
             builder.build(&secret_key).expect("v4 is set")
@@ -948,7 +949,7 @@ impl Discv4Service {
     ///
     /// See [`Self::add_node`]
     pub fn add_all_nodes(&mut self, records: impl IntoIterator<Item = NodeRecord>) {
-        for record in records.into_iter() {
+        for record in records {
             self.add_node(record);
         }
     }

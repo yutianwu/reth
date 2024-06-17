@@ -2,7 +2,7 @@ use crate::{
     BlockIdReader, BlockNumReader, HeaderProvider, ReceiptProvider, ReceiptProviderIdExt,
     RequestsProvider, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
 };
-use reth_db::models::StoredBlockBodyIndices;
+use reth_db_api::models::StoredBlockBodyIndices;
 use reth_primitives::{
     Block, BlockHashOrNumber, BlockId, BlockNumber, BlockNumberOrTag, BlockWithSenders, Header,
     Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader, B256,
@@ -123,14 +123,19 @@ pub trait BlockReader:
     /// Note: returns only available blocks
     fn block_range(&self, range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Block>>;
 
-    /// retrieves a range of blocks from the database, along with the senders of each
+    /// Returns a range of blocks from the database, along with the senders of each
     /// transaction in the blocks.
-    ///
-    /// The `transaction_kind` parameter determines whether to return its hash
     fn block_with_senders_range(
         &self,
         range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<BlockWithSenders>>;
+
+    /// Returns a range of sealed blocks from the database, along with the senders of each
+    /// transaction in the blocks.
+    fn sealed_block_with_senders_range(
+        &self,
+        range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<SealedBlockWithSenders>>;
 }
 
 /// Trait extension for `BlockReader`, for types that implement `BlockId` conversion.

@@ -1,12 +1,9 @@
 use crate::{stats::ParallelTrieTracker, storage_root_targets::StorageRootTargets};
 use alloy_rlp::{BufMut, Encodable};
 use itertools::Itertools;
-use reth_db::database::Database;
+use reth_db_api::database::Database;
 use reth_execution_errors::StorageRootError;
-use reth_primitives::{
-    trie::{HashBuilder, Nibbles, TrieAccount},
-    B256,
-};
+use reth_primitives::B256;
 use reth_provider::{providers::ConsistentDbView, DatabaseProviderFactory, ProviderError};
 use reth_tasks::pool::BlockingTaskPool;
 use reth_trie::{
@@ -15,7 +12,7 @@ use reth_trie::{
     trie_cursor::TrieCursorFactory,
     updates::TrieUpdates,
     walker::TrieWalker,
-    HashedPostState, StorageRoot,
+    HashBuilder, HashedPostState, Nibbles, StorageRoot, TrieAccount,
 };
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
@@ -294,7 +291,7 @@ mod tests {
         );
 
         let mut hashed_state = HashedPostState::default();
-        for (address, (account, storage)) in state.iter_mut() {
+        for (address, (account, storage)) in &mut state {
             let hashed_address = keccak256(address);
 
             let should_update_account = rng.gen_bool(0.5);

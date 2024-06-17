@@ -14,7 +14,7 @@ use futures::StreamExt;
 use reth_eth_wire::{errors::EthStreamError, DisconnectReason};
 use reth_net_common::ban_list::BanList;
 use reth_network_api::{PeerKind, ReputationChangeKind};
-use reth_network_types::PeerId;
+use reth_network_peers::PeerId;
 use reth_primitives::{ForkId, NodeRecord};
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
@@ -883,10 +883,8 @@ impl PeersManager {
                 for peer_id in unbanned_peers {
                     if let Some(peer) = self.peers.get_mut(&peer_id) {
                         peer.unban();
-                    } else {
-                        continue
+                        self.queued_actions.push_back(PeerAction::UnBanPeer { peer_id });
                     }
-                    self.queued_actions.push_back(PeerAction::UnBanPeer { peer_id });
                 }
 
                 // clear the backoff list of expired backoffs, and mark the relevant peers as
@@ -1559,7 +1557,7 @@ mod tests {
     };
     use reth_net_common::ban_list::BanList;
     use reth_network_api::{Direction, ReputationChangeKind};
-    use reth_network_types::PeerId;
+    use reth_network_peers::PeerId;
     use reth_primitives::B512;
     use std::{
         collections::HashSet,
@@ -2829,12 +2827,12 @@ mod tests {
         );
 
         // establish dialed connections
-        for peer_id in num_pendingout_states.iter() {
+        for peer_id in &num_pendingout_states {
             peer_manager.on_active_outgoing_established(*peer_id);
         }
 
         // all dialed connections should now be in 'Out' state
-        for peer_id in num_pendingout_states.iter() {
+        for peer_id in &num_pendingout_states {
             assert_eq!(peer_manager.peers.get(peer_id).unwrap().state, PeerConnectionState::Out);
         }
 

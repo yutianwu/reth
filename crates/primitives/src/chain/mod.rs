@@ -13,7 +13,9 @@ pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET};
 
 #[cfg(feature = "optimism")]
 #[cfg(test)]
-pub(crate) use spec::{OP_BASE_FEE_PARAMS, OP_SEPOLIA_BASE_FEE_PARAMS};
+pub(crate) use spec::{
+    BASE_SEPOLIA_BASE_FEE_PARAMS, OP_BASE_FEE_PARAMS, OP_SEPOLIA_BASE_FEE_PARAMS,
+};
 
 // The chain spec module.
 mod spec;

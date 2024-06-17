@@ -1,23 +1,20 @@
 use reth_codecs::Compact;
 use reth_consensus::ConsensusError;
-use reth_db::{
+use reth_db::tables;
+use reth_db_api::{
     database::Database,
-    tables,
     transaction::{DbTx, DbTxMut},
 };
-use reth_primitives::{
-    stage::{EntitiesCheckpoint, MerkleCheckpoint, StageCheckpoint, StageId},
-    trie::StoredSubNode,
-    BlockNumber, GotExpected, SealedHeader, B256,
-};
+use reth_primitives::{BlockNumber, GotExpected, SealedHeader, B256};
 use reth_provider::{
     DatabaseProviderRW, HeaderProvider, ProviderError, StageCheckpointReader,
     StageCheckpointWriter, StatsReader,
 };
 use reth_stages_api::{
-    BlockErrorKind, ExecInput, ExecOutput, Stage, StageError, UnwindInput, UnwindOutput,
+    BlockErrorKind, EntitiesCheckpoint, ExecInput, ExecOutput, MerkleCheckpoint, Stage,
+    StageCheckpoint, StageError, StageId, UnwindInput, UnwindOutput,
 };
-use reth_trie::{IntermediateStateRootState, StateRoot, StateRootProgress};
+use reth_trie::{IntermediateStateRootState, StateRoot, StateRootProgress, StoredSubNode};
 use std::fmt::Debug;
 use tracing::*;
 
@@ -367,11 +364,10 @@ mod tests {
         TestRunnerError, TestStageDB, UnwindStageTestRunner,
     };
     use assert_matches::assert_matches;
-    use reth_db::cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO};
-    use reth_primitives::{
-        keccak256, stage::StageUnitCheckpoint, SealedBlock, StaticFileSegment, StorageEntry, U256,
-    };
+    use reth_db_api::cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO};
+    use reth_primitives::{keccak256, SealedBlock, StaticFileSegment, StorageEntry, U256};
     use reth_provider::{providers::StaticFileWriter, StaticFileProviderFactory};
+    use reth_stages_api::StageUnitCheckpoint;
     use reth_testing_utils::{
         generators,
         generators::{
@@ -631,8 +627,8 @@ mod tests {
                             .or_default()
                             .insert(keccak256(entry.key), entry.value);
                     }
-                    for (hashed_address, storage) in tree.into_iter() {
-                        for (hashed_slot, value) in storage.into_iter() {
+                    for (hashed_address, storage) in tree {
+                        for (hashed_slot, value) in storage {
                             let storage_entry = storage_cursor
                                 .seek_by_key_subkey(hashed_address, hashed_slot)
                                 .unwrap();

@@ -1,15 +1,18 @@
 use reth_db::{
+    tables,
+    test_utils::{
+        create_test_rw_db, create_test_rw_db_with_path, create_test_static_files_dir, TempDatabase,
+    },
+    DatabaseEnv,
+};
+use reth_db_api::{
     common::KeyValue,
     cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO},
     database::Database,
     models::{AccountBeforeTx, StoredBlockBodyIndices},
     table::Table,
-    tables,
-    test_utils::{
-        create_test_rw_db, create_test_rw_db_with_path, create_test_static_files_dir, TempDatabase,
-    },
     transaction::{DbTx, DbTxMut},
-    DatabaseEnv, DatabaseError as DbError,
+    DatabaseError as DbError,
 };
 use reth_primitives::{
     keccak256, Account, Address, BlockNumber, Receipt, SealedBlock, SealedHeader,
@@ -346,9 +349,7 @@ impl TestStageDB {
                 let mut writer = provider.latest_writer(StaticFileSegment::Receipts)?;
                 let res = receipts.into_iter().try_for_each(|(block_num, receipts)| {
                     writer.increment_block(StaticFileSegment::Receipts, block_num)?;
-                    for (tx_num, receipt) in receipts {
-                        writer.append_receipt(tx_num, receipt)?;
-                    }
+                    writer.append_receipts(receipts.into_iter().map(Ok))?;
                     Ok(())
                 });
                 writer.commit_without_sync_all()?;

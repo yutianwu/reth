@@ -50,11 +50,6 @@ const PING_TIMEOUT: Duration = Duration::from_secs(15);
 /// when the peer is responsive.
 const PING_INTERVAL: Duration = Duration::from_secs(60);
 
-/// [`GRACE_PERIOD`] determines the amount of time to wait for a peer to disconnect after sending a
-/// [`P2PMessage::Disconnect`] message.
-#[allow(dead_code)]
-const GRACE_PERIOD: Duration = Duration::from_secs(2);
-
 /// [`MAX_P2P_CAPACITY`] is the maximum number of messages that can be buffered to be sent in the
 /// `p2p` stream.
 ///
@@ -703,8 +698,7 @@ impl Encodable for P2PMessage {
             Self::Hello(msg) => msg.length(),
             Self::Disconnect(msg) => msg.length(),
             // id + snappy encoded payload
-            Self::Ping => 3, // len([0x01, 0x00, 0xc0]) = 3
-            Self::Pong => 3, // len([0x01, 0x00, 0xc0]) = 3
+            Self::Ping | Self::Pong => 3, // len([0x01, 0x00, 0xc0]) = 3
         };
         payload_len + 1 // (1 for length of p2p message id)
     }

@@ -2,20 +2,18 @@ use crate::{
     hashed_cursor::HashedPostStateCursorFactory,
     prefix_set::{PrefixSetMut, TriePrefixSets},
     updates::TrieUpdates,
-    StateRoot,
+    Nibbles, StateRoot,
 };
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use reth_db::{
+use reth_db::{tables, DatabaseError};
+use reth_db_api::{
     cursor::DbCursorRO,
     models::{AccountBeforeTx, BlockNumberAddress},
-    tables,
     transaction::DbTx,
-    DatabaseError,
 };
 use reth_execution_errors::StateRootError;
 use reth_primitives::{
-    keccak256, revm::compat::into_reth_acc, trie::Nibbles, Account, Address, BlockNumber, B256,
-    U256,
+    keccak256, revm::compat::into_reth_acc, Account, Address, BlockNumber, B256, U256,
 };
 use revm::db::BundleAccount;
 use std::{
@@ -190,7 +188,7 @@ impl HashedPostState {
 
         // Populate storage prefix sets.
         let mut storage_prefix_sets = HashMap::with_capacity(self.storages.len());
-        for (hashed_address, hashed_storage) in self.storages.iter() {
+        for (hashed_address, hashed_storage) in &self.storages {
             account_prefix_set.insert(Nibbles::unpack(hashed_address));
 
             let mut prefix_set = PrefixSetMut::with_capacity(hashed_storage.storage.len());
@@ -214,7 +212,8 @@ impl HashedPostState {
     /// # Example
     ///
     /// ```
-    /// use reth_db::{database::Database, test_utils::create_test_rw_db};
+    /// use reth_db::test_utils::create_test_rw_db;
+    /// use reth_db_api::database::Database;
     /// use reth_primitives::{Account, U256};
     /// use reth_trie::HashedPostState;
     ///
@@ -334,7 +333,8 @@ pub struct HashedStorageSorted {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reth_db::{database::Database, test_utils::create_test_rw_db};
+    use reth_db::test_utils::create_test_rw_db;
+    use reth_db_api::database::Database;
     use reth_primitives::hex;
     use revm::{
         db::states::BundleState,
