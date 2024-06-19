@@ -12,6 +12,7 @@ use reth_blockchain_tree_api::{
     BlockValidationKind, BlockchainTreeEngine, BlockchainTreeViewer, CanonicalOutcome,
     InsertPayloadOk,
 };
+use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db_api::{
     database::Database,
     models::{AccountBeforeTx, StoredBlockBodyIndices},
@@ -19,7 +20,7 @@ use reth_db_api::{
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
     parlia::Snapshot, Account, Address, Block, BlockHash, BlockHashOrNumber, BlockId, BlockNumHash,
-    BlockNumber, BlockNumberOrTag, BlockWithSenders, ChainInfo, ChainSpec, Header, Receipt,
+    BlockNumber, BlockNumberOrTag, BlockWithSenders,  Header, Receipt,
     SealedBlock, SealedBlockWithSenders, SealedHeader, TransactionMeta, TransactionSigned,
     TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256, U256,
 };

@@ -14,6 +14,7 @@ use crate::{
     TransactionsProvider, TransactionsProviderExt, WithdrawalsProvider,
 };
 use itertools::{izip, Itertools};
+use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db::{tables, BlockNumberList};
 use reth_db_api::{
     common::KeyValue,
@@ -34,10 +35,10 @@ use reth_primitives::{
     parlia::Snapshot,
     revm::{config::revm_spec, env::fill_block_env},
     Account, Address, Block, BlockHash, BlockHashOrNumber, BlockNumber, BlockWithSenders,
-    ChainInfo, ChainSpec, GotExpected, Head, Header, Receipt, Requests, SealedBlock,
-    SealedBlockWithSenders, SealedHeader, StaticFileSegment, StorageEntry, TransactionMeta,
-    TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, TxHash, TxNumber,
-    Withdrawal, Withdrawals, B256, U256,
+    GotExpected, Head, Header, Receipt, Requests, SealedBlock, SealedBlockWithSenders,
+    SealedHeader, StaticFileSegment, StorageEntry, TransactionMeta, TransactionSigned,
+    TransactionSignedEcRecovered, TransactionSignedNoHash, TxHash, TxNumber, Withdrawal,
+    Withdrawals, B256, U256,
 };
 use reth_prune_types::{PruneCheckpoint, PruneLimiter, PruneModes, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
@@ -116,7 +117,7 @@ impl<TX> DatabaseProvider<TX> {
 
 impl<TX: DbTxMut> DatabaseProvider<TX> {
     /// Creates a provider with an inner read-write transaction.
-    pub fn new_rw(
+    pub const fn new_rw(
         tx: TX,
         chain_spec: Arc<ChainSpec>,
         static_file_provider: StaticFileProvider,
@@ -253,7 +254,7 @@ where
 
 impl<TX: DbTx> DatabaseProvider<TX> {
     /// Creates a provider with an inner read-only transaction.
-    pub fn new(
+    pub const fn new(
         tx: TX,
         chain_spec: Arc<ChainSpec>,
         static_file_provider: StaticFileProvider,

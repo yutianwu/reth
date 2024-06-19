@@ -1,6 +1,7 @@
 //! Optimism block executor.
 
 use crate::{l1::ensure_create2_deployer, OptimismBlockExecutionError, OptimismEvmConfig};
+use reth_chainspec::{ChainSpec, Hardfork};
 use reth_evm::{
     execute::{
         BatchExecutor, BlockExecutionError, BlockExecutionInput, BlockExecutionOutput,
@@ -10,8 +11,7 @@ use reth_evm::{
 };
 use reth_optimism_consensus::validate_block_post_execution;
 use reth_primitives::{
-    Address, BlockNumber, BlockWithSenders, ChainSpec, Hardfork, Header, Receipt, Receipts, TxType,
-    Withdrawals, U256,
+    Address, BlockNumber, BlockWithSenders, Header, Receipt, Receipts, TxType, Withdrawals, U256,
 };
 use reth_provider::ExecutionOutcome;
 use reth_prune_types::PruneModes;
@@ -45,7 +45,7 @@ impl OpExecutorProvider {
 
 impl<EvmConfig> OpExecutorProvider<EvmConfig> {
     /// Creates a new executor provider.
-    pub fn new(chain_spec: Arc<ChainSpec>, evm_config: EvmConfig) -> Self {
+    pub const fn new(chain_spec: Arc<ChainSpec>, evm_config: EvmConfig) -> Self {
         Self { chain_spec, evm_config }
     }
 }
@@ -238,7 +238,7 @@ pub struct OpBlockExecutor<EvmConfig, DB> {
 
 impl<EvmConfig, DB> OpBlockExecutor<EvmConfig, DB> {
     /// Creates a new Ethereum block executor.
-    pub fn new(chain_spec: Arc<ChainSpec>, evm_config: EvmConfig, state: State<DB>) -> Self {
+    pub const fn new(chain_spec: Arc<ChainSpec>, evm_config: EvmConfig, state: State<DB>) -> Self {
         Self { executor: OpEvmExecutor { chain_spec, evm_config }, state }
     }
 
@@ -489,9 +489,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_chainspec::ChainSpecBuilder;
     use reth_primitives::{
-        b256, Account, Address, Block, ChainSpecBuilder, Signature, StorageKey, StorageValue,
-        Transaction, TransactionSigned, TxEip1559, BASE_MAINNET,
+        b256, Account, Address, Block, Signature, StorageKey, StorageValue, Transaction,
+        TransactionSigned, TxEip1559, BASE_MAINNET,
     };
     use reth_revm::{
         database::StateProviderDatabase, test_utils::StateProviderTest, L1_BLOCK_CONTRACT,

@@ -289,6 +289,7 @@ mod tests {
                         EvmStorageSlot {
                             present_value: U256::from(2),
                             original_value: U256::from(1),
+                            ..Default::default()
                         },
                     )]),
                 },
@@ -479,7 +480,11 @@ mod tests {
                 // 0x00 => 1 => 2
                 storage: HashMap::from([(
                     U256::ZERO,
-                    EvmStorageSlot { original_value: U256::from(1), present_value: U256::from(2) },
+                    EvmStorageSlot {
+                        original_value: U256::from(1),
+                        present_value: U256::from(2),
+                        ..Default::default()
+                    },
                 )]),
             },
         )]));

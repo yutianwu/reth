@@ -16,15 +16,14 @@ workspace = true
 reth-primitives-traits.workspace = true
 reth-codecs.workspace = true
 reth-ethereum-forks.workspace = true
-reth-network-peers.workspace = true
 reth-static-file-types.workspace = true
 reth-trie-common.workspace = true
+reth-chainspec.workspace = true
 revm.workspace = true
 revm-primitives = { workspace = true, features = ["serde"] }
 
 # ethereum
-alloy-chains = { workspace = true, features = ["serde", "rlp"] }
-alloy-consensus = { workspace = true, features = ["arbitrary", "serde"] }
+alloy-consensus = { workspace = true, features = ["serde"] }
 alloy-primitives = { workspace = true, features = ["rand", "rlp"] }
 alloy-rlp = { workspace = true, features = ["arrayvec"] }
 alloy-rpc-types = { workspace = true, optional = true }
@@ -48,9 +47,8 @@ modular-bitfield.workspace = true
 once_cell.workspace = true
 rayon.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 tempfile = { workspace = true, optional = true }
-thiserror.workspace = true
+thiserror-no-std = { workspace = true , default-features = false }
 zstd = { version = "0.13", features = ["experimental"], optional = true }
 roaring = "0.10.2"
 
@@ -65,10 +63,12 @@ lazy_static = { version = "1.4.0", optional = true }
 
 [dev-dependencies]
 # eth
+reth-primitives-traits = { workspace = true, features = ["arbitrary"] }
 revm-primitives = { workspace = true, features = ["arbitrary"] }
 nybbles = { workspace = true, features = ["arbitrary"] }
 alloy-trie = { workspace = true, features = ["arbitrary"] }
 alloy-eips = { workspace = true, features = ["arbitrary"] }
+alloy-consensus = { workspace = true, features = ["arbitrary"] }
 
 assert_matches.workspace = true
 arbitrary = { workspace = true, features = ["derive"] }
@@ -91,15 +91,16 @@ pprof = { workspace = true, features = [
 secp256k1.workspace = true
 
 [features]
-default = ["c-kzg", "zstd-codec", "alloy-compat"]
+default = ["c-kzg", "zstd-codec", "alloy-compat", "std"]
 asm-keccak = ["alloy-primitives/asm-keccak"]
 arbitrary = [
     "reth-primitives-traits/arbitrary",
     "revm-primitives/arbitrary",
+    "reth-chainspec/arbitrary",
     "reth-ethereum-forks/arbitrary",
     "nybbles/arbitrary",
     "alloy-trie/arbitrary",
-    "alloy-chains/arbitrary",
+    "alloy-consensus/arbitrary",
     "alloy-eips/arbitrary",
     "dep:arbitrary",
     "dep:proptest",
@@ -114,8 +115,8 @@ c-kzg = [
     "alloy-eips/kzg",
 ]
 zstd-codec = ["dep:zstd"]
-clap = ["reth-static-file-types/clap"]
 optimism = [
+    "reth-chainspec/optimism",
     "reth-codecs/optimism",
     "reth-ethereum-forks/optimism",
     "revm/optimism",
@@ -131,8 +132,12 @@ bsc = [
     "dep:lazy_static",
 ]
 
-alloy-compat = ["alloy-rpc-types"]
-test-utils = []
+alloy-compat = [
+    "reth-primitives-traits/alloy-compat",
+    "alloy-rpc-types",
+]
+std = ["thiserror-no-std/std"]
+test-utils = ["reth-primitives-traits/test-utils"]
 
 [[bench]]
 name = "recover_ecdsa_crit"
