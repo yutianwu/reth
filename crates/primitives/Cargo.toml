@@ -58,8 +58,10 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 
 # `bsc` feature
-include_dir = { version = "0.7.3", optional = true }
+alloy-chains = { workspace = true, optional = true }
+include_dir = { version = "0.7.4", optional = true }
 lazy_static = { version = "1.4.0", optional = true }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 # eth
@@ -122,14 +124,18 @@ optimism = [
     "revm/optimism",
 ]
 opbnb = [
+    "reth-chainspec/opbnb",
     "reth-ethereum-forks/opbnb",
     "revm/opbnb",
 ]
 bsc = [
+    "reth-chainspec/bsc",
     "reth-ethereum-forks/bsc",
     "revm/bsc",
+    "dep:alloy-chains",
     "dep:include_dir",
     "dep:lazy_static",
+    "dep:thiserror"
 ]
 
 alloy-compat = [

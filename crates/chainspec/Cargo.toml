@@ -41,9 +41,15 @@ reth-rpc-types.workspace = true
 rand.workspace = true
 
 [features]
+bsc = [
+    "reth-ethereum-forks/bsc"
+]
 default = ["std"]
 optimism = [
     "reth-ethereum-forks/optimism"
+]
+opbnb = [
+    "reth-ethereum-forks/opbnb"
 ]
 std = []
 arbitrary = [

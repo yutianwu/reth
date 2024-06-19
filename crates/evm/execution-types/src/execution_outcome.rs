@@ -661,8 +661,13 @@ mod tests {
 
         // Create a ExecutionOutcome object with the created bundle, receipts, requests, and
         // first_block
-        let mut exec_res =
-            ExecutionOutcome { bundle: Default::default(), receipts, requests, first_block, snapshots: vec![] };
+        let mut exec_res = ExecutionOutcome {
+            bundle: Default::default(),
+            receipts,
+            requests,
+            first_block,
+            snapshots: vec![],
+        };
 
         // Assert that the revert_to method returns true when reverting to the initial block number.
         assert!(exec_res.revert_to(123));
@@ -782,8 +787,13 @@ mod tests {
 
         // Create a ExecutionOutcome object with the created bundle, receipts, requests, and
         // first_block
-        let exec_res =
-            ExecutionOutcome { bundle: Default::default(), receipts, requests, first_block };
+        let exec_res = ExecutionOutcome {
+            bundle: Default::default(),
+            receipts,
+            requests,
+            first_block,
+            snapshots: vec![],
+        };
 
         // Split the ExecutionOutcome at block number 124
         let result = exec_res.clone().split_at(124);
@@ -794,6 +804,7 @@ mod tests {
             receipts: Receipts { receipt_vec: vec![vec![Some(receipt.clone())]] },
             requests: vec![Requests(vec![request])],
             first_block,
+            snapshots: vec![],
         };
 
         // Define the expected higher ExecutionOutcome after splitting
@@ -804,6 +815,7 @@ mod tests {
             },
             requests: vec![Requests(vec![request]), Requests(vec![request])],
             first_block: 124,
+            snapshots: vec![],
         };
 
         // Assert that the split result matches the expected lower and higher outcomes

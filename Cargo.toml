@@ -483,7 +483,7 @@ secp256k1 = { version = "0.29", default-features = false, features = [
     "recovery",
 ] }
 # TODO: Remove `k256` feature: https://github.com/sigp/enr/pull/74
-enr = { version = "0.12.0", default-features = false, features = [
+enr = { version = "=0.12.1", default-features = false, features = [
     "k256",
     "rust-secp256k1",
 ] }
@@ -508,12 +508,12 @@ similar-asserts = "1.5.0"
 test-fuzz = "5"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm", rev = "785147a6d3044bcaa6d7c092f608f0329f99f576" }
-revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "785147a6d3044bcaa6d7c092f608f0329f99f576" }
-revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "785147a6d3044bcaa6d7c092f608f0329f99f576" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "785147a6d3044bcaa6d7c092f608f0329f99f576" }
+revm = { git = "https://github.com/bnb-chain/revm", rev = "88cc93305ae0c35fc8b66e16a79a609777f13226" }
+revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "88cc93305ae0c35fc8b66e16a79a609777f13226" }
+revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "88cc93305ae0c35fc8b66e16a79a609777f13226" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "88cc93305ae0c35fc8b66e16a79a609777f13226" }
 alloy-chains = { git = "https://github.com/bnb-chain/alloy-chains-rs.git", rev = "b7c5379cf47345181f8dce350acafb958f47152a" }
 alloy-genesis = { git = "https://github.com/forcodedancing/alloy", branch = "feat/parlia-config" }
 
 [patch."https://github.com/bluealloy/revm"]
-revm = { git = "https://github.com/bnb-chain/revm", rev = "785147a6d3044bcaa6d7c092f608f0329f99f576" }
+revm = { git = "https://github.com/bnb-chain/revm", rev = "88cc93305ae0c35fc8b66e16a79a609777f13226" }

@@ -51,3 +51,5 @@ arbitrary = [
     "dep:proptest-derive"
 ]
 alloy-compat = ["alloy-rpc-types-eth"]
+
+bsc = []

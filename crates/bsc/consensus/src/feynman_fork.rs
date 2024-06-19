@@ -37,7 +37,7 @@ pub fn get_top_validators_by_voting_power(
     max_elected_validators: U256,
 ) -> Option<ElectedValidators> {
     let mut validator_heap: BinaryHeap<ValidatorElectionInfo> = BinaryHeap::new();
-    for info in validators.into_iter() {
+    for info in validators {
         if info.voting_power > U256::ZERO {
             validator_heap.push(info);
         }

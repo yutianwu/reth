@@ -678,6 +678,7 @@ mod tests {
             receipts,
             requests: vec![],
             first_block: 10,
+            snapshots: vec![],
         };
 
         // Create a Chain object with a BTreeMap of blocks mapped to their block numbers,
@@ -697,6 +698,7 @@ mod tests {
             receipts: Receipts { receipt_vec: vec![vec![Some(receipt1)]] },
             requests: vec![],
             first_block: 10,
+            snapshots: vec![],
         };
 
         // Assert that the execution outcome at the first block contains only the first receipt

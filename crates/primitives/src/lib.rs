@@ -134,8 +134,6 @@ pub use c_kzg as kzg;
 /// Optimism specific re-exports
 #[cfg(feature = "optimism")]
 mod optimism {
-    #[cfg(all(feature = "optimism", feature = "opbnb"))]
-    pub use crate::chain::{OPBNB_MAINNET, OPBNB_TESTNET};
     pub use crate::transaction::{TxDeposit, DEPOSIT_TX_TYPE_ID};
     pub use reth_chainspec::{
         net::{
@@ -144,6 +142,8 @@ mod optimism {
         },
         BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA,
     };
+    #[cfg(feature = "opbnb")]
+    pub use reth_chainspec::{OPBNB_MAINNET, OPBNB_TESTNET};
 }
 
 #[cfg(feature = "optimism")]
@@ -152,9 +152,9 @@ pub use optimism::*;
 /// Bsc specific re-exports
 #[cfg(feature = "bsc")]
 mod bsc {
-    pub use crate::{
-        chain::{BSC_MAINNET, BSC_TESTNET},
+    pub use reth_chainspec::{
         net::{bsc_mainnet_nodes, bsc_testnet_nodes, BSC_MAINNET_BOOTNODES, BSC_TESTNET_BOOTNODES},
+        BSC_MAINNET, BSC_TESTNET,
     };
 }
 

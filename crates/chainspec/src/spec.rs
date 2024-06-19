@@ -20,7 +20,7 @@ use reth_network_peers::NodeRecord;
 use reth_primitives_traits::{
     constants::{
         EIP1559_INITIAL_BASE_FEE, EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS,
-        EMPTY_WITHDRAWALS, EIP1559_INITIAL_BASE_FEE_FOR_BSC
+        EMPTY_WITHDRAWALS,
     },
     Header, SealedHeader,
 };
@@ -48,7 +48,7 @@ pub(crate) use crate::net::{bsc_mainnet_nodes, bsc_testnet_nodes};
 pub static BSC_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
         chain: Chain::from_named(NamedChain::BNBSmartChain),
-        genesis: serde_json::from_str(include_str!("../../res/genesis/bsc_mainnet.json"))
+        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_mainnet.json"))
             .expect("Can't deserialize BSC Mainnet genesis json"),
         genesis_hash: Some(b256!(
             "0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"
@@ -98,7 +98,7 @@ pub static BSC_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
 pub static BSC_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
         chain: Chain::from_named(NamedChain::BNBSmartChainTestnet),
-        genesis: serde_json::from_str(include_str!("../../res/genesis/bsc_testnet.json"))
+        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_testnet.json"))
             .expect("Can't deserialize BSC Testnet genesis json"),
         genesis_hash: Some(b256!(
             "6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34"
@@ -576,7 +576,7 @@ pub static BASE_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
 pub static OPBNB_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
         chain: Chain::opbnb_mainnet(),
-        genesis: serde_json::from_str(include_str!("../../res/genesis/opbnb_mainnet.json"))
+        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_mainnet.json"))
             .expect("Can't deserialize opBNB mainent genesis json"),
         genesis_hash: Some(b256!(
             "4dd61178c8b0f01670c231597e7bcb368e84545acd46d940a896d6a791dd6df4"
@@ -618,7 +618,7 @@ pub static OPBNB_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
 pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
         chain: Chain::opbnb_testnet(),
-        genesis: serde_json::from_str(include_str!("../../res/genesis/opbnb_testnet.json"))
+        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_testnet.json"))
             .expect("Can't deserialize opBNB testnet genesis json"),
         genesis_hash: Some(b256!(
             "51fa57729dfb1c27542c21b06cb72a0459c57440ceb43a465dae1307cd04fe80"
@@ -879,11 +879,8 @@ impl ChainSpec {
     /// Get the initial base fee of the genesis block.
     pub fn initial_base_fee(&self) -> Option<u64> {
         // If the base fee is set in the genesis block, we use that instead of the default.
-        let genesis_base_fee = if self.is_bsc() {
-            EIP1559_INITIAL_BASE_FEE_FOR_BSC
-        } else {
-            self.genesis.base_fee_per_gas.map(|fee| fee as u64).unwrap_or(EIP1559_INITIAL_BASE_FEE)
-        };
+        let genesis_base_fee =
+            self.genesis.base_fee_per_gas.map(|fee| fee as u64).unwrap_or(EIP1559_INITIAL_BASE_FEE);
 
         // If London is activated at genesis, we set the initial base fee as per EIP-1559.
         self.fork(Hardfork::London).active_at_block(0).then_some(genesis_base_fee)
@@ -3259,12 +3256,20 @@ Post-merge hard forks (timestamp based):
 
         // check the genesis hash
         let genesis_hash = header.hash_slow();
-        let expected_hash =
-            b256!("16bb7c59613a5bad3f7c04a852fd056545ade2483968d9a25a1abb05af0c4d37");
+        let expected_hash = if cfg!(feature = "bsc") {
+            // bsc has zero base fee
+            b256!("8498b49617a74f5750dfe77e025989bd06955a177d255b8fb90ed3ebbe9aaf0f")
+        } else {
+            b256!("16bb7c59613a5bad3f7c04a852fd056545ade2483968d9a25a1abb05af0c4d37")
+        };
         assert_eq!(genesis_hash, expected_hash);
 
         // check that the forkhash is correct
-        let expected_forkhash = ForkHash(hex!("8062457a"));
+        let expected_forkhash = if cfg!(feature = "bsc") {
+            ForkHash(hex!("1e7c5080"))
+        } else {
+            ForkHash(hex!("8062457a"))
+        };
         assert_eq!(ForkHash::from(genesis_hash), expected_forkhash);
     }
 
