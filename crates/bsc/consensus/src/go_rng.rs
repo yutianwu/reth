@@ -700,9 +700,7 @@ impl RngSource {
     /// Int63n returns, as an int64, a non-negative pseudo-random number in the half-open interval
     /// [0,n). It panics if n <= 0.
     pub fn int63n(&mut self, n: i64) -> i64 {
-        if n <= 0 {
-            panic!("invalid argument to int63n")
-        }
+        assert!(n > 0, "invalid argument to int63n");
         if n & (n - 1) == 0 {
             // n is power of two, can mask
             return self.int63() & (n - 1);

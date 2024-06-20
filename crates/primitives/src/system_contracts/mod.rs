@@ -1,14 +1,11 @@
 #![cfg(feature = "bsc")]
 #![allow(missing_docs)]
 
-use crate::{
-    chain::{BSC_MAINNET, BSC_TESTNET},
-    ChainSpec,
-};
 use alloy_chains::Chain;
 use alloy_primitives::BlockNumber;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
+use reth_chainspec::{ChainSpec, BSC_MAINNET, BSC_TESTNET};
 use reth_ethereum_forks::Hardfork;
 use revm::primitives::{Address, Bytecode};
 use revm_primitives::hex;

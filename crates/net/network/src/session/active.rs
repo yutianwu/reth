@@ -170,10 +170,14 @@ impl ActiveSession {
         }
 
         match msg {
-            message @ EthMessage::Status(_) => OnIncomingMessageOutcome::BadMessage {
-                error: EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake),
-                message,
-            },
+            message @ EthMessage::Status(_) | message @ EthMessage::UpgradeStatus(_) => {
+                OnIncomingMessageOutcome::BadMessage {
+                    error: EthStreamError::EthHandshakeError(
+                        EthHandshakeError::StatusNotInHandshake,
+                    ),
+                    message,
+                }
+            }
             EthMessage::NewBlockHashes(msg) => {
                 self.try_emit_broadcast(PeerMessage::NewBlockHashes(msg)).into()
             }
@@ -231,10 +235,6 @@ impl ActiveSession {
             EthMessage::Receipts(resp) => {
                 on_response!(resp, GetReceipts)
             }
-            message @ EthMessage::UpgradeStatus(_) => OnIncomingMessageOutcome::BadMessage {
-                error: EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake),
-                message,
-            },
         }
     }
 
@@ -767,13 +767,14 @@ mod tests {
         config::PROTOCOL_BREACH_REQUEST_TIMEOUT, handle::PendingSessionEvent,
         start_pending_incoming_session,
     };
+    use reth_chainspec::MAINNET;
     use reth_ecies::stream::ECIESStream;
     use reth_eth_wire::{
         EthStream, GetBlockBodies, HelloMessageWithProtocols, P2PStream, Status, StatusBuilder,
         UnauthedEthStream, UnauthedP2PStream,
     };
     use reth_network_peers::pk2id;
-    use reth_primitives::{ForkFilter, Hardfork, MAINNET};
+    use reth_primitives::{ForkFilter, Hardfork};
     use secp256k1::{SecretKey, SECP256K1};
     use tokio::{
         net::{TcpListener, TcpStream},

@@ -8,6 +8,7 @@ use reth_bsc_consensus::{
     is_breathe_block, is_system_transaction, validate_block_post_execution, Parlia, ParliaConfig,
     ValidatorElectionInfo, ValidatorsInfo,
 };
+use reth_chainspec::ChainSpec;
 use reth_errors::{BlockExecutionError, BlockValidationError, ProviderError};
 use reth_evm::{
     execute::{
@@ -18,8 +19,8 @@ use reth_evm::{
 use reth_primitives::{
     parlia::{Snapshot, VoteAddress, CHECKPOINT_INTERVAL},
     system_contracts::get_upgrade_system_contracts,
-    Address, BlockNumber, BlockWithSenders, Bytes, ChainSpec, Header, Receipt, Transaction,
-    TransactionSigned, B256, BSC_MAINNET, U256,
+    Address, BlockNumber, BlockWithSenders, Bytes, Header, Receipt, Transaction, TransactionSigned,
+    B256, BSC_MAINNET, U256,
 };
 use reth_provider::{ExecutionOutcome, ParliaProvider};
 use reth_prune_types::PruneModes;
@@ -65,7 +66,7 @@ impl<P> BscExecutorProvider<P> {
 
 impl<P, EvmConfig> BscExecutorProvider<P, EvmConfig> {
     /// Creates a new executor provider.
-    pub fn new(
+    pub const fn new(
         chain_spec: Arc<ChainSpec>,
         evm_config: EvmConfig,
         parlia_config: ParliaConfig,
@@ -431,7 +432,7 @@ where
 
         // apply skip headers
         skip_headers.reverse();
-        for header in skip_headers.iter() {
+        for header in &skip_headers {
             let ValidatorsInfo { consensus_addrs, vote_addrs } = if header.number > 0 &&
                 header.number % self.parlia.epoch() == (snap.validators.len() / 2) as u64
             {

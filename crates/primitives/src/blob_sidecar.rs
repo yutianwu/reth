@@ -25,7 +25,7 @@ pub struct BlobSidecars(Vec<BlobSidecar>);
 
 impl BlobSidecars {
     /// Create a new `BlobSidecars` instance.
-    pub fn new(sidecars: Vec<BlobSidecar>) -> Self {
+    pub const fn new(sidecars: Vec<BlobSidecar>) -> Self {
         Self(sidecars)
     }
 

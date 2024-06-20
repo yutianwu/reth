@@ -11,12 +11,13 @@ use alloy_rlp::Decodable;
 use lazy_static::lazy_static;
 use lru::LruCache;
 use parking_lot::RwLock;
+use reth_chainspec::ChainSpec;
 use reth_consensus::{Consensus, ConsensusError, PostExecutionInput};
 use reth_primitives::{
     constants::EMPTY_MIX_HASH,
     parlia::{Snapshot, VoteAddress, VoteAttestation},
-    Address, BlockWithSenders, ChainSpec, GotExpected, Hardfork, Header, SealedBlock, SealedHeader,
-    B256, EMPTY_OMMER_ROOT_HASH, U256,
+    Address, BlockWithSenders, GotExpected, Header, SealedBlock, SealedHeader, B256,
+    EMPTY_OMMER_ROOT_HASH, U256,
 };
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -45,6 +46,11 @@ mod go_rng;
 pub use go_rng::{RngSource, Shuffle};
 mod abi;
 pub use abi::*;
+use reth_consensus_common::validation::{
+    validate_against_parent_4844, validate_against_parent_eip1559_base_fee,
+    validate_against_parent_hash_number, validate_against_parent_timestamp,
+    validate_header_base_fee, validate_header_gas,
+};
 
 mod validation;
 pub use validation::{validate_4844_header_of_bsc, validate_block_post_execution};
@@ -274,7 +280,7 @@ impl Parlia {
 
             let mut recents = HashMap::with_capacity(snap.recent_proposers.len());
             let bound = header.number.saturating_sub(validator_count / 2 + 1);
-            for (&seen, &proposer) in snap.recent_proposers.iter() {
+            for (&seen, &proposer) in &snap.recent_proposers {
                 if seen <= bound {
                     continue
                 };
@@ -462,21 +468,8 @@ impl Consensus for Parlia {
             ));
         }
 
-        // Gas used needs to be less than gas limit. Gas used is going to be checked after
-        // execution.
-        if header.gas_used > header.gas_limit {
-            return Err(ConsensusError::HeaderGasUsedExceedsGasLimit {
-                gas_used: header.gas_used,
-                gas_limit: header.gas_limit,
-            })
-        }
-
-        // Check if base fee is set.
-        if self.chain_spec.fork(Hardfork::London).active_at_block(header.number) &&
-            header.base_fee_per_gas.is_none()
-        {
-            return Err(ConsensusError::BaseFeeMissing)
-        }
+        validate_header_gas(header)?;
+        validate_header_base_fee(header, &self.chain_spec)?;
 
         // Ensures that EIP-4844 fields are valid once cancun is active.
         if self.chain_spec.is_cancun_active_at_timestamp(header.timestamp) {
@@ -497,7 +490,15 @@ impl Consensus for Parlia {
         header: &SealedHeader,
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        header.validate_against_parent(parent, &self.chain_spec).map_err(ConsensusError::from)?;
+        validate_against_parent_hash_number(header, parent)?;
+        validate_against_parent_timestamp(header, parent)?;
+        validate_against_parent_eip1559_base_fee(header, parent, &self.chain_spec)?;
+
+        // ensure that the blob gas fields for this block
+        if self.chain_spec.is_cancun_active_at_timestamp(header.timestamp) {
+            validate_against_parent_4844(header, parent)?;
+        }
+
         Ok(())
     }
 
