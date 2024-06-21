@@ -1,8 +1,7 @@
 //! Configuration files.
-
-#[cfg(feature = "bsc")]
-use reth_bsc_consensus::ParliaConfig;
 use reth_network::{PeersConfig, SessionsConfig};
+#[cfg(feature = "bsc")]
+use reth_primitives::parlia::ParliaConfig;
 use reth_prune_types::PruneModes;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{

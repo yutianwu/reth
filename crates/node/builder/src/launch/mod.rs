@@ -16,6 +16,9 @@ use reth_blockchain_tree::{
     noop::NoopBlockchainTree, BlockchainTree, BlockchainTreeConfig, ShareableBlockchainTree,
     TreeExternals,
 };
+
+#[cfg(feature = "bsc")]
+use reth_bsc_consensus::ParliaEngineBuilder;
 use reth_consensus::Consensus;
 use reth_consensus_debug_client::{DebugConsensusClient, EtherscanBlockProvider, RpcBlockProvider};
 use reth_exex::ExExManagerHandle;
@@ -28,6 +31,8 @@ use reth_node_core::{
     version::{CARGO_PKG_VERSION, CLIENT_CODE, NAME_CLIENT, VERGEN_GIT_SHA},
 };
 use reth_node_events::{cl::ConsensusLayerHealthEvents, node};
+#[cfg(feature = "bsc")]
+use reth_primitives::parlia::ParliaConfig;
 
 use reth_primitives::format_ether;
 use reth_provider::providers::BlockchainProvider;
@@ -285,8 +290,24 @@ where
                 pipeline_exex_handle,
             )
             .await?;
-
-            (pipeline, Either::Right(network_client.clone()))
+            #[cfg(feature = "bsc")]
+            {
+                let engine_rx = node_adapter.components.network().get_to_engine_rx();
+                let client = ParliaEngineBuilder::new(
+                    ctx.chain_spec(),
+                    ParliaConfig::default(),
+                    blockchain_db.clone(),
+                    consensus_engine_tx.clone(),
+                    engine_rx,
+                    network_client.clone(),
+                )
+                .build();
+                (pipeline, Either::Right(client))
+            }
+            #[cfg(not(feature = "bsc"))]
+            {
+                (pipeline, Either::Right(network_client.clone()))
+            }
         };
 
         let pipeline_events = pipeline.events();

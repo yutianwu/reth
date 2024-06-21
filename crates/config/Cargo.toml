@@ -12,9 +12,9 @@ workspace = true
 
 [dependencies]
 # reth
-reth-bsc-consensus = { workspace = true, optional = true }
 reth-network.workspace = true
 reth-prune-types.workspace = true
+reth-primitives = { workspace = true, optional = true }
 
 # serde
 serde.workspace = true
@@ -28,4 +28,6 @@ tempfile.workspace = true
 toml.workspace = true
 
 [features]
-bsc = ["dep:reth-bsc-consensus"]
+bsc = [
+    "reth-primitives/bsc"
+]

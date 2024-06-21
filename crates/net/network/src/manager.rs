@@ -23,8 +23,13 @@ use crate::{
     eth_requests::IncomingEthRequest,
     import::{BlockImport, BlockImportOutcome, BlockValidation},
     listener::ConnectionListener,
-    message::{NewBlockMessage, PeerMessage, PeerRequest, PeerRequestSender},
-    metrics::{DisconnectMetrics, NetworkMetrics, NETWORK_POOL_TRANSACTIONS_SCOPE},
+    message::{
+        BlockEvent, BlockHashesEvent, EngineMessage, NewBlockMessage, PeerMessage, PeerRequest,
+        PeerRequestSender,
+    },
+    metrics::{
+        DisconnectMetrics, NetworkMetrics, NETWORK_PEER_SCOPE, NETWORK_POOL_TRANSACTIONS_SCOPE,
+    },
     network::{NetworkHandle, NetworkHandleMessage},
     peers::{PeersHandle, PeersManager},
     poll_nested_stream_with_budget,
@@ -102,6 +107,7 @@ pub struct NetworkManager<C> {
     /// requests. This channel size is set at
     /// [`ETH_REQUEST_CHANNEL_CAPACITY`](crate::builder::ETH_REQUEST_CHANNEL_CAPACITY)
     to_eth_request_handler: Option<mpsc::Sender<IncomingEthRequest>>,
+    to_engine: Option<UnboundedMeteredSender<EngineMessage>>,
     /// Tracks the number of active session (connected peers).
     ///
     /// This is updated via internal events and shared via `Arc` with the [`NetworkHandle`]
@@ -249,10 +255,14 @@ where
 
         let event_sender: EventSender<NetworkEvent> = Default::default();
 
+        let (engine_task_tx, engine_task_rx) = mpsc::unbounded_channel();
+        let mutex_engine_rx = Arc::new(tokio::sync::Mutex::new(engine_task_rx));
+
         let handle = NetworkHandle::new(
             Arc::clone(&num_active_peers),
             Arc::new(Mutex::new(listener_addr)),
             to_manager_tx,
+            mutex_engine_rx,
             secret_key,
             local_peer_id,
             peers_handle,
@@ -271,6 +281,7 @@ where
             event_sender,
             to_transactions_manager: None,
             to_eth_request_handler: None,
+            to_engine: Some(UnboundedMeteredSender::new(engine_task_tx, NETWORK_PEER_SCOPE)),
             num_active_peers,
             metrics: Default::default(),
             disconnect_metrics: Default::default(),
@@ -392,6 +403,14 @@ where
         }
     }
 
+    /// Sends an event to the [`EngineTask`](crate::bsc::consensus::ParliaEngineTask) if
+    /// configured.
+    fn notify_engine_task(&self, event: EngineMessage) {
+        if let Some(ref tx) = self.to_engine {
+            let _ = tx.send(event);
+        }
+    }
+
     /// Sends an event to the [`EthRequestManager`](crate::eth_requests::EthRequestHandler) if
     /// configured.
     fn delegate_eth_request(&self, event: IncomingEthRequest) {
@@ -497,7 +516,11 @@ where
             PeerMessage::NewBlockHashes(hashes) => {
                 self.within_pow_or_disconnect(peer_id, |this| {
                     // update peer's state, to track what blocks this peer has seen
-                    this.swarm.state_mut().on_new_block_hashes(peer_id, hashes.0)
+                    this.swarm.state_mut().on_new_block_hashes(peer_id, hashes.clone().0);
+                    // notify task engine
+                    this.notify_engine_task(EngineMessage::NewBlockHashes(BlockHashesEvent {
+                        hashes: hashes.clone().into(),
+                    }));
                 });
             }
             #[cfg(not(feature = "bsc"))]
@@ -505,8 +528,33 @@ where
                 self.within_pow_or_disconnect(peer_id, move |this| {
                     this.swarm.state_mut().on_new_block(peer_id, block.hash);
                     // start block import process
-                    this.block_import.on_new_block(peer_id, block);
+                    this.block_import.on_new_block(peer_id, block.clone());
+                    // notify task engine
+                    this.notify_engine_task(EngineMessage::NewBlock(BlockEvent {
+                        hash: block.hash,
+                        block: block.block,
+                    }));
                 });
+            }
+            #[cfg(feature = "bsc")]
+            PeerMessage::NewBlockHashes(hashes) => {
+                // update peer's state, to track what blocks this peer has seen
+                self.swarm.state_mut().on_new_block_hashes(peer_id, hashes.clone().0);
+                // notify task engine
+                self.notify_engine_task(EngineMessage::NewBlockHashes(BlockHashesEvent {
+                    hashes: hashes.into(),
+                }));
+            }
+            #[cfg(feature = "bsc")]
+            PeerMessage::NewBlock(block) => {
+                self.swarm.state_mut().on_new_block(peer_id, block.hash);
+                // start block import process
+                self.block_import.on_new_block(peer_id, block.clone());
+                // notify task engine
+                self.notify_engine_task(EngineMessage::NewBlock(BlockEvent {
+                    hash: block.hash,
+                    block: block.block,
+                }));
             }
             PeerMessage::PooledTransactions(msg) => {
                 self.notify_tx_manager(NetworkTransactionEvent::IncomingPooledTransactionHashes {
@@ -528,10 +576,6 @@ where
             }
             PeerMessage::Other(other) => {
                 debug!(target: "net", message_id=%other.id, "Ignoring unsupported message");
-            }
-            #[cfg(feature = "bsc")]
-            _ => {
-                trace!(target: "net", "Ignoring unsupported message");
             }
         }
     }
