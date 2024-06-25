@@ -32,9 +32,10 @@ use reth_db_api::{
     table::{Decode, DupSort, Encode, Table},
 };
 use reth_primitives::{
-    parlia::Snapshot, Account, Address, BlockHash, BlockNumber, Bytecode, Header, IntegerList,
-    Receipt, Requests, StorageEntry, TransactionSignedNoHash, TxHash, TxNumber, B256,
+    parlia::Snapshot, Account, Address, BlockHash, BlockNumber, Bytecode, Header, Receipt,
+    Requests, StorageEntry, TransactionSignedNoHash, TxHash, TxNumber, B256,
 };
+use reth_primitives_traits::IntegerList;
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::StageCheckpoint;
 use reth_trie_common::{StorageTrieEntry, StoredBranchNode, StoredNibbles, StoredNibblesSubKey};

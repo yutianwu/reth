@@ -19,12 +19,11 @@ use std::{
 
 #[cfg(feature = "arbitrary")]
 use proptest::{collection::vec, prelude::*};
+#[cfg(feature = "arbitrary")]
+use proptest_arbitrary_interop::arb;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-#[cfg(any(feature = "arbitrary", test))]
-use reth_primitives::empty_sidecars_strategy;
 
 /// This informs peers of new blocks that have appeared on the network.
 #[derive_arbitrary(rlp)]
@@ -87,7 +86,6 @@ pub struct NewBlock {
 
     // only for bsc
     /// Tx sidecars for the block.
-    #[cfg_attr(any(test, feature = "arbitrary"), proptest(strategy = "empty_sidecars_strategy()"))]
     pub sidecars: Option<BlobSidecars>,
 }
 
@@ -360,7 +358,7 @@ impl Arbitrary for NewPooledTransactionHashes68 {
             .prop_flat_map(|len| {
                 // Use the generated length to create vectors of TxType, usize, and B256
                 let types_vec =
-                    vec(any::<reth_primitives::TxType>().prop_map(|ty| ty as u8), len..=len);
+                    vec(arb::<reth_primitives::TxType>().prop_map(|ty| ty as u8), len..=len);
 
                 // Map the usize values to the range 0..131072(0x20000)
                 let sizes_vec = vec(proptest::num::usize::ANY.prop_map(|x| x % 131072), len..=len);

@@ -4,10 +4,10 @@ name: unit
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
   merge_group:
   push:
-    branches: [main]
+    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,7 +40,7 @@ jobs:
         run: |
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }}" \
-            --workspace --exclude examples --exclude ef-tests \
+            --workspace --exclude ef-tests \
             --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
       - if: matrix.network == 'optimism'
@@ -57,7 +57,7 @@ jobs:
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }}" \
             --workspace --exclude examples --exclude exex-rollup --exclude ef-tests --exclude reth-beacon-consensus \
-            --exclude reth-blockchain-tree --exclude reth-node-ethereum --exclude reth-rpc-engine-api \
+            --exclude reth-blockchain-tree --exclude reth-node-ethereum --exclude reth-rpc-engine-api --exclude example-exex-rollup \
             --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
 
