@@ -118,6 +118,7 @@ opbnb = [
     "revm/opbnb",
 ]
 bsc = [
+    "reth-primitives-traits/bsc",
     "reth-chainspec/bsc",
     "reth-ethereum-forks/bsc",
     "revm/bsc",
