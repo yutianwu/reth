@@ -25,12 +25,14 @@ use secp256k1::{
 };
 use sha3::{Digest, Keccak256};
 use std::{
+    clone::Clone,
     collections::{HashMap, VecDeque},
     fmt::{Debug, Formatter},
     num::NonZeroUsize,
     sync::Arc,
     time::SystemTime,
 };
+
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     Mutex, RwLockReadGuard, RwLockWriteGuard,
@@ -434,10 +436,34 @@ impl Parlia {
 
 /// Header and Block validation
 impl Parlia {
+    fn present_timestamp(&self) -> u64 {
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()
+    }
+
+    fn validate_header_with_predicted_timestamp(
+        &self,
+        header: &SealedHeader,
+        predicted_timestamp: u64,
+    ) -> Result<(), ConsensusError> {
+        if header.timestamp < predicted_timestamp {
+            return Err(ConsensusError::TimestampNotExpected {
+                timestamp: header.timestamp,
+                predicted_timestamp,
+            });
+        }
+        let present_timestamp = self.present_timestamp();
+        if predicted_timestamp > present_timestamp {
+            return Err(ConsensusError::TimestampIsInFuture {
+                timestamp: predicted_timestamp,
+                present_timestamp,
+            });
+        }
+        self.validate_header(header)
+    }
+
     fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
         // Don't waste time checking blocks from the future
-        let present_timestamp =
-            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let present_timestamp = self.present_timestamp();
         if header.timestamp > present_timestamp {
             return Err(ConsensusError::TimestampIsInFuture {
                 timestamp: header.timestamp,
@@ -573,14 +599,14 @@ pub struct ParliaEngineBuilder<Client, Engine: EngineTypes> {
     to_engine: UnboundedSender<BeaconEngineMessage<Engine>>,
     network_block_event_rx: Arc<Mutex<UnboundedReceiver<EngineMessage>>>,
     fetch_client: FetchClient,
-    _client: Client,
+    client: Client,
 }
 
 // === impl ParliaEngineBuilder ===
 
 impl<Client, Engine> ParliaEngineBuilder<Client, Engine>
 where
-    Client: BlockReaderIdExt,
+    Client: BlockReaderIdExt + Clone + 'static,
     Engine: EngineTypes + 'static,
 {
     /// Creates a new builder instance to configure all parts.
@@ -601,7 +627,7 @@ where
         Self {
             chain_spec,
             cfg,
-            _client: client,
+            client,
             storage: Storage::new(latest_header),
             to_engine,
             network_block_event_rx,
@@ -619,12 +645,13 @@ where
             to_engine,
             network_block_event_rx,
             fetch_client,
-            _client,
+            client,
         } = self;
         let parlia_client = ParliaClient::new(storage.clone(), fetch_client);
         ParliaEngineTask::start(
             chain_spec.clone(),
             Parlia::new(chain_spec, cfg.clone()),
+            client,
             to_engine,
             network_block_event_rx,
             storage,
