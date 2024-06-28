@@ -281,7 +281,7 @@ where
                     engine_rx,
                     network_client.clone(),
                 )
-                .build();
+                .build(ctx.node_config().debug.tip.is_none());
                 (pipeline, Either::Right(client))
             }
             #[cfg(not(feature = "bsc"))]
