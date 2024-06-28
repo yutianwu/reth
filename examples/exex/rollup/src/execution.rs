@@ -3,7 +3,7 @@ use alloy_consensus::{Blob, SidecarCoder, SimpleCoder};
 use alloy_rlp::Decodable as _;
 use eyre::OptionExt;
 use reth::transaction_pool::TransactionPool;
-use reth_interfaces::executor::BlockValidationError;
+use reth_execution_errors::BlockValidationError;
 use reth_node_api::{ConfigureEvm, ConfigureEvmEnv};
 use reth_node_ethereum::EthEvmConfig;
 use reth_primitives::{
@@ -273,15 +273,15 @@ mod tests {
         test_utils::{testing_pool, MockTransaction},
         TransactionOrigin, TransactionPool,
     };
-    use reth_interfaces::test_utils::generators::{self, sign_tx_with_key_pair};
     use reth_primitives::{
         bytes,
         constants::ETH_TO_WEI,
         keccak256, public_key_to_address,
-        revm_primitives::{AccountInfo, ExecutionResult, Output, TransactTo, TxEnv},
+        revm_primitives::{AccountInfo, ExecutionResult, Output, TxEnv},
         BlockNumber, Receipt, SealedBlockWithSenders, Transaction, TxEip2930, TxKind, U256,
     };
     use reth_revm::Evm;
+    use reth_testing_utils::generators::{self, sign_tx_with_key_pair};
     use rusqlite::Connection;
     use secp256k1::{Keypair, Secp256k1};
 
@@ -383,7 +383,7 @@ mod tests {
             .with_tx_env(TxEnv {
                 caller: sender_address,
                 gas_limit: 50_000_000,
-                transact_to: TransactTo::Call(weth_address),
+                transact_to: TxKind::Call(weth_address),
                 data: WETH::balanceOfCall::new((sender_address,)).abi_encode().into(),
                 ..Default::default()
             })
@@ -408,7 +408,7 @@ mod tests {
             .with_tx_env(TxEnv {
                 caller: sender_address,
                 gas_limit: 50_000_000,
-                transact_to: TransactTo::Call(weth_address),
+                transact_to: TxKind::Call(weth_address),
                 data: WETH::balanceOfCall::new((sender_address,)).abi_encode().into(),
                 ..Default::default()
             })

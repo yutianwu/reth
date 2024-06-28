@@ -4,6 +4,7 @@ name: unit
 
 on:
   pull_request:
+    branches: [ main, develop ]
   merge_group:
   push:
     branches: [ main ]
@@ -11,6 +12,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SEED: rustethereumethereumrust
+  TOOL_CHAIN: "1.79"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -18,18 +20,20 @@ concurrency:
 
 jobs:
   test:
-    name: test / ${{ matrix.network }} (${{ matrix.partition }}/2)
+    name: test / ${{ matrix.network }} (${{ matrix.partition }}/3)
     runs-on: [ bnb-chain-ap-qa-cicd-runners ]
     env:
       RUST_BACKTRACE: 1
     strategy:
       matrix:
-        partition: [ 1, 2 ]
-        network: [ ethereum, optimism ]
+        partition: [ 1, 2, 3 ]
+        network: [ ethereum, optimism, bsc ]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.TOOL_CHAIN }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -39,16 +43,25 @@ jobs:
         run: |
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }}" \
-            --workspace --exclude examples --exclude ef-tests \
-            --partition hash:${{ matrix.partition }}/2 \
+            --workspace --exclude ef-tests \
+            --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
       - if: matrix.network == 'optimism'
         name: Run tests
         run: |
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }} opbnb" \
-            --workspace --exclude examples --exclude ef-tests \
-            --partition hash:${{ matrix.partition }}/2 \
+            --workspace --exclude examples --exclude ef-tests --exclude reth-node-ethereum \
+            --partition hash:${{ matrix.partition }}/3 \
+            -E "!kind(test)"
+      - if: matrix.network == 'bsc'
+        name: Run tests
+        run: |
+          cargo nextest run \
+            --locked --features "asm-keccak ${{ matrix.network }}" \
+            --workspace --exclude examples --exclude exex-rollup --exclude ef-tests --exclude reth-beacon-consensus \
+            --exclude reth-blockchain-tree --exclude reth-node-ethereum --exclude reth-rpc-engine-api --exclude example-exex-rollup \
+            --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
 
   state:
@@ -69,6 +82,8 @@ jobs:
           submodules: recursive
           fetch-depth: 1
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.TOOL_CHAIN }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -88,9 +103,13 @@ jobs:
             extra-features: ""
           - network: optimism
             extra-features: "opbnb"
+          - network: bsc
+            extra-features: ""
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.TOOL_CHAIN }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true

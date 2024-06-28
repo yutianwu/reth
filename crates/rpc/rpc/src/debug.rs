@@ -1,7 +1,7 @@
 use crate::{
     eth::{
         error::{EthApiError, EthResult},
-        revm_utils::{prepare_call_env, EvmOverrides},
+        revm_utils::prepare_call_env,
         EthTransactions,
     },
     result::{internal_rpc_err, ToRpcResult},
@@ -20,6 +20,7 @@ use reth_provider::{
 use reth_revm::database::StateProviderDatabase;
 use reth_rpc_api::DebugApiServer;
 use reth_rpc_types::{
+    state::EvmOverrides,
     trace::geth::{
         BlockTraceResult, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
         GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace, NoopFrame, TraceResult,
@@ -48,7 +49,7 @@ pub struct DebugApi<Provider, Eth> {
 // === impl DebugApi ===
 
 impl<Provider, Eth> DebugApi<Provider, Eth> {
-    /// Create a new instance of the [DebugApi]
+    /// Create a new instance of the [`DebugApi`]
     pub fn new(provider: Provider, eth: Eth, blocking_task_guard: BlockingTaskGuard) -> Self {
         let inner = Arc::new(DebugApiInner { provider, eth_api: eth, blocking_task_guard });
         Self { inner }
@@ -256,8 +257,8 @@ where
             .await
     }
 
-    /// The debug_traceCall method lets you run an `eth_call` within the context of the given block
-    /// execution using the final state of parent block as the base.
+    /// The `debug_traceCall` method lets you run an `eth_call` within the context of the given
+    /// block execution using the final state of parent block as the base.
     ///
     /// Differences compare to `eth_call`:
     ///  - `debug_traceCall` executes with __enabled__ basefee check, `eth_call` does not: <https://github.com/paradigmxyz/reth/issues/6240>
@@ -395,7 +396,7 @@ where
         Ok(frame.into())
     }
 
-    /// The debug_traceCallMany method lets you run an `eth_callMany` within the context of the
+    /// The `debug_traceCallMany` method lets you run an `eth_callMany` within the context of the
     /// given block execution using the first n transactions in the given block as base.
     /// Each following bundle increments block number by 1 and block timestamp by 12 seconds
     pub async fn debug_trace_call_many(
@@ -519,7 +520,7 @@ where
         env: EnvWithHandlerCfg,
         db: &mut CacheDB<StateProviderDatabase<StateProviderBox>>,
         transaction_context: Option<TransactionContext>,
-    ) -> EthResult<(GethTrace, revm_primitives::State)> {
+    ) -> EthResult<(GethTrace, revm_primitives::EvmState)> {
         let GethDebugTracingOptions { config, tracer, tracer_config, .. } = opts;
 
         if let Some(tracer) = tracer {
@@ -710,7 +711,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<Vec<TraceResult>> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_raw_block(self, rlp_block, opts.unwrap_or_default()).await?)
+        Ok(Self::debug_trace_raw_block(self, rlp_block, opts.unwrap_or_default()).await?)
     }
 
     /// Handler for `debug_traceBlockByHash`
@@ -720,7 +721,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<Vec<TraceResult>> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_block(self, block.into(), opts.unwrap_or_default()).await?)
+        Ok(Self::debug_trace_block(self, block.into(), opts.unwrap_or_default()).await?)
     }
 
     /// Handler for `debug_traceBlockByNumber`
@@ -730,7 +731,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<Vec<TraceResult>> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_block(self, block.into(), opts.unwrap_or_default()).await?)
+        Ok(Self::debug_trace_block(self, block.into(), opts.unwrap_or_default()).await?)
     }
 
     /// Handler for `debug_traceTransaction`
@@ -740,7 +741,7 @@ where
         opts: Option<GethDebugTracingOptions>,
     ) -> RpcResult<GethTrace> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_transaction(self, tx_hash, opts.unwrap_or_default()).await?)
+        Ok(Self::debug_trace_transaction(self, tx_hash, opts.unwrap_or_default()).await?)
     }
 
     /// Handler for `debug_traceCall`
@@ -751,8 +752,7 @@ where
         opts: Option<GethDebugTracingCallOptions>,
     ) -> RpcResult<GethTrace> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_call(self, request, block_number, opts.unwrap_or_default())
-            .await?)
+        Ok(Self::debug_trace_call(self, request, block_number, opts.unwrap_or_default()).await?)
     }
 
     async fn debug_trace_call_many(
@@ -762,7 +762,7 @@ where
         opts: Option<GethDebugTracingCallOptions>,
     ) -> RpcResult<Vec<Vec<GethTrace>>> {
         let _permit = self.acquire_trace_permit().await;
-        Ok(DebugApi::debug_trace_call_many(self, bundles, state_context, opts).await?)
+        Ok(Self::debug_trace_call_many(self, bundles, state_context, opts).await?)
     }
 
     async fn debug_backtrace_at(&self, _location: &str) -> RpcResult<()> {

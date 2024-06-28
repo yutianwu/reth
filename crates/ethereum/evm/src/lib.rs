@@ -7,19 +7,27 @@
 )]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+use reth_chainspec::ChainSpec;
 use reth_evm::{ConfigureEvm, ConfigureEvmEnv};
 use reth_primitives::{
     revm::{config::revm_spec, env::fill_tx_env},
     revm_primitives::{AnalysisKind, CfgEnvWithHandlerCfg, TxEnv},
-    Address, ChainSpec, Head, Header, TransactionSigned, U256,
+    Address, Head, Header, TransactionSigned, U256,
 };
 use reth_revm::{Database, EvmBuilder};
+
 pub mod execute;
-pub mod verify;
 
 /// Ethereum DAO hardfork state change data.
 pub mod dao_fork;
+
+/// [EIP-6110](https://eips.ethereum.org/EIPS/eip-6110) handling.
+pub mod eip6110;
 
 /// Ethereum-related EVM configuration.
 #[derive(Debug, Clone, Copy, Default)]

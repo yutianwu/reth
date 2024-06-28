@@ -16,6 +16,7 @@ to make a PR!
 | [Custom event hooks](./node-event-hooks)           | Illustrates how to hook to various node lifecycle events                                         |
 | [Custom dev node](./custom-dev-node)               | Illustrates how to run a custom dev node programmatically and submit a transaction to it via RPC |
 | [Custom EVM](./custom-evm)                         | Illustrates how to implement a node with a custom EVM                                            |
+| [Custom Stateful Precompile](./stateful-precompile)| Illustrates how to implement a node with a stateful precompile                                   |
 | [Custom inspector](./custom-inspector)             | Illustrates how to use a custom EVM inspector to trace new transactions                          |
 | [Custom engine types](./custom-engine-types)       | Illustrates how to create a node with custom engine types                                        |
 | [Custom node components](./custom-node-components) | Illustrates how to configure custom node components                                              |
@@ -60,7 +61,8 @@ to make a PR!
 | Example                     | Description                                                       |
 | --------------------------- | ----------------------------------------------------------------- |
 | [Manual P2P](./manual-p2p)  | Illustrates how to connect and communicate with a peer            |
-| [Polygon P2P](./manual-p2p) | Illustrates how to connect and communicate with a peer on Polygon |
+| [Polygon P2P](./polygon-p2p) | Illustrates how to connect and communicate with a peer on Polygon |
+| [BSC P2P](./bsc-p2p) | Illustrates how to connect and communicate with a peer on Binance Smart Chain |
 
 ## Misc
 

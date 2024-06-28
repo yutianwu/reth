@@ -1,4 +1,5 @@
-use crate::{ChainSpec, Hardfork, Head};
+use reth_chainspec::ChainSpec;
+use reth_ethereum_forks::{Hardfork, Head};
 
 /// Returns the spec id at the given timestamp.
 ///
@@ -12,6 +13,8 @@ pub fn revm_spec_by_timestamp_after_merge(
     if chain_spec.is_optimism() {
         return if chain_spec.fork(Hardfork::Haber).active_at_timestamp(timestamp) {
             revm_primitives::HABER
+        } else if chain_spec.fork(Hardfork::Fjord).active_at_timestamp(timestamp) {
+            revm_primitives::FJORD
         } else if chain_spec.fork(Hardfork::Ecotone).active_at_timestamp(timestamp) {
             revm_primitives::ECOTONE
         } else if chain_spec.fork(Hardfork::Canyon).active_at_timestamp(timestamp) {
@@ -25,7 +28,28 @@ pub fn revm_spec_by_timestamp_after_merge(
         }
     }
 
-    if chain_spec.is_cancun_active_at_timestamp(timestamp) {
+    #[cfg(feature = "bsc")]
+    if chain_spec.is_bsc() {
+        if chain_spec.is_haber_fix_active_at_timestamp(timestamp) {
+            return revm_primitives::HABER_FIX
+        } else if chain_spec.is_haber_active_at_timestamp(timestamp) {
+            return revm_primitives::HABER
+        } else if chain_spec.is_cancun_active_at_timestamp(timestamp) {
+            return revm_primitives::CANCUN
+        } else if chain_spec.is_feynman_fix_active_at_timestamp(timestamp) {
+            return revm_primitives::FEYNMAN_FIX
+        } else if chain_spec.is_feynman_active_at_timestamp(timestamp) {
+            return revm_primitives::FEYNMAN
+        } else if chain_spec.is_kepler_active_at_timestamp(timestamp) {
+            return revm_primitives::KEPLER
+        } else {
+            return revm_primitives::SHANGHAI
+        }
+    }
+
+    if chain_spec.is_prague_active_at_timestamp(timestamp) {
+        revm_primitives::PRAGUE
+    } else if chain_spec.is_cancun_active_at_timestamp(timestamp) {
         revm_primitives::CANCUN
     } else if chain_spec.is_shanghai_active_at_timestamp(timestamp) {
         revm_primitives::SHANGHAI
@@ -34,12 +58,14 @@ pub fn revm_spec_by_timestamp_after_merge(
     }
 }
 
-/// return revm_spec from spec configuration.
+/// return `revm_spec` from spec configuration.
 pub fn revm_spec(chain_spec: &ChainSpec, block: Head) -> revm_primitives::SpecId {
     #[cfg(feature = "optimism")]
     if chain_spec.is_optimism() {
         if chain_spec.fork(Hardfork::Haber).active_at_head(&block) {
             return revm_primitives::HABER
+        } else if chain_spec.fork(Hardfork::Fjord).active_at_head(&block) {
+            return revm_primitives::FJORD
         } else if chain_spec.fork(Hardfork::Ecotone).active_at_head(&block) {
             return revm_primitives::ECOTONE
         } else if chain_spec.fork(Hardfork::Canyon).active_at_head(&block) {
@@ -53,7 +79,75 @@ pub fn revm_spec(chain_spec: &ChainSpec, block: Head) -> revm_primitives::SpecId
         }
     }
 
-    if chain_spec.fork(Hardfork::Cancun).active_at_head(&block) {
+    #[cfg(feature = "bsc")]
+    if chain_spec.is_bsc() {
+        if chain_spec.fork(Hardfork::HaberFix).active_at_head(&block) {
+            return revm_primitives::HABER_FIX
+        } else if chain_spec.fork(Hardfork::Haber).active_at_head(&block) {
+            return revm_primitives::HABER
+        } else if chain_spec.fork(Hardfork::Cancun).active_at_head(&block) {
+            return revm_primitives::CANCUN
+        } else if chain_spec.fork(Hardfork::FeynmanFix).active_at_head(&block) {
+            return revm_primitives::FEYNMAN_FIX
+        } else if chain_spec.fork(Hardfork::Feynman).active_at_head(&block) {
+            return revm_primitives::FEYNMAN
+        } else if chain_spec.fork(Hardfork::Kepler).active_at_head(&block) {
+            return revm_primitives::KEPLER
+        } else if chain_spec.fork(Hardfork::Shanghai).active_at_head(&block) {
+            return revm_primitives::SHANGHAI
+        } else if chain_spec.fork(Hardfork::HertzFix).active_at_head(&block) {
+            return revm_primitives::HERTZ_FIX
+        } else if chain_spec.fork(Hardfork::Hertz).active_at_head(&block) {
+            return revm_primitives::HERTZ
+        } else if chain_spec.fork(Hardfork::London).active_at_head(&block) {
+            return revm_primitives::LONDON
+        } else if chain_spec.fork(Hardfork::Berlin).active_at_head(&block) {
+            return revm_primitives::BERLIN
+        } else if chain_spec.fork(Hardfork::Plato).active_at_head(&block) {
+            return revm_primitives::PLATO
+        } else if chain_spec.fork(Hardfork::Luban).active_at_head(&block) {
+            return revm_primitives::LUBAN
+        } else if chain_spec.fork(Hardfork::Planck).active_at_head(&block) {
+            return revm_primitives::PLANCK
+        } else if chain_spec.fork(Hardfork::Gibbs).active_at_head(&block) {
+            // bsc mainnet and testnet have different order for Moran, Nano and Gibbs
+            return if chain_spec.fork(Hardfork::Moran).active_at_head(&block) {
+                revm_primitives::GIBBS
+            } else if chain_spec.fork(Hardfork::Nano).active_at_head(&block) {
+                revm_primitives::NANO
+            } else {
+                revm_primitives::EULER
+            }
+        } else if chain_spec.fork(Hardfork::Euler).active_at_head(&block) {
+            return revm_primitives::EULER
+        } else if chain_spec.fork(Hardfork::Bruno).active_at_head(&block) {
+            return revm_primitives::BRUNO
+        } else if chain_spec.fork(Hardfork::MirrorSync).active_at_head(&block) {
+            return revm_primitives::MIRROR_SYNC
+        } else if chain_spec.fork(Hardfork::Niels).active_at_head(&block) {
+            return revm_primitives::NIELS
+        } else if chain_spec.fork(Hardfork::Ramanujan).active_at_head(&block) {
+            return revm_primitives::RAMANUJAN
+        } else if chain_spec.fork(Hardfork::MuirGlacier).active_at_head(&block) {
+            return revm_primitives::MUIR_GLACIER
+        } else if chain_spec.fork(Hardfork::Istanbul).active_at_head(&block) {
+            return revm_primitives::ISTANBUL
+        } else if chain_spec.fork(Hardfork::Petersburg).active_at_head(&block) {
+            return revm_primitives::PETERSBURG
+        } else if chain_spec.fork(Hardfork::Constantinople).active_at_head(&block) {
+            return revm_primitives::CONSTANTINOPLE
+        } else if chain_spec.fork(Hardfork::Byzantium).active_at_head(&block) {
+            return revm_primitives::BYZANTIUM
+        } else if chain_spec.fork(Hardfork::Homestead).active_at_head(&block) {
+            return revm_primitives::HOMESTEAD
+        } else if chain_spec.fork(Hardfork::Frontier).active_at_head(&block) {
+            return revm_primitives::FRONTIER
+        }
+    }
+
+    if chain_spec.fork(Hardfork::Prague).active_at_head(&block) {
+        revm_primitives::PRAGUE
+    } else if chain_spec.fork(Hardfork::Cancun).active_at_head(&block) {
         revm_primitives::CANCUN
     } else if chain_spec.fork(Hardfork::Shanghai).active_at_head(&block) {
         revm_primitives::SHANGHAI
@@ -88,7 +182,58 @@ pub fn revm_spec(chain_spec: &ChainSpec, block: Head) -> revm_primitives::SpecId
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ChainSpecBuilder, MAINNET, U256};
+    use crate::U256;
+    use reth_chainspec::{ChainSpecBuilder, MAINNET};
+
+    #[test]
+    fn test_revm_spec_by_timestamp_after_merge() {
+        assert_eq!(
+            revm_spec_by_timestamp_after_merge(
+                &ChainSpecBuilder::mainnet().cancun_activated().build(),
+                0
+            ),
+            revm_primitives::CANCUN
+        );
+        assert_eq!(
+            revm_spec_by_timestamp_after_merge(
+                &ChainSpecBuilder::mainnet().shanghai_activated().build(),
+                0
+            ),
+            revm_primitives::SHANGHAI
+        );
+        assert_eq!(
+            revm_spec_by_timestamp_after_merge(&ChainSpecBuilder::mainnet().build(), 0),
+            revm_primitives::MERGE
+        );
+        #[cfg(feature = "optimism")]
+        {
+            #[inline(always)]
+            fn op_cs(f: impl FnOnce(ChainSpecBuilder) -> ChainSpecBuilder) -> ChainSpec {
+                let cs = ChainSpecBuilder::mainnet().chain(reth_chainspec::Chain::from_id(10));
+                f(cs).build()
+            }
+            assert_eq!(
+                revm_spec_by_timestamp_after_merge(&op_cs(|cs| cs.fjord_activated()), 0),
+                revm_primitives::FJORD
+            );
+            assert_eq!(
+                revm_spec_by_timestamp_after_merge(&op_cs(|cs| cs.ecotone_activated()), 0),
+                revm_primitives::ECOTONE
+            );
+            assert_eq!(
+                revm_spec_by_timestamp_after_merge(&op_cs(|cs| cs.canyon_activated()), 0),
+                revm_primitives::CANYON
+            );
+            assert_eq!(
+                revm_spec_by_timestamp_after_merge(&op_cs(|cs| cs.bedrock_activated()), 0),
+                revm_primitives::BEDROCK
+            );
+            assert_eq!(
+                revm_spec_by_timestamp_after_merge(&op_cs(|cs| cs.regolith_activated()), 0),
+                revm_primitives::REGOLITH
+            );
+        }
+    }
 
     #[test]
     fn test_to_revm_spec() {
@@ -150,10 +295,13 @@ mod tests {
         {
             #[inline(always)]
             fn op_cs(f: impl FnOnce(ChainSpecBuilder) -> ChainSpecBuilder) -> ChainSpec {
-                let cs = ChainSpecBuilder::mainnet().chain(crate::Chain::from_id(10));
+                let cs = ChainSpecBuilder::mainnet().chain(reth_chainspec::Chain::from_id(10));
                 f(cs).build()
             }
-
+            assert_eq!(
+                revm_spec(&op_cs(|cs| cs.fjord_activated()), Head::default()),
+                revm_primitives::FJORD
+            );
             assert_eq!(
                 revm_spec(&op_cs(|cs| cs.ecotone_activated()), Head::default()),
                 revm_primitives::ECOTONE
@@ -175,6 +323,15 @@ mod tests {
 
     #[test]
     fn test_eth_spec() {
+        assert_eq!(
+            revm_spec(&MAINNET, Head { timestamp: 1710338135, ..Default::default() }),
+            revm_primitives::CANCUN
+        );
+        assert_eq!(
+            revm_spec(&MAINNET, Head { timestamp: 1681338455, ..Default::default() }),
+            revm_primitives::SHANGHAI
+        );
+
         assert_eq!(
             revm_spec(
                 &MAINNET,
