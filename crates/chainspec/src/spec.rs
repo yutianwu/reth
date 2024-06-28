@@ -87,7 +87,6 @@ pub static BSC_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
             (Hardfork::FeynmanFix, ForkCondition::Timestamp(1713419340)),
             (Hardfork::Cancun, ForkCondition::Timestamp(1718863500)),
             (Hardfork::Haber, ForkCondition::Timestamp(1718863500)),
-            (Hardfork::HaberFix, ForkCondition::Timestamp(1720591588)),
         ]),
         deposit_contract: None,
         base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
