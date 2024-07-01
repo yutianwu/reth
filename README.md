@@ -5,16 +5,20 @@
 [![Discord Chat][discord-badge]][discord-url]
 
 [gh-ci]: https://github.com/bnb-chain/reth/actions/workflows/unit.yml
+
 [gh-deny]: https://github.com/bnb-chain/reth/actions/workflows/deny.yml
+
 [discord-badge]: https://img.shields.io/badge/discord-join%20chat-blue.svg
+
 [discord-url]: https://discord.gg/z2VpC455eU
 
-BNB Chain Reth is a cutting-edge rust client developed in collaboration with Paradigm, designed to provide seamless support
-for [BNB Smart Chain(BSC)](https://github.com/bnb-chain/bsc) and [opBNB](https://github.com/bnb-chain/op-geth).
+BNB Chain Reth is a cutting-edge rust client developed in collaboration with Paradigm, designed to provide seamless
+support for [BNB Smart Chain(BSC)](https://github.com/bnb-chain/bsc) and [opBNB](https://github.com/bnb-chain/op-geth).
 
 ## Build from Source
 
-For prerequisites and detailed build instructions please read the [Installation Instructions](https://paradigmxyz.github.io/reth/installation/source.html).
+For prerequisites and detailed build instructions please read
+the [Installation Instructions](https://paradigmxyz.github.io/reth/installation/source.html).
 
 With Rust and the dependencies installed, you're ready to build BNB Chain Reth. First, clone the repository:
 
@@ -23,16 +27,16 @@ git clone https://github.com/bnb-chain/reth.git
 cd reth
 ```
 
-In the realm of BSC, you have the option to execute the following commands to compile reth:
+In the realm of BSC, you have the option to execute the following commands to compile bsc-reth:
 
 ```shell
-make build
+make build-bsc
 ```
 
 Alternatively, you can install reth using the following command:
 
 ```shell
-make install
+make install-bsc
 ```
 
 When it comes to opBNB, you can run the following commands to compile op-reth:
@@ -49,14 +53,70 @@ make install-op
 
 ## Run Reth for BSC
 
-Coming soon......
+The command below is for an archive node. To run a full node, simply add the `--full` tag.
+
+```shell
+# for testnet
+export network=bsc-testnet
+
+# for mainnet
+# export network=bsc
+
+./target/release/bsc-reth node \
+    --datadir=./datadir \
+    --chain=${network} \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api="eth, net, txpool, web3, rpc" \
+    --ws \
+    --ws.addr=0.0.0.0 \
+    --ws.port=8546 \
+    --nat=any \
+    --log.file.directory ./datadir/logs
+```
+
+You can run `bsc-reth --help` for command explanations.
+
+For running bsc-reth with docker, please use the following command:
+
+```shell
+# for testnet
+export network=bsc-testnet
+
+# for mainnet
+# export network=bsc
+
+# check this for version of the docker image, https://github.com/bnb-chain/reth/pkgs/container/bsc-reth
+export version=latest
+
+# the directory where reth data will be stored
+export data_dir=/xxx/xxx
+
+docker run -d -p 8545:8545 -p 8546:8546 -p 30303:30303 -p 30303:30303/udp -v ${data_dir}:/data \
+    --name bsc-reth ghcr.io/bnb-chain/bsc-reth:${version} node \
+    --datadir=/data \
+    --chain=${network} \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api="eth, net, txpool, web3, rpc" \
+    --ws \
+    --ws.addr=0.0.0.0 \
+    --ws.port=8546 \
+    --nat=any \
+    --log.file.directory /data/logs
+```
 
 ## Run Reth for opBNB
 
-The op-reth is an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#execution-clients) for opBNB.
+The op-reth is an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#execution-clients) for
+opBNB.
 You need to run op-node along with op-reth to synchronize with the opBNB network.
 
-Here is the quick command for running the op-node. For more details, refer to the [opbnb repository](https://github.com/bnb-chain/opbnb).
+Here is the quick command for running the op-node. For more details, refer to
+the [opbnb repository](https://github.com/bnb-chain/opbnb).
+
 ```shell
 git clone https://github.com/bnb-chain/opbnb
 cd opbnb
@@ -99,8 +159,10 @@ export P2P_BOOTNODES="enr:-J24QGQBeMsXOaCCaLWtNFSfb2Gv50DjGOKToH2HUTAIn9yXImowlR
   --l2.jwt-secret=./jwt.txt
 ```
 
-Copy the JWT file generated when running the op-node to the current workspace. Here is a quick command for running op-reth.
+Copy the JWT file generated when running the op-node to the current workspace. Here is a quick command for running
+op-reth.
 The command below is for an archive node. To run a full node, simply add the `--full` tag.
+
 ```shell
 # for testnet
 export network=testnet
@@ -120,7 +182,7 @@ export L2_RPC=https://opbnb-testnet-rpc.bnbchain.org
     --http \
     --http.addr=0.0.0.0 \
     --http.port=8545 \
-    --http.api="admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, eth-call-bundle" \
+    --http.api="eth, net, txpool, web3, rpc" \
     --ws \
     --ws.addr=0.0.0.0 \
     --ws.port=8546 \
@@ -129,7 +191,48 @@ export L2_RPC=https://opbnb-testnet-rpc.bnbchain.org
     --log.file.directory ./datadir/logs
 ```
 
-You can run `op-reth --help` for command explanations. More details on running opbnb nodes can be found [here](https://docs.bnbchain.org/opbnb-docs/docs/tutorials/running-a-local-node/).
+You can run `op-reth --help` for command explanations. More details on running opbnb nodes can be
+found [here](https://docs.bnbchain.org/opbnb-docs/docs/tutorials/running-a-local-node/).
+
+For running op-reth with docker, please use the following command:
+
+```shell
+# for testnet
+export network=testnet
+export L2_RPC=https://opbnb-testnet-rpc.bnbchain.org
+
+# for mainnet
+# export network=mainnet
+# export L2_RPC=https://opbnb-mainnet-rpc.bnbchain.org
+
+# check this for version of the docker image, https://github.com/bnb-chain/reth/pkgs/container/op-reth
+export version=latest
+
+# the directory where reth data will be stored
+export data_dir=/xxx/xxx
+
+# the directory where the jwt.txt file is stored
+export jwt_dir=/xxx/xxx
+
+docker run -d -p 8545:8545 -p 8546:8546 -p 30303:30303 -p 30303:30303/udp -v ${data_dir}:/data -v ${jwt_dir}:/jwt \
+    --name op-reth ghcr.io/bnb-chain/op-reth:${version} node \
+    --datadir=/data \
+    --chain=opbnb-${network} \
+    --rollup.sequencer-http=${L2_RPC} \
+    --authrpc.addr="0.0.0.0" \
+    --authrpc.port=8551 \
+    --authrpc.jwtsecret=/jwt/jwt.txt \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api="eth, net, txpool, web3, rpc" \
+    --ws \
+    --ws.addr=0.0.0.0 \
+    --ws.port=8546 \
+    --builder.gaslimit=150000000 \
+    --nat=any \
+    --log.file.directory /data/logs
+```
 
 ## Contribution
 
@@ -138,7 +241,8 @@ from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to bnb chain reth, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit
-more complex changes though, please check up with the core devs first on [our discord channel](https://discord.gg/bnbchain)
+more complex changes though, please check up with the core devs first
+on [our discord channel](https://discord.gg/bnbchain)
 to ensure those changes are in line with the general philosophy of the project and/or get
 some early feedback which can make both your efforts much lighter as well as our review
 and merge procedures quick and simple.
