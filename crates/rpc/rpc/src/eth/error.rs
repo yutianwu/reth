@@ -44,7 +44,7 @@ pub enum EthApiError {
     /// <https://github.com/ethereum-optimism/optimism/blob/3b374c292e2b05cc51b52212ba68dd88ffce2a3b/op-service/sources/l2_client.go#L105>
     ///
     /// TODO(#8045): Temporary, until a version of <https://github.com/ethereum-optimism/optimism/pull/10071> is pushed through that doesn't require this to figure out the EL sync status.
-    #[error("unknown block")]
+    #[error("Unknown block")]
     UnknownSafeOrFinalizedBlock,
     /// Thrown when an unknown block or transaction index is encountered
     #[error("unknown block or tx index")]
