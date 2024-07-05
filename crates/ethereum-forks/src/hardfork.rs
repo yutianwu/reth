@@ -97,6 +97,9 @@ pub enum Hardfork {
     Feynman,
     /// BSC `FeynmanFix` hardfork
     FeynmanFix,
+    /// `Fermat`
+    #[cfg(all(feature = "optimism", feature = "opbnb"))]
+    Fermat,
     /// Canyon:
     /// <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#canyon>.
     #[cfg(feature = "optimism")]
@@ -110,9 +113,6 @@ pub enum Hardfork {
     /// `PreContractForkBlock`
     #[cfg(all(feature = "optimism", feature = "opbnb"))]
     PreContractForkBlock,
-    /// `Fermat`
-    #[cfg(all(feature = "optimism", feature = "opbnb"))]
-    Fermat,
     // ArbOS20Atlas,
     /// BSC `Haber` hardfork
     Haber,
