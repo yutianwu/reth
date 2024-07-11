@@ -2,7 +2,7 @@ use crate::{
     config::NetworkMode,
     discovery::DiscoveryEvent,
     manager::NetworkEvent,
-    message::PeerRequest,
+    message::{EngineMessage, PeerRequest},
     peers::{PeerAddr, PeersHandle},
     protocol::RlpxSubProtocol,
     swarm::NetworkConnectionState,
@@ -30,7 +30,7 @@ use std::{
     },
 };
 use tokio::sync::{
-    mpsc::{self, UnboundedSender},
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
     oneshot,
 };
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -53,6 +53,7 @@ impl NetworkHandle {
         num_active_peers: Arc<AtomicUsize>,
         listener_address: Arc<Mutex<SocketAddr>>,
         to_manager_tx: UnboundedSender<NetworkHandleMessage>,
+        engine_rx: Arc<tokio::sync::Mutex<UnboundedReceiver<EngineMessage>>>,
         secret_key: SecretKey,
         local_peer_id: PeerId,
         peers: PeersHandle,
@@ -65,6 +66,7 @@ impl NetworkHandle {
         let inner = NetworkInner {
             num_active_peers,
             to_manager_tx,
+            engine_rx,
             listener_address,
             secret_key,
             local_peer_id,
@@ -94,6 +96,13 @@ impl NetworkHandle {
 
     fn manager(&self) -> &UnboundedSender<NetworkHandleMessage> {
         &self.inner.to_manager_tx
+    }
+
+    /// Returns a sharable [`UnboundedReceiver<EngineMessage>`] that can be cloned and shared.
+    ///
+    /// The Engine message is used to communicate between the network and the `EngineTask`.
+    pub fn get_to_engine_rx(&self) -> Arc<tokio::sync::Mutex<UnboundedReceiver<EngineMessage>>> {
+        self.inner.engine_rx.clone()
     }
 
     /// Returns a new [`FetchClient`] that can be cloned and shared.
@@ -387,6 +396,8 @@ struct NetworkInner {
     num_active_peers: Arc<AtomicUsize>,
     /// Sender half of the message channel to the [`crate::NetworkManager`].
     to_manager_tx: UnboundedSender<NetworkHandleMessage>,
+    /// The receiver of the message channel to the Task Engine.
+    engine_rx: Arc<tokio::sync::Mutex<UnboundedReceiver<EngineMessage>>>,
     /// The local address that accepts incoming connections.
     listener_address: Arc<Mutex<SocketAddr>>,
     /// The secret key used for authenticating sessions.

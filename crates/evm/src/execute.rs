@@ -1,7 +1,7 @@
 //! Traits for execution.
 
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives::{BlockNumber, BlockWithSenders, Receipt, Request, U256};
+use reth_primitives::{parlia::Snapshot, BlockNumber, BlockWithSenders, Receipt, Request, U256};
 use reth_prune_types::PruneModes;
 use revm::db::BundleState;
 use revm_primitives::db::Database;
@@ -111,6 +111,10 @@ pub struct BlockExecutionOutput<T> {
     pub requests: Vec<Request>,
     /// The total gas used by the block.
     pub gas_used: u64,
+
+    // TODO: feature?
+    /// Parlia snapshot.
+    pub snapshot: Option<Snapshot>,
 }
 
 /// A helper type for ethereum block inputs that consists of a block and the total difficulty.
@@ -256,6 +260,7 @@ mod tests {
             body: vec![],
             ommers: vec![],
             withdrawals: None,
+            sidecars: None,
             requests: None,
         };
         let block = BlockWithSenders::new(block, Default::default()).unwrap();

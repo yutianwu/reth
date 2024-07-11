@@ -53,3 +53,6 @@ mod withdrawals;
 pub use withdrawals::*;
 
 pub mod noop;
+
+mod sidecars;
+pub use sidecars::*;

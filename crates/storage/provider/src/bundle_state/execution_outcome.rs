@@ -59,6 +59,13 @@ impl StateWriter for ExecutionOutcome {
             }
         }
 
+        if !self.snapshots.is_empty() {
+            let mut snapshot_cursor = tx.cursor_write::<tables::ParliaSnapshot>()?;
+            for snap in self.snapshots {
+                snapshot_cursor.upsert(snap.block_hash, snap)?;
+            }
+        }
+
         StateChanges(plain_state).write_to_db(tx)?;
 
         Ok(())
@@ -840,6 +847,7 @@ mod tests {
             receipts: vec![vec![Some(Receipt::default()); 2]; 7].into(),
             first_block: 10,
             requests: Vec::new(),
+            snapshots: Vec::new(),
         };
 
         let mut this = base.clone();
@@ -1057,6 +1065,7 @@ mod tests {
             receipts: vec![vec![Some(Receipt::default()); 2]; 1].into(),
             first_block: 2,
             requests: Vec::new(),
+            snapshots: Vec::new(),
         };
 
         test.prepend_state(previous_state);

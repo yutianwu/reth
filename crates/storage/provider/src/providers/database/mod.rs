@@ -3,9 +3,10 @@ use crate::{
     to_range,
     traits::{BlockSource, ReceiptProvider},
     BlockHashReader, BlockNumReader, BlockReader, ChainSpecProvider, DatabaseProviderFactory,
-    EvmEnvProvider, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, ProviderError,
-    PruneCheckpointReader, RequestsProvider, StageCheckpointReader, StateProviderBox,
-    StaticFileProviderFactory, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
+    EvmEnvProvider, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, ParliaSnapshotReader,
+    ProviderError, PruneCheckpointReader, RequestsProvider, StageCheckpointReader,
+    StateProviderBox, StaticFileProviderFactory, TransactionVariant, TransactionsProvider,
+    WithdrawalsProvider,
 };
 use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db::{init_db, mdbx::DatabaseArguments, DatabaseEnv};
@@ -13,13 +14,14 @@ use reth_db_api::{database::Database, models::StoredBlockBodyIndices};
 use reth_errors::{RethError, RethResult};
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
-    Address, Block, BlockHash, BlockHashOrNumber, BlockNumber, BlockWithSenders, Header, Receipt,
-    SealedBlock, SealedBlockWithSenders, SealedHeader, StaticFileSegment, TransactionMeta,
-    TransactionSigned, TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256,
-    U256,
+    parlia::Snapshot, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockNumber,
+    BlockWithSenders, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader,
+    StaticFileSegment, TransactionMeta, TransactionSigned, TransactionSignedNoHash, TxHash,
+    TxNumber, Withdrawal, Withdrawals, B256, U256,
 };
 use reth_prune_types::{PruneCheckpoint, PruneModes, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
+use reth_storage_api::SidecarsProvider;
 use reth_storage_errors::provider::ProviderResult;
 use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg};
 use std::{
@@ -491,6 +493,24 @@ impl<DB: Database> WithdrawalsProvider for ProviderFactory<DB> {
     }
 }
 
+impl<DB> SidecarsProvider for ProviderFactory<DB>
+where
+    DB: Database,
+{
+    fn sidecars(&self, block_hash: &BlockHash) -> ProviderResult<Option<BlobSidecars>> {
+        self.provider()?.sidecars(block_hash)
+    }
+
+    fn sidecars_by_number(&self, num: BlockNumber) -> ProviderResult<Option<BlobSidecars>> {
+        self.static_file_provider.get_with_static_file_or_database(
+            StaticFileSegment::Sidecars,
+            num,
+            |static_file| static_file.sidecars_by_number(num),
+            || self.provider()?.sidecars_by_number(num),
+        )
+    }
+}
+
 impl<DB> RequestsProvider for ProviderFactory<DB>
 where
     DB: Database,
@@ -594,6 +614,13 @@ impl<DB> Clone for ProviderFactory<DB> {
         }
     }
 }
+
+impl<DB: Database> ParliaSnapshotReader for ProviderFactory<DB> {
+    fn get_parlia_snapshot(&self, block_hash: B256) -> ProviderResult<Option<Snapshot>> {
+        self.provider()?.get_parlia_snapshot(block_hash)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

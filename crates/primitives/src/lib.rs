@@ -13,7 +13,7 @@
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
     issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
 )]
-#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+//#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -32,7 +32,10 @@ pub mod genesis;
 pub mod proofs;
 mod receipt;
 pub use reth_static_file_types as static_file;
+pub mod parlia;
+pub mod system_contracts;
 pub mod transaction;
+
 #[cfg(any(test, feature = "arbitrary"))]
 pub use block::{generate_valid_header, valid_header_strategy};
 pub use block::{
@@ -50,7 +53,7 @@ pub use receipt::{
     gas_spent_by_transactions, Receipt, ReceiptWithBloom, ReceiptWithBloomRef, Receipts,
 };
 pub use reth_primitives_traits::{
-    logs_bloom, Account, Bytecode, GotExpected, GotExpectedBoxed, Header, HeaderError, Log,
+    logs_bloom, Account, BlobSidecar, BlobSidecars, Bytecode, GotExpected, GotExpectedBoxed, Header, HeaderError, Log,
     LogData, Request, Requests, SealedHeader, StorageEntry, Withdrawal, Withdrawals,
 };
 pub use static_file::StaticFileSegment;
@@ -112,7 +115,24 @@ pub use c_kzg as kzg;
 mod optimism {
     pub use crate::transaction::{TxDeposit, DEPOSIT_TX_TYPE_ID};
     pub use reth_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
+    #[cfg(feature = "opbnb")]
+    pub use reth_chainspec::{
+        net::{opbnb_mainnet_nodes, opbnb_testnet_nodes},
+        OPBNB_MAINNET, OPBNB_TESTNET,
+    };
 }
 
 #[cfg(feature = "optimism")]
 pub use optimism::*;
+
+/// Bsc specific re-exports
+#[cfg(feature = "bsc")]
+mod bsc {
+    pub use reth_chainspec::{
+        net::{bsc_mainnet_nodes, bsc_testnet_nodes, BSC_MAINNET_BOOTNODES, BSC_TESTNET_BOOTNODES},
+        BSC_MAINNET, BSC_TESTNET,
+    };
+}
+
+#[cfg(feature = "bsc")]
+pub use bsc::*;

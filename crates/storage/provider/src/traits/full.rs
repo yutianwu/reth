@@ -19,6 +19,8 @@ pub trait FullProvider<DB: Database>:
     + ChangeSetReader
     + CanonStateSubscriptions
     + StageCheckpointReader
+    + HeaderProvider
+    + ParliaSnapshotReader
     + Clone
     + Unpin
     + 'static
@@ -36,6 +38,8 @@ impl<T, DB: Database> FullProvider<DB> for T where
         + ChangeSetReader
         + CanonStateSubscriptions
         + StageCheckpointReader
+        + HeaderProvider
+        + ParliaSnapshotReader
         + Clone
         + Unpin
         + 'static

@@ -94,3 +94,8 @@ optimism = [
     "reth-evm-optimism",
     "reth-rpc-eth-types/optimism",
 ]
+
+
+bsc = [
+    "reth-primitives/bsc",
+]

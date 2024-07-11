@@ -210,6 +210,15 @@ pub enum ConsensusError {
     #[error("mismatched parent hash: {0}")]
     ParentHashMismatch(GotExpectedBoxed<B256>),
 
+    /// Error when the block timestamp is not expected compared to the predicted timestamp.
+    #[error("block timestamp {timestamp} is not expected compared to {predicted_timestamp}")]
+    TimestampNotExpected {
+        /// The block's timestamp.
+        timestamp: u64,
+        /// The predicted timestamp.
+        predicted_timestamp: u64,
+    },
+
     /// Error when the block timestamp is in the future compared to our clock time.
     #[error("block timestamp {timestamp} is in the future compared to our clock time {present_timestamp}")]
     TimestampIsInFuture {
@@ -328,6 +337,21 @@ pub enum ConsensusError {
     /// Error when the blob gas used in the header does not match the expected blob gas used.
     #[error("blob gas used mismatch: {0}")]
     BlobGasUsedDiff(GotExpected<u64>),
+
+    /// Error for invalid block difficulty
+    #[error("invalid block difficulty: {difficulty}")]
+    InvalidDifficulty {
+        /// The block difficulty
+        difficulty: U256,
+    },
+
+    /// Error for invalid mix hash
+    #[error("invalid mix digest")]
+    InvalidMixHash,
+
+    /// Error for invalid header extra
+    #[error("invalid header extra")]
+    InvalidHeaderExtra,
 
     /// Error for a transaction that violates consensus.
     #[error(transparent)]

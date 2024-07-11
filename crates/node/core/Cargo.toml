@@ -104,6 +104,13 @@ optimism = [
     "reth-rpc-eth-api/optimism",
     "reth-rpc-eth-types/optimism",
 ]
+opbnb = [
+    "reth-primitives/opbnb",
+]
+
+bsc = [
+    "reth-primitives/bsc",
+]
 
 jemalloc = ["dep:tikv-jemalloc-ctl"]
 

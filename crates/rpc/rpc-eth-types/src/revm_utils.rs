@@ -7,6 +7,8 @@ use reth_rpc_types::{
     state::{AccountOverride, EvmOverrides, StateOverride},
     BlockOverrides, TransactionRequest,
 };
+#[cfg(feature = "bsc")]
+use revm::primitives::BscFields;
 #[cfg(feature = "optimism")]
 use revm::primitives::{Bytes, OptimismFields};
 use revm::{
@@ -155,6 +157,7 @@ pub fn create_txn_env(block_env: &BlockEnv, request: TransactionRequest) -> EthR
         )?;
 
     let gas_limit = gas.unwrap_or_else(|| block_env.gas_limit.min(U256::from(u64::MAX)).to());
+    #[allow(clippy::needless_update)]
     let env = TxEnv {
         gas_limit: gas_limit.try_into().map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
         nonce,
@@ -172,6 +175,9 @@ pub fn create_txn_env(block_env: &BlockEnv, request: TransactionRequest) -> EthR
         authorization_list: None,
         #[cfg(feature = "optimism")]
         optimism: OptimismFields { enveloped_tx: Some(Bytes::new()), ..Default::default() },
+        #[cfg(feature = "bsc")]
+        bsc: BscFields { is_system_transaction: Some(false) },
+        ..Default::default()
     };
 
     Ok(env)

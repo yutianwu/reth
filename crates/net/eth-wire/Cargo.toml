@@ -67,6 +67,8 @@ arbitrary = [
     "dep:arbitrary",
 ]
 serde = ["dep:serde", "reth-eth-wire-types/serde"]
+optimism = ["reth-primitives/optimism"]
+bsc = ["reth-primitives/bsc"]
 
 [[test]]
 name = "fuzz_roundtrip"

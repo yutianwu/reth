@@ -422,8 +422,12 @@ pub trait LoadPendingBlock {
             requests_root,
         };
 
+        // sidecars should be queried by `eth_getBlobSidecars`
+        let sidecars = None;
+
         // seal the block
-        let block = Block { header, body: executed_txs, ommers: vec![], withdrawals, requests };
+        let block =
+            Block { header, body: executed_txs, ommers: vec![], withdrawals, sidecars, requests };
         Ok(SealedBlockWithSenders { block: block.seal_slow(), senders })
     }
 }

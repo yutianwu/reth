@@ -7,13 +7,14 @@ use reth_chainspec::{ChainInfo, ChainSpec, MAINNET};
 use reth_db_api::models::{AccountBeforeTx, StoredBlockBodyIndices};
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
-    Account, Address, Block, BlockHash, BlockHashOrNumber, BlockId, BlockNumber, BlockWithSenders,
-    Bytecode, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader, StorageKey,
-    StorageValue, TransactionMeta, TransactionSigned, TransactionSignedNoHash, TxHash, TxNumber,
-    Withdrawal, Withdrawals, B256, U256,
+    parlia::Snapshot, Account, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockId,
+    BlockNumber, BlockWithSenders, Bytecode, Header, Receipt, SealedBlock, SealedBlockWithSenders,
+    SealedHeader, StorageKey, StorageValue, TransactionMeta, TransactionSigned,
+    TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256, U256,
 };
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
+use reth_storage_api::SidecarsProvider;
 use reth_storage_api::StateProofProvider;
 use reth_storage_errors::provider::ProviderResult;
 use reth_trie::{updates::TrieUpdates, AccountProof};
@@ -460,6 +461,16 @@ impl WithdrawalsProvider for NoopProvider {
     }
 }
 
+impl SidecarsProvider for NoopProvider {
+    fn sidecars(&self, _block_hash: &BlockHash) -> ProviderResult<Option<BlobSidecars>> {
+        Ok(None)
+    }
+
+    fn sidecars_by_number(&self, _num: BlockNumber) -> ProviderResult<Option<BlobSidecars>> {
+        Ok(None)
+    }
+}
+
 impl RequestsProvider for NoopProvider {
     fn requests_by_block(
         &self,
@@ -488,5 +499,11 @@ impl StaticFileProviderFactory for NoopProvider {
 impl CanonStateSubscriptions for NoopProvider {
     fn subscribe_to_canonical_state(&self) -> CanonStateNotifications {
         broadcast::channel(1).1
+    }
+}
+
+impl ParliaSnapshotReader for NoopProvider {
+    fn get_parlia_snapshot(&self, _block_hash: B256) -> ProviderResult<Option<Snapshot>> {
+        Ok(None)
     }
 }

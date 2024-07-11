@@ -12,7 +12,7 @@ use reth_evm::{
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_consensus::validate_block_post_execution;
-use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt, Receipts, TxType, U256};
+use reth_primitives::{Address, BlockNumber, BlockWithSenders, Header, Receipt, Receipts, TxType, U256};
 use reth_prune_types::PruneModes;
 use reth_revm::{
     batch::{BlockBatchRecord, BlockExecutorStats},
@@ -20,11 +20,12 @@ use reth_revm::{
     state_change::post_block_balance_increments,
     Evm, State,
 };
+use revm::db::states::StorageSlot;
 use revm_primitives::{
     db::{Database, DatabaseCommit},
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, EnvWithHandlerCfg, ResultAndState,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tracing::trace;
 
 /// Provides executors to execute regular ethereum blocks
@@ -326,6 +327,45 @@ where
     ) -> Result<(), BlockExecutionError> {
         let balance_increments =
             post_block_balance_increments(self.chain_spec(), block, total_difficulty);
+
+        #[cfg(all(feature = "optimism", feature = "opbnb"))]
+        if self.chain_spec().fork(Hardfork::PreContractForkBlock).transitions_at_block(block.number)
+        {
+            // WBNBContract WBNB preDeploy contract address
+            let w_bnb_contract_address =
+                Address::from_str("0x4200000000000000000000000000000000000006").unwrap();
+            // GovernanceToken contract address
+            let governance_token_contract_address =
+                Address::from_str("0x4200000000000000000000000000000000000042").unwrap();
+
+            let w_bnb_contract_account =
+                self.state.load_cache_account(w_bnb_contract_address).unwrap();
+            // change the token symbol and token name
+            let w_bnb_contract_change =  w_bnb_contract_account.change(
+                w_bnb_contract_account.account_info().unwrap(), HashMap::from([
+                    // nameSlot { Name: "Wrapped BNB" }
+                    (
+                        U256::from_str("0x0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+                        StorageSlot { present_value: U256::from_str("0x5772617070656420424e42000000000000000000000000000000000000000016").unwrap(), ..Default::default() },
+                    ),
+                    // symbolSlot { Symbol: "wBNB" }
+                    (
+                        U256::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").unwrap(),
+                        StorageSlot { present_value: U256::from_str("0x57424e4200000000000000000000000000000000000000000000000000000008").unwrap(), ..Default::default() },
+                    ),
+                ])
+            );
+
+            let governance_token_account =
+                self.state.load_cache_account(governance_token_contract_address).unwrap();
+            // destroy governance token contract
+            let governance_token_change = governance_token_account.selfdestruct().unwrap();
+
+            self.state.apply_transition(vec![
+                (w_bnb_contract_address, w_bnb_contract_change),
+                (governance_token_contract_address, governance_token_change),
+            ]);
+        }
         // increment balances
         self.state
             .increment_balances(balance_increments)
@@ -363,6 +403,7 @@ where
             receipts,
             requests: vec![],
             gas_used,
+            snapshot: None,
         })
     }
 }
@@ -548,6 +589,7 @@ mod tests {
                             body: vec![tx, tx_deposit],
                             ommers: vec![],
                             withdrawals: None,
+                            sidecars: None,
                             requests: None,
                         },
                         senders: vec![addr, addr],
@@ -629,6 +671,7 @@ mod tests {
                             body: vec![tx, tx_deposit],
                             ommers: vec![],
                             withdrawals: None,
+                            sidecars: None,
                             requests: None,
                         },
                         senders: vec![addr, addr],

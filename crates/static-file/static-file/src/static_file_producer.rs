@@ -66,12 +66,16 @@ pub struct StaticFileTargets {
     headers: Option<RangeInclusive<BlockNumber>>,
     receipts: Option<RangeInclusive<BlockNumber>>,
     transactions: Option<RangeInclusive<BlockNumber>>,
+    sidecars: Option<RangeInclusive<BlockNumber>>,
 }
 
 impl StaticFileTargets {
     /// Returns `true` if any of the targets are [Some].
     pub const fn any(&self) -> bool {
-        self.headers.is_some() || self.receipts.is_some() || self.transactions.is_some()
+        self.headers.is_some() ||
+            self.receipts.is_some() ||
+            self.transactions.is_some() ||
+            self.sidecars.is_some()
     }
 
     // Returns `true` if all targets are either [`None`] or has beginning of the range equal to the
@@ -81,6 +85,7 @@ impl StaticFileTargets {
             (self.headers.as_ref(), static_files.headers),
             (self.receipts.as_ref(), static_files.receipts),
             (self.transactions.as_ref(), static_files.transactions),
+            (self.sidecars.as_ref(), static_files.sidecars),
         ]
         .iter()
         .all(|(target_block_range, highest_static_fileted_block)| {
@@ -138,6 +143,9 @@ impl<DB: Database> StaticFileProducerInner<DB> {
         }
         if let Some(block_range) = targets.receipts.clone() {
             segments.push((Box::new(segments::Receipts), block_range));
+        }
+        if let Some(block_range) = targets.sidecars.clone() {
+            segments.push((Box::new(segments::Sidecars), block_range));
         }
 
         segments.par_iter().try_for_each(|(segment, block_range)| -> ProviderResult<()> {
@@ -225,6 +233,9 @@ impl<DB: Database> StaticFileProducerInner<DB> {
                     highest_static_files.transactions,
                     finalized_block_number,
                 )
+            }),
+            sidecars: finalized_block_numbers.sidecars.and_then(|finalized_block_number| {
+                self.get_static_file_target(highest_static_files.sidecars, finalized_block_number)
             }),
         };
 
@@ -322,6 +333,7 @@ mod tests {
                 headers: Some(1),
                 receipts: Some(1),
                 transactions: Some(1),
+                sidecars: Some(1),
             })
             .expect("get static file targets");
         assert_eq!(
@@ -329,13 +341,19 @@ mod tests {
             StaticFileTargets {
                 headers: Some(0..=1),
                 receipts: Some(0..=1),
-                transactions: Some(0..=1)
+                transactions: Some(0..=1),
+                sidecars: Some(0..=1)
             }
         );
         assert_matches!(static_file_producer.run(targets), Ok(_));
         assert_eq!(
             provider_factory.static_file_provider().get_highest_static_files(),
-            HighestStaticFiles { headers: Some(1), receipts: Some(1), transactions: Some(1) }
+            HighestStaticFiles {
+                headers: Some(1),
+                receipts: Some(1),
+                transactions: Some(1),
+                sidecars: Some(1)
+            }
         );
 
         let targets = static_file_producer
@@ -343,6 +361,7 @@ mod tests {
                 headers: Some(3),
                 receipts: Some(3),
                 transactions: Some(3),
+                sidecars: Some(3),
             })
             .expect("get static file targets");
         assert_eq!(
@@ -350,13 +369,19 @@ mod tests {
             StaticFileTargets {
                 headers: Some(2..=3),
                 receipts: Some(2..=3),
-                transactions: Some(2..=3)
+                transactions: Some(2..=3),
+                sidecars: Some(2..=3)
             }
         );
         assert_matches!(static_file_producer.run(targets), Ok(_));
         assert_eq!(
             provider_factory.static_file_provider().get_highest_static_files(),
-            HighestStaticFiles { headers: Some(3), receipts: Some(3), transactions: Some(3) }
+            HighestStaticFiles {
+                headers: Some(3),
+                receipts: Some(3),
+                transactions: Some(3),
+                sidecars: Some(3)
+            }
         );
 
         let targets = static_file_producer
@@ -364,6 +389,7 @@ mod tests {
                 headers: Some(4),
                 receipts: Some(4),
                 transactions: Some(4),
+                sidecars: Some(4),
             })
             .expect("get static file targets");
         assert_eq!(
@@ -371,7 +397,8 @@ mod tests {
             StaticFileTargets {
                 headers: Some(4..=4),
                 receipts: Some(4..=4),
-                transactions: Some(4..=4)
+                transactions: Some(4..=4),
+                sidecars: Some(4..=4)
             }
         );
         assert_matches!(
@@ -380,7 +407,12 @@ mod tests {
         );
         assert_eq!(
             provider_factory.static_file_provider().get_highest_static_files(),
-            HighestStaticFiles { headers: Some(3), receipts: Some(3), transactions: Some(3) }
+            HighestStaticFiles {
+                headers: Some(3),
+                receipts: Some(3),
+                transactions: Some(3),
+                sidecars: Some(3)
+            }
         );
     }
 
@@ -408,6 +440,7 @@ mod tests {
                         headers: Some(1),
                         receipts: Some(1),
                         transactions: Some(1),
+                        sidecars: Some(1),
                     })
                     .expect("get static file targets");
                 assert_matches!(locked_producer.run(targets.clone()), Ok(_));

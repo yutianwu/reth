@@ -42,5 +42,7 @@ proptest-derive.workspace = true
 default = ["std", "serde"]
 arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
 optimism = []
+opbnb = []
+bsc = []
 serde = ["dep:serde"]
 std = ["thiserror-no-std/std"]

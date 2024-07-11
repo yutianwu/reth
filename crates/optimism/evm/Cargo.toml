@@ -43,3 +43,7 @@ optimism = [
     "reth-optimism-consensus/optimism",
     "reth-revm/optimism",
 ]
+opbnb = [
+    "reth-primitives/opbnb",
+    "revm-primitives/opbnb",
+]
