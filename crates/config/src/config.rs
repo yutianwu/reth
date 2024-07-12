@@ -1,8 +1,9 @@
 //! Configuration files.
-use reth_network::{PeersConfig, SessionsConfig};
+use reth_network_types::{PeersConfig, SessionsConfig};
 #[cfg(feature = "bsc")]
 use reth_primitives::parlia::ParliaConfig;
 use reth_prune_types::PruneModes;
+use reth_stages_types::ExecutionStageThresholds;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     ffi::OsStr,
@@ -57,7 +58,7 @@ impl Config {
     }
 
     /// Sets the pruning configuration.
-    pub fn update_prune_confing(&mut self, prune_config: PruneConfig) {
+    pub fn update_prune_config(&mut self, prune_config: PruneConfig) {
         self.prune = Some(prune_config);
     }
 }
@@ -216,6 +217,17 @@ impl Default for ExecutionConfig {
             max_cumulative_gas: Some(30_000_000 * 50_000),
             // 10 minutes
             max_duration: Some(Duration::from_secs(10 * 60)),
+        }
+    }
+}
+
+impl From<ExecutionConfig> for ExecutionStageThresholds {
+    fn from(config: ExecutionConfig) -> Self {
+        Self {
+            max_blocks: config.max_blocks,
+            max_changes: config.max_changes,
+            max_cumulative_gas: config.max_cumulative_gas,
+            max_duration: config.max_duration,
         }
     }
 }

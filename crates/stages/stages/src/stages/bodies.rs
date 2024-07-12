@@ -814,7 +814,7 @@ mod tests {
                             let transaction = random_signed_tx(&mut rng);
                             static_file_producer_tx
                                 .append_transaction(tx_num, transaction.into())
-                                .map(|_| ())
+                                .map(drop)
                         })?;
 
                         for block_number in 0..=progress.number {

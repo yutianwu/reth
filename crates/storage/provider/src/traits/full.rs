@@ -3,7 +3,7 @@
 use crate::{
     AccountReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider, ChangeSetReader,
     DatabaseProviderFactory, EvmEnvProvider, HeaderProvider, ParliaSnapshotReader,
-    StageCheckpointReader, StateProviderFactory, StaticFileProviderFactory,
+    StageCheckpointReader, StateProviderFactory, StaticFileProviderFactory, TransactionsProvider,
 };
 use reth_db_api::database::Database;
 
@@ -40,6 +40,34 @@ impl<T, DB: Database> FullProvider<DB> for T where
         + StageCheckpointReader
         + HeaderProvider
         + ParliaSnapshotReader
+        + Clone
+        + Unpin
+        + 'static
+{
+}
+
+/// Helper trait to unify all provider traits required to support `eth` RPC server behaviour, for
+/// simplicity.
+pub trait FullRpcProvider:
+    StateProviderFactory
+    + EvmEnvProvider
+    + ChainSpecProvider
+    + BlockReaderIdExt
+    + HeaderProvider
+    + TransactionsProvider
+    + Clone
+    + Unpin
+    + 'static
+{
+}
+
+impl<T> FullRpcProvider for T where
+    T: StateProviderFactory
+        + EvmEnvProvider
+        + ChainSpecProvider
+        + BlockReaderIdExt
+        + HeaderProvider
+        + TransactionsProvider
         + Clone
         + Unpin
         + 'static

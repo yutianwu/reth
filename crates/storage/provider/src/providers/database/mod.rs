@@ -19,7 +19,7 @@ use reth_primitives::{
     StaticFileSegment, TransactionMeta, TransactionSigned, TransactionSignedNoHash, TxHash,
     TxNumber, Withdrawal, Withdrawals, B256, U256,
 };
-use reth_prune_types::{PruneCheckpoint, PruneSegment};
+use reth_prune_types::{PruneCheckpoint, PruneModes, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
 use reth_storage_api::SidecarsProvider;
 use reth_storage_errors::provider::ProviderResult;
@@ -48,6 +48,8 @@ pub struct ProviderFactory<DB> {
     chain_spec: Arc<ChainSpec>,
     /// Static File Provider
     static_file_provider: StaticFileProvider,
+    /// Optional pruning configuration
+    prune_modes: PruneModes,
 }
 
 impl<DB> ProviderFactory<DB> {
@@ -57,12 +59,18 @@ impl<DB> ProviderFactory<DB> {
         chain_spec: Arc<ChainSpec>,
         static_file_provider: StaticFileProvider,
     ) -> Self {
-        Self { db: Arc::new(db), chain_spec, static_file_provider }
+        Self { db: Arc::new(db), chain_spec, static_file_provider, prune_modes: PruneModes::none() }
     }
 
     /// Enables metrics on the static file provider.
     pub fn with_static_files_metrics(mut self) -> Self {
         self.static_file_provider = self.static_file_provider.with_metrics();
+        self
+    }
+
+    /// Sets the pruning configuration for an existing [`ProviderFactory`].
+    pub fn with_prune_modes(mut self, prune_modes: PruneModes) -> Self {
+        self.prune_modes = prune_modes;
         self
     }
 
@@ -91,6 +99,7 @@ impl ProviderFactory<DatabaseEnv> {
             db: Arc::new(init_db(path, args).map_err(RethError::msg)?),
             chain_spec,
             static_file_provider,
+            prune_modes: PruneModes::none(),
         })
     }
 }
@@ -99,12 +108,16 @@ impl<DB: Database> ProviderFactory<DB> {
     /// Returns a provider with a created `DbTx` inside, which allows fetching data from the
     /// database using different types of providers. Example: [`HeaderProvider`]
     /// [`BlockHashReader`]. This may fail if the inner read database transaction fails to open.
+    ///
+    /// This sets the [`PruneModes`] to [`None`], because they should only be relevant for writing
+    /// data.
     #[track_caller]
     pub fn provider(&self) -> ProviderResult<DatabaseProviderRO<DB>> {
         Ok(DatabaseProvider::new(
             self.db.tx()?,
             self.chain_spec.clone(),
             self.static_file_provider.clone(),
+            self.prune_modes.clone(),
         ))
     }
 
@@ -118,6 +131,7 @@ impl<DB: Database> ProviderFactory<DB> {
             self.db.tx_mut()?,
             self.chain_spec.clone(),
             self.static_file_provider.clone(),
+            self.prune_modes.clone(),
         )))
     }
 
@@ -332,6 +346,14 @@ impl<DB: Database> BlockReader for ProviderFactory<DB> {
         self.provider()?.block_with_senders(id, transaction_kind)
     }
 
+    fn sealed_block_with_senders(
+        &self,
+        id: BlockHashOrNumber,
+        transaction_kind: TransactionVariant,
+    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
+        self.provider()?.sealed_block_with_senders(id, transaction_kind)
+    }
+
     fn block_range(&self, range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Block>> {
         self.provider()?.block_range(range)
     }
@@ -539,22 +561,6 @@ impl<DB: Database> EvmEnvProvider for ProviderFactory<DB> {
         self.provider()?.fill_env_with_header(cfg, block_env, header, evm_config)
     }
 
-    fn fill_block_env_at(
-        &self,
-        block_env: &mut BlockEnv,
-        at: BlockHashOrNumber,
-    ) -> ProviderResult<()> {
-        self.provider()?.fill_block_env_at(block_env, at)
-    }
-
-    fn fill_block_env_with_header(
-        &self,
-        block_env: &mut BlockEnv,
-        header: &Header,
-    ) -> ProviderResult<()> {
-        self.provider()?.fill_block_env_with_header(block_env, header)
-    }
-
     fn fill_cfg_env_at<EvmConfig>(
         &self,
         cfg: &mut CfgEnvWithHandlerCfg,
@@ -604,6 +610,7 @@ impl<DB> Clone for ProviderFactory<DB> {
             db: Arc::clone(&self.db),
             chain_spec: self.chain_spec.clone(),
             static_file_provider: self.static_file_provider.clone(),
+            prune_modes: self.prune_modes.clone(),
         }
     }
 }
@@ -696,7 +703,7 @@ mod tests {
         {
             let provider = factory.provider_rw().unwrap();
             assert_matches!(
-                provider.insert_block(block.clone().try_seal_with_senders().unwrap(), None),
+                provider.insert_block(block.clone().try_seal_with_senders().unwrap()),
                 Ok(_)
             );
             assert_matches!(
@@ -707,16 +714,14 @@ mod tests {
         }
 
         {
-            let provider = factory.provider_rw().unwrap();
+            let prune_modes = PruneModes {
+                sender_recovery: Some(PruneMode::Full),
+                transaction_lookup: Some(PruneMode::Full),
+                ..PruneModes::none()
+            };
+            let provider = factory.with_prune_modes(prune_modes).provider_rw().unwrap();
             assert_matches!(
-                provider.insert_block(
-                    block.clone().try_seal_with_senders().unwrap(),
-                    Some(&PruneModes {
-                        sender_recovery: Some(PruneMode::Full),
-                        transaction_lookup: Some(PruneMode::Full),
-                        ..PruneModes::none()
-                    })
-                ),
+                provider.insert_block(block.clone().try_seal_with_senders().unwrap(),),
                 Ok(_)
             );
             assert_matches!(provider.transaction_sender(0), Ok(None));
@@ -736,7 +741,7 @@ mod tests {
             let provider = factory.provider_rw().unwrap();
 
             assert_matches!(
-                provider.insert_block(block.clone().try_seal_with_senders().unwrap(), None),
+                provider.insert_block(block.clone().try_seal_with_senders().unwrap()),
                 Ok(_)
             );
 

@@ -3,7 +3,7 @@ use crate::{
     discovery::DiscoveryEvent,
     manager::NetworkEvent,
     message::{EngineMessage, PeerRequest},
-    peers::PeersHandle,
+    peers::{PeerAddr, PeersHandle},
     protocol::RlpxSubProtocol,
     swarm::NetworkConnectionState,
     transactions::TransactionsHandle,
@@ -272,7 +272,14 @@ impl Peers for NetworkHandle {
 
     /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to add a peer to the known
     /// set, with the given kind.
-    fn add_peer_kind(&self, peer: PeerId, kind: PeerKind, addr: SocketAddr) {
+    fn add_peer_kind(
+        &self,
+        peer: PeerId,
+        kind: PeerKind,
+        tcp_addr: SocketAddr,
+        udp_addr: Option<SocketAddr>,
+    ) {
+        let addr = PeerAddr::new(tcp_addr, udp_addr);
         self.send_message(NetworkHandleMessage::AddPeerAddress(peer, kind, addr));
     }
 
@@ -437,7 +444,7 @@ pub(crate) enum NetworkHandleMessage {
     /// Marks a peer as trusted.
     AddTrustedPeerId(PeerId),
     /// Adds an address for a peer, including its ID, kind, and socket address.
-    AddPeerAddress(PeerId, PeerKind, SocketAddr),
+    AddPeerAddress(PeerId, PeerKind, PeerAddr),
     /// Removes a peer from the peerset corresponding to the given kind.
     RemovePeer(PeerId, PeerKind),
     /// Disconnects a connection to a peer if it exists, optionally providing a disconnect reason.
