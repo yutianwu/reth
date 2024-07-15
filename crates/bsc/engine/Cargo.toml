@@ -1,5 +1,5 @@
 [package]
-name = "reth-bsc-consensus"
+name = "reth-bsc-engine"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -24,6 +24,11 @@ reth-network.workspace = true
 reth-engine-primitives.workspace = true
 reth-network-p2p.workspace = true
 reth-network-peers.workspace = true
+reth-beacon-consensus.workspace = true
+reth-bsc-consensus.workspace = true
+reth-evm-bsc.workspace = true
+reth-evm.workspace = true
+reth-primitives-traits.workspace = true
 
 # eth
 alloy-rlp.workspace = true
@@ -60,5 +65,8 @@ rand = "0.8.5"
 [features]
 bsc = [
     "reth-primitives/bsc",
-    "reth-consensus-common/bsc"
+    "reth-consensus-common/bsc",
+    "reth-bsc-consensus/bsc",
+    "reth-evm-bsc/bsc",
+    "reth-beacon-consensus/bsc",
 ]

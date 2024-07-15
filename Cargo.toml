@@ -121,6 +121,7 @@ members = [
     "crates/trie/parallel/",
     "crates/trie/trie",
     "crates/bsc/node/",
+    "crates/bsc/engine/",
     "examples/beacon-api-sidecar-fetcher/",
     "examples/beacon-api-sse/",
     "examples/bsc-p2p",
@@ -145,7 +146,7 @@ members = [
     "examples/exex/minimal/",
     "examples/exex/op-bridge/",
     "testing/ef-tests/",
-    "testing/testing-utils",
+    "testing/testing-utils", 
 ]
 default-members = ["bin/reth"]
 
@@ -375,6 +376,7 @@ reth-static-file-types = { path = "crates/static-file/types" }
 reth-storage-api = { path = "crates/storage/storage-api" }
 reth-storage-errors = { path = "crates/storage/errors" }
 reth-tasks = { path = "crates/tasks" }
+reth-bsc-engine = { path = "crates/bsc/engine" }
 reth-testing-utils = { path = "testing/testing-utils" }
 reth-tokio-util = { path = "crates/tokio-util" }
 reth-tracing = { path = "crates/tracing" }
