@@ -1,9 +1,5 @@
 //! Command for debugging block building.
-
-use crate::{
-    commands::common::{AccessRights, Environment, EnvironmentArgs},
-    macros::block_executor,
-};
+use crate::macros::block_executor;
 use alloy_rlp::Decodable;
 use clap::Parser;
 use eyre::Context;
@@ -14,6 +10,7 @@ use reth_beacon_consensus::EthBeaconConsensus;
 use reth_blockchain_tree::{
     BlockchainTree, BlockchainTreeConfig, ShareableBlockchainTree, TreeExternals,
 };
+use reth_cli_commands::common::{AccessRights, Environment, EnvironmentArgs};
 use reth_cli_runner::CliContext;
 use reth_consensus::Consensus;
 use reth_db::DatabaseEnv;
@@ -24,16 +21,16 @@ use reth_fs_util as fs;
 use reth_node_api::PayloadBuilderAttributes;
 use reth_payload_builder::database::CachedReads;
 use reth_primitives::{
-    constants::eip4844::{LoadKzgSettingsError, MAINNET_KZG_TRUSTED_SETUP},
-    revm_primitives::KzgSettings,
-    Address, BlobTransaction, BlobTransactionSidecar, Bytes, PooledTransactionsElement,
-    SealedBlock, SealedBlockWithSenders, Transaction, TransactionSigned, TxEip4844, B256, U256,
+    constants::eip4844::LoadKzgSettingsError, revm_primitives::KzgSettings, Address,
+    BlobTransaction, BlobTransactionSidecar, Bytes, PooledTransactionsElement, SealedBlock,
+    SealedBlockWithSenders, Transaction, TransactionSigned, TxEip4844, B256, U256,
 };
 use reth_provider::{
     providers::BlockchainProvider, BlockHashReader, BlockReader, BlockWriter, ChainSpecProvider,
     ProviderFactory, StageCheckpointReader, StateProviderFactory,
 };
-use reth_revm::database::StateProviderDatabase;
+use reth_prune::PruneModes;
+use reth_revm::{database::StateProviderDatabase, primitives::EnvKzgSettings};
 use reth_rpc_types::engine::{BlobsBundleV1, PayloadAttributes};
 use reth_stages::StageId;
 use reth_transaction_pool::{
@@ -103,14 +100,14 @@ impl Command {
     }
 
     /// Loads the trusted setup params from a given file path or falls back to
-    /// `MAINNET_KZG_TRUSTED_SETUP`.
-    fn kzg_settings(&self) -> eyre::Result<Arc<KzgSettings>> {
+    /// `EnvKzgSettings::Default`.
+    fn kzg_settings(&self) -> eyre::Result<EnvKzgSettings> {
         if let Some(ref trusted_setup_file) = self.trusted_setup_file {
             let trusted_setup = KzgSettings::load_trusted_setup_file(trusted_setup_file)
                 .map_err(LoadKzgSettingsError::KzgError)?;
-            Ok(Arc::new(trusted_setup))
+            Ok(EnvKzgSettings::Custom(Arc::new(trusted_setup)))
         } else {
-            Ok(Arc::clone(&MAINNET_KZG_TRUSTED_SETUP))
+            Ok(EnvKzgSettings::Default)
         }
     }
 
@@ -129,7 +126,11 @@ impl Command {
         // configure blockchain tree
         let tree_externals =
             TreeExternals::new(provider_factory.clone(), Arc::clone(&consensus), executor);
-        let tree = BlockchainTree::new(tree_externals, BlockchainTreeConfig::default(), None)?;
+        let tree = BlockchainTree::new(
+            tree_externals,
+            BlockchainTreeConfig::default(),
+            PruneModes::none(),
+        )?;
         let blockchain_tree = Arc::new(ShareableBlockchainTree::new(tree));
 
         // fetch the best block from the database
@@ -310,7 +311,6 @@ impl Command {
                     execution_outcome,
                     hashed_post_state,
                     trie_updates,
-                    None,
                 )?;
                 info!(target: "reth::cli", "Successfully appended built block");
             }

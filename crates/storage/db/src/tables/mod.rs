@@ -11,9 +11,6 @@
 //!
 //! TODO(onbjerg): Find appropriate format for this...
 
-// TODO: remove when https://github.com/proptest-rs/proptest/pull/427 is merged
-#![allow(unknown_lints, non_local_definitions)]
-
 pub mod codecs;
 
 mod raw;
@@ -35,7 +32,7 @@ use reth_primitives::{
     parlia::Snapshot, Account, Address, BlockHash, BlockNumber, Bytecode, Header, Receipt,
     Requests, StorageEntry, TransactionSignedNoHash, TxHash, TxNumber, B256,
 };
-use reth_primitives_traits::IntegerList;
+use reth_primitives_traits::{BlobSidecars, IntegerList};
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::StageCheckpoint;
 use reth_trie_common::{StorageTrieEntry, StoredBranchNode, StoredNibbles, StoredNibblesSubKey};
@@ -308,6 +305,9 @@ tables! {
 
     /// Canonical only Stores transaction receipts.
     table Receipts<Key = TxNumber, Value = Receipt>;
+
+    /// Canonical only Stores block sidecars.
+    table Sidecars<Key = BlockNumber, Value = BlobSidecars>;
 
     /// Stores all smart contract bytecodes.
     /// There will be multiple accounts that have same bytecode

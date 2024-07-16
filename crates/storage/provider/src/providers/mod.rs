@@ -19,8 +19,8 @@ use reth_db_api::{
 };
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
-    parlia::Snapshot, Account, Address, Block, BlockHash, BlockHashOrNumber, BlockId, BlockNumHash,
-    BlockNumber, BlockNumberOrTag, BlockWithSenders, Header, Receipt, SealedBlock,
+    parlia::Snapshot, Account, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockId,
+    BlockNumHash, BlockNumber, BlockNumberOrTag, BlockWithSenders, Header, Receipt, SealedBlock,
     SealedBlockWithSenders, SealedHeader, TransactionMeta, TransactionSigned,
     TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256, U256,
 };
@@ -60,6 +60,7 @@ use chain_info::ChainInfoTracker;
 mod consistent_view;
 use alloy_rpc_types_engine::ForkchoiceState;
 pub use consistent_view::{ConsistentDbView, ConsistentViewError};
+use reth_storage_api::SidecarsProvider;
 
 /// The main type for interacting with the blockchain.
 ///
@@ -328,6 +329,14 @@ where
         self.database.block_with_senders(id, transaction_kind)
     }
 
+    fn sealed_block_with_senders(
+        &self,
+        id: BlockHashOrNumber,
+        transaction_kind: TransactionVariant,
+    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
+        self.database.sealed_block_with_senders(id, transaction_kind)
+    }
+
     fn block_range(&self, range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Block>> {
         self.database.block_range(range)
     }
@@ -482,6 +491,19 @@ where
     }
 }
 
+impl<DB> SidecarsProvider for BlockchainProvider<DB>
+where
+    DB: Database,
+{
+    fn sidecars(&self, block_hash: &BlockHash) -> ProviderResult<Option<BlobSidecars>> {
+        self.database.sidecars(block_hash)
+    }
+
+    fn sidecars_by_number(&self, num: BlockNumber) -> ProviderResult<Option<BlobSidecars>> {
+        self.database.sidecars_by_number(num)
+    }
+}
+
 impl<DB> RequestsProvider for BlockchainProvider<DB>
 where
     DB: Database,
@@ -536,22 +558,6 @@ where
         EvmConfig: ConfigureEvmEnv,
     {
         self.database.provider()?.fill_env_with_header(cfg, block_env, header, evm_config)
-    }
-
-    fn fill_block_env_at(
-        &self,
-        block_env: &mut BlockEnv,
-        at: BlockHashOrNumber,
-    ) -> ProviderResult<()> {
-        self.database.provider()?.fill_block_env_at(block_env, at)
-    }
-
-    fn fill_block_env_with_header(
-        &self,
-        block_env: &mut BlockEnv,
-        header: &Header,
-    ) -> ProviderResult<()> {
-        self.database.provider()?.fill_block_env_with_header(block_env, header)
     }
 
     fn fill_cfg_env_at<EvmConfig>(

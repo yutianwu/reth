@@ -1,10 +1,11 @@
-use crate::{BscBlockExecutionError, BscBlockExecutor};
+use crate::{BscBlockExecutionError, BscBlockExecutor, SnapshotReader};
 use bitset::BitSet;
 use reth_bsc_consensus::{
     get_top_validators_by_voting_power, is_breathe_block, ElectedValidators, ValidatorElectionInfo,
     COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, DIFF_INTURN, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT,
 };
 use reth_errors::{BlockExecutionError, BlockValidationError, ProviderError};
+use reth_ethereum_forks::BscHardforks;
 use reth_evm::ConfigureEvm;
 use reth_primitives::{
     hex,
@@ -13,10 +14,10 @@ use reth_primitives::{
     Address, BlockWithSenders, GotExpected, Header, Receipt, TransactionSigned, U256,
 };
 use reth_provider::ParliaProvider;
-use reth_revm::{bsc::SYSTEM_ADDRESS, db::AccountStatus};
+use reth_revm::bsc::SYSTEM_ADDRESS;
 use revm_primitives::{db::Database, EnvWithHandlerCfg};
 use std::collections::HashMap;
-use tracing::log::debug;
+use tracing::debug;
 
 /// Helper type for the input of post execution.
 #[allow(clippy::type_complexity)]
@@ -30,7 +31,7 @@ pub(crate) struct PostExecutionInput {
 impl<EvmConfig, DB, P> BscBlockExecutor<EvmConfig, DB, P>
 where
     EvmConfig: ConfigureEvm,
-    DB: Database<Error = ProviderError>,
+    DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
     P: ParliaProvider,
 {
     /// Apply post execution state changes, including system txs and other state change.
@@ -62,13 +63,12 @@ where
             )?;
         }
 
-        if self.parlia().chain_spec().is_feynman_active_at_timestamp(block.timestamp) {
+        if self.chain_spec().is_feynman_active_at_timestamp(block.timestamp) {
             // apply system contract upgrade
             self.upgrade_system_contracts(block.number, block.timestamp, parent.timestamp)?;
         }
 
-        if self.parlia().chain_spec().is_on_feynman_at_timestamp(block.timestamp, parent.timestamp)
-        {
+        if self.chain_spec().is_on_feynman_at_timestamp(block.timestamp, parent.timestamp) {
             self.init_feynman_contracts(
                 validator,
                 system_txs,
@@ -81,7 +81,7 @@ where
         // slash validator if it's not inturn
         if block.difficulty != DIFF_INTURN {
             let spoiled_val = snap.inturn_validator();
-            let signed_recently = if self.parlia().chain_spec().is_plato_active_at_block(number) {
+            let signed_recently = if self.chain_spec().is_plato_active_at_block(number) {
                 snap.sign_recently(spoiled_val)
             } else {
                 snap.recent_proposers.iter().any(|(_, v)| *v == spoiled_val)
@@ -101,7 +101,7 @@ where
 
         self.distribute_incoming(header, system_txs, receipts, cumulative_gas_used, env.clone())?;
 
-        if self.parlia().chain_spec().is_plato_active_at_block(number) {
+        if self.chain_spec().is_plato_active_at_block(number) {
             self.distribute_finality_reward(
                 header,
                 system_txs,
@@ -112,7 +112,7 @@ where
         }
 
         // update validator set after Feynman upgrade
-        if self.parlia().chain_spec().is_feynman_active_at_timestamp(header.timestamp) &&
+        if self.chain_spec().is_feynman_active_at_timestamp(header.timestamp) &&
             is_breathe_block(parent.timestamp, header.timestamp) &&
             !self
                 .parlia()
@@ -159,7 +159,7 @@ where
         validators.sort();
 
         let validator_num = validators.len();
-        if self.parlia().chain_spec().is_on_luban_at_block(number) {
+        if self.chain_spec().is_on_luban_at_block(number) {
             vote_addrs_map = validators
                 .iter()
                 .cloned()
@@ -171,7 +171,7 @@ where
             .into_iter()
             .flat_map(|v| {
                 let mut bytes = v.to_vec();
-                if self.parlia().chain_spec().is_luban_active_at_block(number) {
+                if self.chain_spec().is_luban_active_at_block(number) {
                     bytes.extend_from_slice(vote_addrs_map[&v].as_ref());
                 }
                 bytes
@@ -265,24 +265,26 @@ where
     ) -> Result<(), BlockExecutionError> {
         let validator = header.beneficiary;
 
-        let system_account = self
-            .state
-            .load_cache_account(SYSTEM_ADDRESS)
-            .map_err(|err| BscBlockExecutionError::ProviderInnerError { error: err.into() })?;
-        if system_account.status == AccountStatus::LoadedNotExisting ||
-            system_account.status == AccountStatus::DestroyedAgain
+        let system_account = self.state.load_cache_account(SYSTEM_ADDRESS).map_err(|err| {
+            BscBlockExecutionError::ProviderInnerError { error: Box::new(err.into()) }
+        })?;
+
+        if header.number != 1 &&
+            (system_account.account.is_none() ||
+                system_account.account.as_ref().unwrap().info.balance == U256::ZERO)
         {
             return Ok(());
         }
 
         let (mut block_reward, transition) = system_account.drain_balance();
         self.state.apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
+
+        // if block reward is zero, no need to distribute
         if block_reward == 0 {
             return Ok(());
         }
 
-        let mut balance_increment = HashMap::new();
-        balance_increment.insert(validator, block_reward);
+        let balance_increment = HashMap::from([(validator, block_reward)]);
         self.state
             .increment_balances(balance_increment)
             .map_err(|_| BlockValidationError::IncrementBalanceFailed)?;
@@ -290,10 +292,13 @@ where
         let system_reward_balance = self
             .state
             .basic(SYSTEM_REWARD_CONTRACT.parse().unwrap())
+            .map_err(|err| BscBlockExecutionError::ProviderInnerError {
+                error: Box::new(err.into()),
+            })
             .unwrap()
             .unwrap_or_default()
             .balance;
-        if !self.parlia().chain_spec().is_kepler_active_at_timestamp(header.timestamp) &&
+        if !self.chain_spec().is_kepler_active_at_timestamp(header.timestamp) &&
             system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
         {
             let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
@@ -406,7 +411,8 @@ where
     ) -> Result<(), BlockExecutionError> {
         let justified_header = self.get_header_by_hash(attestation.data.target_hash)?;
         let parent = self.get_header_by_hash(justified_header.parent_hash)?;
-        let snapshot = self.snapshot(&parent, None)?;
+        let snapshot_reader = SnapshotReader::new(self.provider.clone(), self.parlia.clone());
+        let snapshot = &(snapshot_reader.snapshot(&parent, None)?);
         let validators = &snapshot.validators;
         let validators_bit_set = BitSet::from_u64(attestation.vote_address_set);
 

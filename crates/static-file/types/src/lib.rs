@@ -20,7 +20,7 @@ pub use segment::{SegmentConfig, SegmentHeader, SegmentRangeInclusive, StaticFil
 /// Default static file block count.
 pub const BLOCKS_PER_STATIC_FILE: u64 = 500_000;
 
-/// Highest static file block numbers, per data part.
+/// Highest static file block numbers, per data segment.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub struct HighestStaticFiles {
     /// Highest static file block of headers, inclusive.
@@ -32,6 +32,9 @@ pub struct HighestStaticFiles {
     /// Highest static file block of transactions, inclusive.
     /// If [`None`], no static file is available.
     pub transactions: Option<BlockNumber>,
+    /// Highest static file block of sidecars, inclusive.
+    /// If [`None`], no static file is available.
+    pub sidecars: Option<BlockNumber>,
 }
 
 impl HighestStaticFiles {
@@ -41,6 +44,7 @@ impl HighestStaticFiles {
             StaticFileSegment::Headers => self.headers,
             StaticFileSegment::Transactions => self.transactions,
             StaticFileSegment::Receipts => self.receipts,
+            StaticFileSegment::Sidecars => self.sidecars,
         }
     }
 
@@ -50,7 +54,13 @@ impl HighestStaticFiles {
             StaticFileSegment::Headers => &mut self.headers,
             StaticFileSegment::Transactions => &mut self.transactions,
             StaticFileSegment::Receipts => &mut self.receipts,
+            StaticFileSegment::Sidecars => &mut self.sidecars,
         }
+    }
+
+    /// Returns the minimum block of all segments.
+    pub fn min(&self) -> Option<u64> {
+        [self.headers, self.transactions, self.receipts].iter().filter_map(|&option| option).min()
     }
 
     /// Returns the maximum block of all segments.

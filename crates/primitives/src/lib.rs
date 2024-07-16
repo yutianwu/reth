@@ -13,9 +13,7 @@
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
     issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
 )]
-//#![cfg_attr(not(test), warn(unused_crate_dependencies))]
-// TODO: remove when https://github.com/proptest-rs/proptest/pull/427 is merged
-#![allow(unknown_lints, non_local_definitions)]
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -31,13 +29,9 @@ mod compression;
 pub mod constants;
 pub mod eip4844;
 pub mod genesis;
-pub mod header;
 pub mod proofs;
 mod receipt;
-/// Helpers for working with revm
-pub mod revm;
 pub use reth_static_file_types as static_file;
-mod blob_sidecar;
 pub mod parlia;
 pub mod system_contracts;
 pub mod transaction;
@@ -51,17 +45,17 @@ pub use block::{
 #[cfg(feature = "zstd-codec")]
 pub use compression::*;
 pub use constants::{
-    DEV_GENESIS_HASH, EMPTY_OMMER_ROOT_HASH, GOERLI_GENESIS_HASH, HOLESKY_GENESIS_HASH,
-    KECCAK_EMPTY, MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
+    DEV_GENESIS_HASH, EMPTY_OMMER_ROOT_HASH, HOLESKY_GENESIS_HASH, KECCAK_EMPTY,
+    MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
 };
 pub use genesis::{ChainConfig, Genesis, GenesisAccount};
-pub use header::{Header, HeadersDirection, SealedHeader};
 pub use receipt::{
     gas_spent_by_transactions, Receipt, ReceiptWithBloom, ReceiptWithBloomRef, Receipts,
 };
 pub use reth_primitives_traits::{
-    logs_bloom, Account, Bytecode, GotExpected, GotExpectedBoxed, Log, Request, Requests,
-    StorageEntry, Withdrawal, Withdrawals,
+    logs_bloom, Account, BlobSidecar, BlobSidecars, Bytecode, GotExpected, GotExpectedBoxed,
+    Header, HeaderError, Log, LogData, Request, Requests, SealedHeader, StorageEntry, Withdrawal,
+    Withdrawals,
 };
 pub use static_file::StaticFileSegment;
 
@@ -81,8 +75,6 @@ pub use transaction::{
     TxHashOrNumber, TxLegacy, TxType, EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID,
     LEGACY_TX_TYPE_ID,
 };
-
-pub use blob_sidecar::{BlobSidecar, BlobSidecars};
 
 // Re-exports
 pub use self::ruint::UintTryTo;
@@ -123,18 +115,9 @@ pub use c_kzg as kzg;
 #[cfg(feature = "optimism")]
 mod optimism {
     pub use crate::transaction::{TxDeposit, DEPOSIT_TX_TYPE_ID};
-    pub use reth_chainspec::{
-        net::{
-            base_nodes, base_testnet_nodes, op_nodes, op_testnet_nodes, OP_BOOTNODES,
-            OP_TESTNET_BOOTNODES,
-        },
-        BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA,
-    };
+    pub use reth_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
     #[cfg(feature = "opbnb")]
-    pub use reth_chainspec::{
-        net::{opbnb_mainnet_nodes, opbnb_testnet_nodes},
-        OPBNB_MAINNET, OPBNB_TESTNET,
-    };
+    pub use reth_chainspec::{OPBNB_MAINNET, OPBNB_TESTNET};
 }
 
 #[cfg(feature = "optimism")]
@@ -143,11 +126,12 @@ pub use optimism::*;
 /// Bsc specific re-exports
 #[cfg(feature = "bsc")]
 mod bsc {
-    pub use reth_chainspec::{
-        net::{bsc_mainnet_nodes, bsc_testnet_nodes, BSC_MAINNET_BOOTNODES, BSC_TESTNET_BOOTNODES},
-        BSC_MAINNET, BSC_TESTNET,
-    };
+    pub use reth_chainspec::{BSC_MAINNET, BSC_TESTNET};
 }
 
 #[cfg(feature = "bsc")]
 pub use bsc::*;
+
+// to make lint happy
+#[cfg(any(feature = "bsc", feature = "opbnb"))]
+use revm as _;

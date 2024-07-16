@@ -10,11 +10,13 @@ use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db_api::models::{AccountBeforeTx, StoredBlockBodyIndices};
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
-    keccak256, Account, Address, Block, BlockHash, BlockHashOrNumber, BlockId, BlockNumber,
-    BlockWithSenders, Bytecode, Bytes, Header, Receipt, SealedBlock, SealedBlockWithSenders,
-    SealedHeader, StorageKey, StorageValue, TransactionMeta, TransactionSigned,
-    TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256, U256,
+    keccak256, Account, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockId,
+    BlockNumber, BlockWithSenders, Bytecode, Bytes, Header, Receipt, SealedBlock,
+    SealedBlockWithSenders, SealedHeader, StorageKey, StorageValue, TransactionMeta,
+    TransactionSigned, TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256,
+    U256,
 };
+use reth_storage_api::{SidecarsProvider, StateProofProvider};
 use reth_storage_errors::provider::{ProviderError, ProviderResult};
 use reth_trie::{updates::TrieUpdates, AccountProof};
 use revm::{
@@ -474,6 +476,14 @@ impl BlockReader for MockEthProvider {
         Ok(None)
     }
 
+    fn sealed_block_with_senders(
+        &self,
+        _id: BlockHashOrNumber,
+        _transaction_kind: TransactionVariant,
+    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
+        Ok(None)
+    }
+
     fn block_range(&self, range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Block>> {
         let lock = self.blocks.lock();
 
@@ -545,6 +555,17 @@ impl StateRootProvider for MockEthProvider {
     }
 }
 
+impl StateProofProvider for MockEthProvider {
+    fn proof(
+        &self,
+        _state: &BundleState,
+        address: Address,
+        _slots: &[B256],
+    ) -> ProviderResult<AccountProof> {
+        Ok(AccountProof::new(address))
+    }
+}
+
 impl StateProvider for MockEthProvider {
     fn storage(
         &self,
@@ -565,10 +586,6 @@ impl StateProvider for MockEthProvider {
                 _ => None,
             }
         }))
-    }
-
-    fn proof(&self, address: Address, _keys: &[B256]) -> ProviderResult<AccountProof> {
-        Ok(AccountProof::new(address))
     }
 }
 
@@ -596,22 +613,6 @@ impl EvmEnvProvider for MockEthProvider {
     where
         EvmConfig: ConfigureEvmEnv,
     {
-        Ok(())
-    }
-
-    fn fill_block_env_at(
-        &self,
-        _block_env: &mut BlockEnv,
-        _at: BlockHashOrNumber,
-    ) -> ProviderResult<()> {
-        Ok(())
-    }
-
-    fn fill_block_env_with_header(
-        &self,
-        _block_env: &mut BlockEnv,
-        _header: &Header,
-    ) -> ProviderResult<()> {
         Ok(())
     }
 
@@ -682,6 +683,16 @@ impl WithdrawalsProvider for MockEthProvider {
         Ok(None)
     }
     fn latest_withdrawal(&self) -> ProviderResult<Option<Withdrawal>> {
+        Ok(None)
+    }
+}
+
+impl SidecarsProvider for MockEthProvider {
+    fn sidecars(&self, _block_hash: &BlockHash) -> ProviderResult<Option<BlobSidecars>> {
+        Ok(None)
+    }
+
+    fn sidecars_by_number(&self, _num: BlockNumber) -> ProviderResult<Option<BlobSidecars>> {
         Ok(None)
     }
 }

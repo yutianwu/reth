@@ -1,6 +1,7 @@
 use crate::{
     hashed_cursor::HashedPostStateCursorFactory,
-    prefix_set::{PrefixSetMut, TriePrefixSets},
+    prefix_set::{PrefixSetMut, TriePrefixSetsMut},
+    proof::Proof,
     updates::TrieUpdates,
     Nibbles, StateRoot,
 };
@@ -13,6 +14,7 @@ use reth_db_api::{
 };
 use reth_execution_errors::StateRootError;
 use reth_primitives::{keccak256, Account, Address, BlockNumber, B256, U256};
+use reth_trie_common::AccountProof;
 use revm::db::BundleAccount;
 use std::{
     collections::{hash_map, HashMap, HashSet},
@@ -149,16 +151,17 @@ impl HashedPostState {
 
     /// Converts hashed post state into [`HashedPostStateSorted`].
     pub fn into_sorted(self) -> HashedPostStateSorted {
-        let mut accounts = Vec::new();
+        let mut updated_accounts = Vec::new();
         let mut destroyed_accounts = HashSet::default();
         for (hashed_address, info) in self.accounts {
             if let Some(info) = info {
-                accounts.push((hashed_address, info));
+                updated_accounts.push((hashed_address, info));
             } else {
                 destroyed_accounts.insert(hashed_address);
             }
         }
-        accounts.sort_unstable_by_key(|(address, _)| *address);
+        updated_accounts.sort_unstable_by_key(|(address, _)| *address);
+        let accounts = HashedAccountsSorted { accounts: updated_accounts, destroyed_accounts };
 
         let storages = self
             .storages
@@ -166,13 +169,13 @@ impl HashedPostState {
             .map(|(hashed_address, storage)| (hashed_address, storage.into_sorted()))
             .collect();
 
-        HashedPostStateSorted { accounts, destroyed_accounts, storages }
+        HashedPostStateSorted { accounts, storages }
     }
 
-    /// Construct [`TriePrefixSets`] from hashed post state.
+    /// Construct [`TriePrefixSetsMut`] from hashed post state.
     /// The prefix sets contain the hashed account and storage keys that have been changed in the
     /// post state.
-    pub fn construct_prefix_sets(&self) -> TriePrefixSets {
+    pub fn construct_prefix_sets(&self) -> TriePrefixSetsMut {
         // Populate account prefix set.
         let mut account_prefix_set = PrefixSetMut::with_capacity(self.accounts.len());
         let mut destroyed_accounts = HashSet::default();
@@ -193,14 +196,10 @@ impl HashedPostState {
             for hashed_slot in hashed_storage.storage.keys() {
                 prefix_set.insert(Nibbles::unpack(hashed_slot));
             }
-            storage_prefix_sets.insert(*hashed_address, prefix_set.freeze());
+            storage_prefix_sets.insert(*hashed_address, prefix_set);
         }
 
-        TriePrefixSets {
-            account_prefix_set: account_prefix_set.freeze(),
-            storage_prefix_sets,
-            destroyed_accounts,
-        }
+        TriePrefixSetsMut { account_prefix_set, storage_prefix_sets, destroyed_accounts }
     }
 
     /// Calculate the state root for this [`HashedPostState`].
@@ -235,7 +234,7 @@ impl HashedPostState {
     /// The state root for this [`HashedPostState`].
     pub fn state_root<TX: DbTx>(&self, tx: &TX) -> Result<B256, StateRootError> {
         let sorted = self.clone().into_sorted();
-        let prefix_sets = self.construct_prefix_sets();
+        let prefix_sets = self.construct_prefix_sets().freeze();
         StateRoot::from_tx(tx)
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(tx, &sorted))
             .with_prefix_sets(prefix_sets)
@@ -249,11 +248,26 @@ impl HashedPostState {
         tx: &TX,
     ) -> Result<(B256, TrieUpdates), StateRootError> {
         let sorted = self.clone().into_sorted();
-        let prefix_sets = self.construct_prefix_sets();
+        let prefix_sets = self.construct_prefix_sets().freeze();
         StateRoot::from_tx(tx)
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(tx, &sorted))
             .with_prefix_sets(prefix_sets)
             .root_with_updates()
+    }
+
+    /// Generates the state proof for target account and slots on top of this [`HashedPostState`].
+    pub fn account_proof<TX: DbTx>(
+        &self,
+        tx: &TX,
+        address: Address,
+        slots: &[B256],
+    ) -> Result<AccountProof, StateRootError> {
+        let sorted = self.clone().into_sorted();
+        let prefix_sets = self.construct_prefix_sets();
+        Proof::from_tx(tx)
+            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(tx, &sorted))
+            .with_prefix_sets_mut(prefix_sets)
+            .account_proof(address, slots)
     }
 }
 
@@ -309,12 +323,19 @@ impl HashedStorage {
 /// Sorted hashed post state optimized for iterating during state trie calculation.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct HashedPostStateSorted {
+    /// Updated state of accounts.
+    pub(crate) accounts: HashedAccountsSorted,
+    /// Map of hashed addresses to hashed storage.
+    pub(crate) storages: HashMap<B256, HashedStorageSorted>,
+}
+
+/// Sorted account state optimized for iterating during state trie calculation.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct HashedAccountsSorted {
     /// Sorted collection of hashed addresses and their account info.
     pub(crate) accounts: Vec<(B256, Account)>,
     /// Set of destroyed account keys.
     pub(crate) destroyed_accounts: HashSet<B256>,
-    /// Map of hashed addresses to hashed storage.
-    pub(crate) storages: HashMap<B256, HashedStorageSorted>,
 }
 
 /// Sorted hashed storage optimized for iterating during state trie calculation.

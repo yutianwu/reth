@@ -59,6 +59,7 @@ impl TryFrom<alloy_rpc_types::Block> for Block {
             withdrawals: block.withdrawals.map(Into::into),
             // todo(onbjerg): we don't know if this is added to rpc yet, so for now we leave it as
             // empty.
+            sidecars: None,
             requests: None,
         })
     }
@@ -168,7 +169,7 @@ impl TryFrom<alloy_rpc_types::Transaction> for Transaction {
                         .gas
                         .try_into()
                         .map_err(|_| ConversionError::Eip2718Error(RlpError::Overflow.into()))?,
-                    placeholder: tx.to.map(|_| ()),
+                    placeholder: tx.to.map(drop),
                     to: tx.to.unwrap_or_default(),
                     value: tx.value,
                     access_list: tx.access_list.ok_or(ConversionError::MissingAccessList)?,

@@ -59,15 +59,13 @@ mod tests {
     use super::*;
     use crate::{test_utils::create_test_provider_factory, HeaderProvider};
     use rand::seq::SliceRandom;
-    use reth_db::{
-        static_file::create_static_file_T1_T2_T3, CanonicalHeaders, HeaderNumbers,
-        HeaderTerminalDifficulties, Headers, RawTable,
+    use reth_db::{CanonicalHeaders, HeaderNumbers, HeaderTerminalDifficulties, Headers, Sidecars};
+    use reth_db_api::transaction::DbTxMut;
+    use reth_primitives::{
+        static_file::find_fixed_range, BlobSidecar, BlobSidecars, BlobTransactionSidecar, B256,
+        U256,
     };
-    use reth_db_api::{
-        cursor::DbCursorRO,
-        transaction::{DbTx, DbTxMut},
-    };
-    use reth_primitives::{static_file::find_fixed_range, BlockNumber, B256, U256};
+    use reth_storage_api::SidecarsProvider;
     use reth_testing_utils::generators::{self, random_header_range};
 
     #[test]
@@ -75,12 +73,6 @@ mod tests {
         // Ranges
         let row_count = 100u64;
         let range = 0..=(row_count - 1);
-        let segment_header = SegmentHeader::new(
-            range.clone().into(),
-            Some(range.clone().into()),
-            Some(range.clone().into()),
-            StaticFileSegment::Headers,
-        );
 
         // Data sources
         let factory = create_test_provider_factory();
@@ -112,48 +104,22 @@ mod tests {
 
         // Create StaticFile
         {
-            let with_compression = true;
-            let with_filter = true;
+            let manager = StaticFileProvider::read_write(static_files_path.path()).unwrap();
+            let mut writer = manager.latest_writer(StaticFileSegment::Headers).unwrap();
+            let mut td = U256::ZERO;
 
-            let mut nippy_jar = NippyJar::new(3, static_file.as_path(), segment_header);
-
-            if with_compression {
-                nippy_jar = nippy_jar.with_zstd(false, 0);
+            for header in headers.clone() {
+                td += header.header().difficulty;
+                let hash = header.hash();
+                writer.append_header(header.unseal(), td, hash).unwrap();
             }
-
-            if with_filter {
-                nippy_jar = nippy_jar.with_cuckoo_filter(row_count as usize + 10).with_fmph();
-            }
-
-            let provider = factory.provider().unwrap();
-            let tx = provider.tx_ref();
-
-            // Hacky type inference. TODO fix
-            let mut none_vec = Some(vec![vec![vec![0u8]].into_iter()]);
-            let _ = none_vec.take();
-
-            // Generate list of hashes for filters & PHF
-            let mut cursor = tx.cursor_read::<RawTable<CanonicalHeaders>>().unwrap();
-            let hashes = cursor
-                .walk(None)
-                .unwrap()
-                .map(|row| row.map(|(_key, value)| value.into_value()).map_err(|e| e.into()));
-
-            create_static_file_T1_T2_T3::<
-                Headers,
-                HeaderTerminalDifficulties,
-                CanonicalHeaders,
-                BlockNumber,
-                SegmentHeader,
-            >(tx, range, None, none_vec, Some(hashes), row_count as usize, nippy_jar)
-            .unwrap();
+            writer.commit().unwrap();
         }
 
         // Use providers to query Header data and compare if it matches
         {
             let db_provider = factory.provider().unwrap();
-            let manager =
-                StaticFileProvider::read_write(static_files_path.path()).unwrap().with_filters();
+            let manager = StaticFileProvider::read_write(static_files_path.path()).unwrap();
             let jar_provider = manager
                 .get_segment_provider_from_block(StaticFileSegment::Headers, 0, Some(&static_file))
                 .unwrap();
@@ -169,12 +135,88 @@ mod tests {
 
                 // Compare Header
                 assert_eq!(header, db_provider.header(&header_hash).unwrap().unwrap());
-                assert_eq!(header, jar_provider.header(&header_hash).unwrap().unwrap());
+                assert_eq!(header, jar_provider.header_by_number(header.number).unwrap().unwrap());
 
                 // Compare HeaderTerminalDifficulties
                 assert_eq!(
                     db_provider.header_td(&header_hash).unwrap().unwrap(),
-                    jar_provider.header_td(&header_hash).unwrap().unwrap()
+                    jar_provider.header_td_by_number(header.number).unwrap().unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_sidecars() {
+        // Ranges
+        let row_count = 100u64;
+        let range = 0..=(row_count - 1);
+
+        // Data sources
+        let factory = create_test_provider_factory();
+        let static_files_path = tempfile::tempdir().unwrap();
+        let static_file = static_files_path
+            .path()
+            .join(StaticFileSegment::Sidecars.filename(&find_fixed_range(*range.end())));
+
+        // Setup data
+        let mut provider_rw = factory.provider_rw().unwrap();
+        let tx = provider_rw.tx_mut();
+        let mut sidecars_set = Vec::with_capacity(100);
+        for i in range {
+            let sidecars = BlobSidecars::new(vec![BlobSidecar {
+                blob_transaction_sidecar: BlobTransactionSidecar {
+                    blobs: vec![],
+                    commitments: vec![Default::default()],
+                    proofs: vec![Default::default()],
+                },
+                block_number: U256::from(i),
+                block_hash: B256::random(),
+                tx_index: rand::random::<u64>(),
+                tx_hash: B256::random(),
+            }]);
+            let block_number = sidecars[0].block_number.to();
+            let block_hash = sidecars[0].block_hash;
+
+            tx.put::<CanonicalHeaders>(block_number, block_hash).unwrap();
+            tx.put::<HeaderNumbers>(block_hash, block_number).unwrap();
+            tx.put::<Sidecars>(block_number, sidecars.clone()).unwrap();
+
+            sidecars_set.push(sidecars);
+        }
+        provider_rw.commit().unwrap();
+
+        // Create StaticFile
+        {
+            let manager = StaticFileProvider::read_write(static_files_path.path()).unwrap();
+            let mut writer = manager.latest_writer(StaticFileSegment::Sidecars).unwrap();
+
+            for sidecars in sidecars_set.clone() {
+                let block_number = sidecars[0].block_number.to();
+                let hash = sidecars[0].block_hash;
+                writer.append_sidecars(sidecars, block_number, hash).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+
+        // Use providers to query sidecars data and compare if it matches
+        {
+            let db_provider = factory.provider().unwrap();
+            let manager = StaticFileProvider::read_write(static_files_path.path()).unwrap();
+            let jar_provider = manager
+                .get_segment_provider_from_block(StaticFileSegment::Sidecars, 0, Some(&static_file))
+                .unwrap();
+
+            // Shuffled for chaos.
+            sidecars_set.shuffle(&mut generators::rng());
+
+            for sidecars in sidecars_set {
+                let hash = sidecars[0].block_hash;
+                let block_number = sidecars[0].block_number.to();
+                assert_eq!(sidecars, db_provider.sidecars(&hash).unwrap().unwrap());
+                assert_eq!(
+                    sidecars,
+                    jar_provider.sidecars_by_number(block_number).unwrap().unwrap()
                 );
             }
         }
