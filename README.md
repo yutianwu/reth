@@ -110,6 +110,17 @@ docker run -d -p 8545:8545 -p 8546:8546 -p 30303:30303 -p 30303:30303/udp -v ${d
 
 ## Run Reth for opBNB
 
+The op-reth can function as both a full node and an archive node. Due to its unique storage advantages, it is primarily utilized for running archive nodes.
+
+### Hardware Requirements
+
+* CPU with 16+ cores
+* 128GB RAM
+* High-performance NVMe SSD with at least 3TB of free space
+* A broadband internet connection with upload/download speeds of 25 MB/s
+
+### Steps to Run op-reth
+
 The op-reth is an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#execution-clients) for
 opBNB.
 You need to run op-node along with op-reth to synchronize with the opBNB network.
