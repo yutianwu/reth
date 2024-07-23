@@ -153,6 +153,7 @@ fn hardforks_with_system_contracts() -> Vec<BscHardfork> {
         BscHardfork::Plato,
         BscHardfork::Ramanujan,
         BscHardfork::HaberFix,
+        BscHardfork::Bohr,
     ]
 }
 
@@ -173,6 +174,7 @@ fn hardfork_to_dir_name(hardfork: &BscHardfork) -> Result<String, SystemContract
         BscHardfork::Plato => "plato",
         BscHardfork::Ramanujan => "ramanujan",
         BscHardfork::HaberFix => "haber_fix",
+        BscHardfork::Bohr => "bohr",
         _ => {
             return Err(SystemContractError::InvalidHardfork);
         }

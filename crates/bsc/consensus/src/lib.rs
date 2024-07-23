@@ -26,7 +26,6 @@ use secp256k1::{
 use sha3::{Digest, Keccak256};
 use std::{
     clone::Clone,
-    collections::HashMap,
     fmt::{Debug, Formatter},
     num::NonZeroUsize,
     sync::Arc,
@@ -182,6 +181,28 @@ impl Parlia {
         }
     }
 
+    pub fn get_turn_length_from_header(&self, header: &Header) -> Result<Option<u8>, ParliaConsensusError> {
+        if header.number % self.epoch != 0 || !self.chain_spec.is_bohr_active_at_timestamp(header.timestamp) {
+            return Ok(None);
+        }
+
+        if header.extra_data.len() <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
+            return Err(ParliaConsensusError::InvalidHeaderExtraLen {
+                header_extra_len: header.extra_data.len() as u64,
+            });
+        }
+
+        let num = header.extra_data[EXTRA_VANITY_LEN] as usize;
+        let pos = EXTRA_VANITY_LEN + 1 + num * EXTRA_VALIDATOR_LEN;
+
+        if header.extra_data.len() <= pos {
+            return Err(ParliaConsensusError::ExtraInvalidTurnLength);
+        }
+
+        let turn_length = header.extra_data[pos];
+        Ok(Some(turn_length))
+    }
+
     pub fn get_vote_attestation_from_header(
         &self,
         header: &Header,
@@ -201,8 +222,15 @@ impl Parlia {
         } else {
             let validator_count =
                 header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
-            let start = EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + validator_count * EXTRA_VALIDATOR_LEN;
+            let mut start = EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + validator_count * EXTRA_VALIDATOR_LEN;
+            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            if is_bohr_active {
+                start += TURN_LEN;
+            }
             let end = extra_len - EXTRA_SEAL_LEN;
+            if end <= start {
+                return Ok(None)
+            }
             &header.extra_data[start..end]
         };
         if raw_attestation_data.is_empty() {
@@ -240,15 +268,17 @@ impl Parlia {
             }
 
             let count = header.extra_data[EXTRA_VANITY_LEN] as usize;
-            if count == 0 ||
-                extra_len <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN
-            {
-                return None;
-            }
-
             let start = EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM;
             let end = start + count * EXTRA_VALIDATOR_LEN;
 
+            let mut extra_min_len = end + EXTRA_SEAL_LEN;
+            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            if is_bohr_active {
+                extra_min_len += TURN_LEN;
+            }
+            if count == 0 || extra_len < extra_min_len {
+                return None
+            }
             Some(header.extra_data[start..end].to_vec())
         }
     }
@@ -263,24 +293,14 @@ impl Parlia {
         let mut validators = snap.validators.clone();
 
         if self.chain_spec.is_planck_active_at_block(header.number) {
-            let validator_count = validators.len() as u64;
-
-            let mut recents = HashMap::with_capacity(snap.recent_proposers.len());
-            let bound = header.number.saturating_sub(validator_count / 2 + 1);
-            for (&seen, &proposer) in &snap.recent_proposers {
-                if seen <= bound {
-                    continue
-                };
-                recents.insert(proposer, seen);
-            }
-
-            if recents.contains_key(&validator) {
+            let counts = snap.count_recent_proposers();
+            if snap.sign_recently_by_counts(validator, &counts) {
                 // The backOffTime does not matter when a validator has signed recently.
                 return 0;
             }
 
             let inturn_addr = snap.inturn_validator();
-            if recents.contains_key(&inturn_addr) {
+            if snap.sign_recently_by_counts(inturn_addr, &counts) {
                 trace!(
                     "in turn validator({:?}) has recently signed, skip initialBackOffTime",
                     inturn_addr
@@ -289,7 +309,7 @@ impl Parlia {
             }
 
             // Exclude the recently signed validators
-            validators.retain(|addr| !recents.contains_key(addr));
+            validators.retain(|addr| !snap.sign_recently_by_counts(*addr, &counts));
         }
 
         let mut rng = RngSource::new(snap.block_number as i64);
@@ -480,8 +500,17 @@ impl Parlia {
             return Err(ConsensusError::BlobGasUsedUnexpected)
         } else if header.excess_blob_gas.is_some() {
             return Err(ConsensusError::ExcessBlobGasUnexpected)
-        } else if header.parent_beacon_block_root.is_some() {
-            return Err(ConsensusError::ParentBeaconBlockRootUnexpected)
+        }
+
+        if self.chain_spec.is_bohr_active_at_timestamp(header.timestamp) {
+            if !header.parent_beacon_block_root.is_some()
+                || header.parent_beacon_block_root.unwrap() != B256::default() {
+                return Err(ConsensusError::ParentBeaconBlockRootUnexpected)
+            }
+        } else {
+            if header.parent_beacon_block_root.is_some() {
+                return Err(ConsensusError::ParentBeaconBlockRootUnexpected)
+            }
         }
 
         Ok(())

@@ -49,6 +49,8 @@ hardfork!(
         Haber,
         /// BSC `HaberFix` hardfork
         HaberFix,
+        /// BSC `Bohr` hardfork
+        Bohr,
     }
 );
 

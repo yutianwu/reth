@@ -35,6 +35,7 @@ use revm_primitives::{
 };
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Instant};
 use tracing::{debug, warn};
+use reth_primitives::parlia::DEFAULT_TURN_LENGTH;
 
 const SNAP_CACHE_NUM: usize = 2048;
 
@@ -867,21 +868,29 @@ where
 
         let mut snap = snap.ok_or_else(|| BscBlockExecutionError::SnapshotNotFound)?;
 
+        // the old snapshots don't have turn length, make sure we initialize it with default
+        // before accessing it
+        if snap.turn_length == 0 {
+            snap.turn_length = DEFAULT_TURN_LENGTH;
+        }
+
         // apply skip headers
         skip_headers.reverse();
         for header in &skip_headers {
-            let ValidatorsInfo { consensus_addrs, vote_addrs } = if header.number > 0 &&
-                header.number % self.parlia.epoch() == (snap.validators.len() / 2) as u64
-            {
+            let (ValidatorsInfo { consensus_addrs, vote_addrs }, turn_length) = if header.number > 0 &&
+                header.number % self.parlia.epoch() == snap.miner_history_check_len() {
                 // change validator set
-                let checkpoint_header =
-                    self.find_ancient_header(header, (snap.validators.len() / 2) as u64)?;
+                let checkpoint_header = self.find_ancient_header(header, snap.miner_history_check_len())?;
 
-                self.parlia.parse_validators_from_header(&checkpoint_header).map_err(|err| {
-                    BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
-                })?
+                let validators_info = self.parlia.parse_validators_from_header(&checkpoint_header)
+                    .map_err(|err| BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() })?;
+
+                let turn_length = self.parlia.get_turn_length_from_header(&checkpoint_header)
+                    .map_err(|err| BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() })?;
+
+                (validators_info, turn_length)
             } else {
-                ValidatorsInfo::default()
+                (ValidatorsInfo::default(), None)
             };
 
             let validator = self.parlia.recover_proposer(header).map_err(|err| {
@@ -893,7 +902,8 @@ where
                 })?;
 
             snap = snap
-                .apply(validator, header, consensus_addrs, vote_addrs, attestation)
+                .apply(validator, header, consensus_addrs, vote_addrs, attestation,
+                       turn_length, self.parlia.chain_spec().is_bohr_active_at_timestamp(header.timestamp))
                 .ok_or_else(|| BscBlockExecutionError::ApplySnapshotFailed)?;
         }
 

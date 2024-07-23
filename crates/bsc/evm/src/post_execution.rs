@@ -1,9 +1,6 @@
 use crate::{BscBlockExecutionError, BscBlockExecutor, SnapshotReader};
 use bitset::BitSet;
-use reth_bsc_consensus::{
-    get_top_validators_by_voting_power, is_breathe_block, ElectedValidators, ValidatorElectionInfo,
-    COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, DIFF_INTURN, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT,
-};
+use reth_bsc_consensus::{get_top_validators_by_voting_power, is_breathe_block, ElectedValidators, ValidatorElectionInfo, COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, DIFF_INTURN, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT, DEFAULT_TURN_LENGTH};
 use reth_errors::{BlockExecutionError, BlockValidationError, ProviderError};
 use reth_ethereum_forks::BscHardforks;
 use reth_evm::ConfigureEvm;
@@ -52,6 +49,8 @@ where
         let header = &block.header;
 
         self.verify_validators(post_execution_input.current_validators, header)?;
+
+        self.verify_turn_length(header, env.clone())?;
 
         if number == 1 {
             self.init_genesis_contracts(
@@ -143,6 +142,39 @@ where
 
         Ok(())
     }
+
+    fn verify_turn_length(&mut self, header: &Header, env: EnvWithHandlerCfg) -> Result<(), BlockExecutionError> {
+        if header.number % self.parlia().epoch() != 0 ||
+            !self.chain_spec().is_bohr_active_at_timestamp(header.timestamp) {
+            return Ok(())
+        }
+
+        if let Some(turn_length_from_header) =
+            self.parlia().get_turn_length_from_header(header).map_err(|err| {
+                BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+            })? {
+
+            let turn_length_from_contract = self.get_turn_length(header, env.clone())?.unwrap();
+            if turn_length_from_header == turn_length_from_contract {
+                return Ok(())
+            }
+        }
+
+        return Err(BscBlockExecutionError::MismatchingEpochTurnLengthError.into());
+    }
+
+    fn get_turn_length(&mut self, header: &Header, env: EnvWithHandlerCfg) -> Result<Option<u8>, BlockExecutionError> {
+        if self.chain_spec().is_bohr_active_at_timestamp(header.timestamp) {
+            let (to, data) = self.parlia().get_turn_length();
+            let bz = self.eth_call(to, data, env.clone())?;
+
+            let turn_length = self.parlia().unpack_data_into_turn_length(bz.as_ref()).to::<u8>();
+            return Ok(Some(turn_length))
+        }
+
+        Ok(Some(DEFAULT_TURN_LENGTH))
+    }
+
 
     fn verify_validators(
         &self,
