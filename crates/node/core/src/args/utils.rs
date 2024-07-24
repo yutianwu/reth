@@ -8,7 +8,7 @@ use std::{path::PathBuf, sync::Arc};
 use reth_chainspec::DEV;
 
 #[cfg(feature = "bsc")]
-use reth_primitives::{BSC_MAINNET, BSC_TESTNET};
+use reth_primitives::{BSC_MAINNET, BSC_TESTNET, BSC_RIALTO};
 
 #[cfg(feature = "optimism")]
 use reth_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
@@ -63,6 +63,8 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> 
         "bsc" | "bsc-mainnet" => BSC_MAINNET.clone(),
         #[cfg(feature = "bsc")]
         "bsc-testnet" => BSC_TESTNET.clone(),
+        #[cfg(feature = "bsc")]
+        "bsc-rialto" => BSC_RIALTO.clone(),
         _ => {
             // try to read json from path first
             let raw = match fs::read_to_string(PathBuf::from(shellexpand::full(s)?.into_owned())) {

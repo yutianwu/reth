@@ -88,7 +88,7 @@ pub static BSC_RIALTO: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
         genesis: serde_json::from_str(include_str!("../res/genesis/bsc_qa.json"))
             .expect("Can't deserialize BSC Rialto genesis json"),
         genesis_hash: Some(b256!(
-            "0x281bcec9447d74982bb746f753eecd1320a9b7f4fdbd2cfaf1ae7170a93cff50"
+            "281bcec9447d74982bb746f753eecd1320a9b7f4fdbd2cfaf1ae7170a93cff50"
         )),
         paris_block_and_final_difficulty: Some((0, U256::from(0))),
         hardforks: BscHardfork::bsc_qa(),
