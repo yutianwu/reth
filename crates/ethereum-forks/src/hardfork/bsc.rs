@@ -278,7 +278,7 @@ impl BscHardfork {
             (Self::MirrorSync.boxed(), ForkCondition::Block(1)),
             (Self::Bruno.boxed(), ForkCondition::Block(1)),
             (Self::Euler.boxed(), ForkCondition::Block(2)),
-            (Self::Gibbs.boxed(), ForkCondition::Block(3)),
+            (Self::Gibbs.boxed(), ForkCondition::Block(4)),
             (Self::Nano.boxed(), ForkCondition::Block(3)),
             (Self::Moran.boxed(), ForkCondition::Block(3)),
             (Self::Planck.boxed(), ForkCondition::Block(5)),
