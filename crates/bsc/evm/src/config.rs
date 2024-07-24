@@ -9,7 +9,9 @@ pub fn revm_spec_by_timestamp_after_shanghai(
     chain_spec: &ChainSpec,
     timestamp: u64,
 ) -> revm_primitives::SpecId {
-    if chain_spec.fork(BscHardfork::HaberFix).active_at_timestamp(timestamp) {
+    if chain_spec.fork(BscHardfork::Bohr).active_at_timestamp(timestamp) {
+        revm_primitives::BOHR
+    } else if chain_spec.fork(BscHardfork::HaberFix).active_at_timestamp(timestamp) {
         revm_primitives::HABER_FIX
     } else if chain_spec.fork(BscHardfork::Haber).active_at_timestamp(timestamp) {
         revm_primitives::HABER
