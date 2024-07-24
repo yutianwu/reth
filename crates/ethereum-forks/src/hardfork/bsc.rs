@@ -260,6 +260,44 @@ impl BscHardfork {
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
         ])
     }
+
+    /// Bsc qa list of hardforks.
+    pub fn bsc_qa() -> ChainHardforks {
+        ChainHardforks::new(vec![
+            (EthereumHardfork::Frontier.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Homestead.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Tangerine.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::SpuriousDragon.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Byzantium.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Constantinople.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Petersburg.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::Istanbul.boxed(), ForkCondition::Block(0)),
+            (EthereumHardfork::MuirGlacier.boxed(), ForkCondition::Block(0)),
+            (Self::Ramanujan.boxed(), ForkCondition::Block(0)),
+            (Self::Niels.boxed(), ForkCondition::Block(0)),
+            (Self::MirrorSync.boxed(), ForkCondition::Block(1)),
+            (Self::Bruno.boxed(), ForkCondition::Block(1)),
+            (Self::Euler.boxed(), ForkCondition::Block(2)),
+            (Self::Gibbs.boxed(), ForkCondition::Block(3)),
+            (Self::Nano.boxed(), ForkCondition::Block(3)),
+            (Self::Moran.boxed(), ForkCondition::Block(3)),
+            (Self::Planck.boxed(), ForkCondition::Block(5)),
+            (Self::Luban.boxed(), ForkCondition::Block(6)),
+            (Self::Plato.boxed(), ForkCondition::Block(7)),
+            (EthereumHardfork::Berlin.boxed(), ForkCondition::Block(8)),
+            (EthereumHardfork::London.boxed(), ForkCondition::Block(8)),
+            (Self::Hertz.boxed(), ForkCondition::Block(8)),
+            (Self::HertzFix.boxed(), ForkCondition::Block(8)),
+            (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::Kepler.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::Feynman.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1721791875)),
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::Haber.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::HaberFix.boxed(), ForkCondition::Timestamp(1721791875)),
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1721800750)),
+        ])
+    }
 }
 
 /// Match helper method since it's not possible to match on `dyn Hardfork`
