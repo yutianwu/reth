@@ -288,14 +288,14 @@ impl BscHardfork {
             (EthereumHardfork::London.boxed(), ForkCondition::Block(8)),
             (Self::Hertz.boxed(), ForkCondition::Block(8)),
             (Self::HertzFix.boxed(), ForkCondition::Block(8)),
-            (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::Kepler.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::Feynman.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1721791875)),
-            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::Haber.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::HaberFix.boxed(), ForkCondition::Timestamp(1721791875)),
-            (Self::Bohr.boxed(), ForkCondition::Timestamp(1721800750)),
+            (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::Kepler.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::Feynman.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1721817000)),
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::Haber.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::HaberFix.boxed(), ForkCondition::Timestamp(1721817000)),
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1721818721)),
         ])
     }
 }
