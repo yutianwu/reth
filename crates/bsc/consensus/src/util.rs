@@ -97,6 +97,15 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
     rlp_head.payload_length += header.mix_hash.length(); // mix_hash
     rlp_head.payload_length += &B64::new(header.nonce.to_be_bytes()).length(); // nonce
 
+    if header.parent_beacon_block_root.is_some() &&
+        header.parent_beacon_block_root.unwrap() == B256::default() {
+
+        rlp_head.payload_length += U256::from(header.base_fee_per_gas.unwrap()).length();
+        rlp_head.payload_length += header.withdrawals_root.unwrap().length();
+        rlp_head.payload_length += header.blob_gas_used.unwrap().length();
+        rlp_head.payload_length += header.excess_blob_gas.unwrap().length();
+        rlp_head.payload_length += header.parent_beacon_block_root.unwrap().length();
+    }
     rlp_head
 }
 
