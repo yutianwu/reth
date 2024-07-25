@@ -313,6 +313,9 @@ impl Parlia {
         }
 
         let mut rng = RngSource::new(snap.block_number as i64);
+        if self.chain_spec.is_bohr_active_at_timestamp(header.timestamp) {
+            rng = RngSource::new(header.number as i64 / snap.turn_length as i64);
+        }
         let mut back_off_steps: Vec<u64> = (0..validators.len() as u64).collect();
         back_off_steps.shuffle(&mut rng);
 
