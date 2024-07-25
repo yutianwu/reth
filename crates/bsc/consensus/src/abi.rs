@@ -924,6 +924,19 @@ lazy_static! {
             "stateMutability": "view"
           },
           {
+            "inputs": [],
+            "name": "getTurnLength",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+          },
+          {
             "type": "function",
             "name": "getValidators",
             "inputs": [],
