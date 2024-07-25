@@ -4,14 +4,20 @@ use reth_primitives::{
     keccak256, system_contracts::SYSTEM_CONTRACTS_SET, Address, BufMut, BytesMut, Header,
     TransactionSigned, B256, B64, U256,
 };
+use std::env;
 
 const SECONDS_PER_DAY: u64 = 86400; // 24 * 60 * 60
 
-pub const fn is_same_day_in_utc(first: u64, second: u64) -> bool {
-    first / SECONDS_PER_DAY == second / SECONDS_PER_DAY
+pub fn is_same_day_in_utc(first: u64, second: u64) -> bool {
+    let interval = env::var("BREATHE_BLOCK_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(SECONDS_PER_DAY);
+
+    first / interval == second / interval
 }
 
-pub const fn is_breathe_block(last_block_time: u64, block_time: u64) -> bool {
+pub fn is_breathe_block(last_block_time: u64, block_time: u64) -> bool {
     last_block_time != 0 && !is_same_day_in_utc(last_block_time, block_time)
 }
 
