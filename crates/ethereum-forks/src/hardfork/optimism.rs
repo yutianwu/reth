@@ -28,6 +28,8 @@ hardfork!(
         PreContractForkBlock,
         /// `Haber`
         Haber,
+        /// `Wright`
+        Wright,
         /// Fjord: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#fjord>
         Fjord,
     }
