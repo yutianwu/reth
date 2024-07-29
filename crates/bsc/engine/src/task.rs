@@ -1,5 +1,5 @@
 use crate::{client::ParliaClient, Storage};
-use reth_beacon_consensus::{BeaconEngineMessage, ForkchoiceStatus};
+use reth_beacon_consensus::{BeaconEngineMessage, ForkchoiceStatus, MIN_BLOCKS_FOR_PIPELINE_RUN};
 use reth_bsc_consensus::Parlia;
 use reth_chainspec::ChainSpec;
 use reth_engine_primitives::EngineTypes;
@@ -10,7 +10,6 @@ use reth_network_p2p::{
     priority::Priority,
 };
 use reth_primitives::{Block, BlockBody, BlockHashOrNumber, SealedHeader, B256};
-use reth_primitives_traits::constants::EPOCH_SLOTS;
 use reth_provider::{BlockReaderIdExt, CanonChainTracker, ParliaProvider};
 use reth_rpc_types::engine::ForkchoiceState;
 use std::{
@@ -210,7 +209,7 @@ impl<
                     // fetch header and verify
                     let fetch_header_result = match timeout(
                         fetch_header_timeout_duration,
-                        block_fetcher.get_header_with_priority(info.block_hash, Priority::High),
+                        block_fetcher.get_header_with_priority(info.block_hash, Priority::Normal),
                     )
                     .await
                     {
@@ -267,10 +266,25 @@ impl<
                 if !is_valid_header {
                     continue
                 };
+                // check if the header is the same as the block hash
+                // that probably means the block is not sealed yet
+                let block_hash = match info.block_hash {
+                    BlockHashOrNumber::Hash(hash) => hash,
+                    BlockHashOrNumber::Number(number) => {
+                        // trigger by the interval tick, can only trust the number
+                        if number != sealed_header.number {
+                            continue;
+                        }
+                        sealed_header.hash()
+                    }
+                };
+                if sealed_header.hash() != block_hash {
+                    continue;
+                }
 
                 let mut disconnected_headers = Vec::new();
-                disconnected_headers.push(sealed_header.clone());
-                let pipeline_sync = (trusted_header.number + EPOCH_SLOTS) < sealed_header.number;
+                let pipeline_sync =
+                    (trusted_header.number + MIN_BLOCKS_FOR_PIPELINE_RUN) < sealed_header.number;
                 if !pipeline_sync && (sealed_header.number - 1) > trusted_header.number {
                     let fetch_headers_result = match timeout(
                         fetch_header_timeout_duration,
@@ -294,21 +308,23 @@ impl<
                     }
 
                     let headers = fetch_headers_result.unwrap().into_data();
-                    for header in headers {
-                        let sealed_header = header.clone().seal_slow();
-                        let predicted_timestamp = trusted_header.timestamp +
-                            block_interval * (sealed_header.number - 1 - trusted_header.number);
-                        if consensus
-                            .validate_header_with_predicted_timestamp(
-                                &sealed_header,
-                                predicted_timestamp,
-                            )
-                            .is_err()
-                        {
-                            trace!(target: "consensus::parlia", "Invalid header");
-                            continue
+                    if headers.is_empty() {
+                        continue
+                    }
+                    let mut parent_hash = sealed_header.parent_hash;
+                    for (i, _) in headers.iter().enumerate() {
+                        let sealed_header = headers[i].clone().seal_slow();
+                        if sealed_header.hash() != parent_hash {
+                            break;
                         }
+                        parent_hash = sealed_header.parent_hash;
                         disconnected_headers.push(sealed_header.clone());
+                    }
+
+                    // check if the length of the disconnected headers is the same as the headers
+                    // if not, the headers are not valid
+                    if disconnected_headers.len() != headers.len() {
+                        continue;
                     }
 
                     // check last header.parent_hash is match the trusted header
@@ -319,6 +335,8 @@ impl<
                     }
                 };
 
+                disconnected_headers.insert(0, sealed_header.clone());
+                disconnected_headers.reverse();
                 // cache header and block
                 let mut storage = storage.write().await;
                 if info.block.is_some() {
@@ -327,7 +345,6 @@ impl<
                         BlockBody::from(info.block.clone().unwrap()),
                     );
                 }
-
                 for header in disconnected_headers {
                     storage.insert_new_header(header.clone());
                     let result =
@@ -340,9 +357,11 @@ impl<
                             trusted_header: trusted_header.clone(),
                         }));
                     if result.is_err() {
-                        error!(target: "consensus::parlia", "Failed to send new block event to fork choice");
+                        error!(target: "consensus::parlia", "Failed to send new block event to
+                    fork choice");
                     }
                 }
+                drop(storage);
 
                 let result = chain_tracker_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
                     header: sealed_header.clone(),
@@ -352,7 +371,6 @@ impl<
                 if result.is_err() {
                     error!(target: "consensus::parlia", "Failed to send new block event to chain tracker");
                 }
-                drop(storage);
             }
         });
         info!(target: "consensus::parlia", "started listening to network block event")
