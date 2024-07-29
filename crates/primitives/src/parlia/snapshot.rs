@@ -112,7 +112,7 @@ impl Snapshot {
         if !snap.validators.contains(&validator) {
             return None;
         }
-        if snap.recent_proposers.iter().any(|(_, &addr)| addr == validator) {
+        if snap.sign_recently(validator) {
             return None;
         }
         snap.recent_proposers.insert(block_number, validator);
