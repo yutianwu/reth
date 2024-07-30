@@ -9,21 +9,24 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 pub use alloy_chains::{Chain, ChainKind, NamedChain};
+
 pub use info::ChainInfo;
+/// Re-export for convenience
+pub use reth_ethereum_forks::*;
 pub use spec::{
     BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract,
-    ForkBaseFeeParams, DEV, HOLESKY, MAINNET, SEPOLIA,
+    DEV, ForkBaseFeeParams, HOLESKY, MAINNET, SEPOLIA,
 };
 #[cfg(feature = "optimism")]
 pub use spec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 #[cfg(feature = "bsc")]
 pub use spec::{BSC_MAINNET, BSC_TESTNET};
 #[cfg(feature = "opbnb")]
-pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET};
+pub use spec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 
-#[cfg(not(feature = "std"))]
-extern crate alloc;
 
 // /// The config info module namely spec id.
 // pub mod config;
@@ -36,15 +39,14 @@ mod spec;
 /// Chain specific constants
 pub(crate) mod constants;
 
-/// Re-export for convenience
-pub use reth_ethereum_forks::*;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::str::FromStr;
+
     use alloy_primitives::U256;
     use alloy_rlp::Encodable;
-    use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn test_id() {

@@ -1,34 +1,20 @@
-use crate::constants::MAINNET_DEPOSIT_CONTRACT;
 #[cfg(not(feature = "std"))]
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use alloy_chains::{Chain, ChainKind, NamedChain};
-use alloy_genesis::Genesis;
-use alloy_primitives::{address, b256, Address, BlockNumber, B256, U256};
-use alloy_trie::EMPTY_ROOT_HASH;
-use derive_more::From;
-use once_cell::sync::Lazy;
-use reth_ethereum_forks::{
-    ChainHardforks, DisplayHardforks, EthereumHardfork, EthereumHardforks, ForkCondition,
-    ForkFilter, ForkFilterKey, ForkHash, ForkId, Hardfork, Head, DEV_HARDFORKS,
-};
-use reth_network_peers::NodeRecord;
-use reth_primitives_traits::{
-    constants::{
-        DEV_GENESIS_HASH, EIP1559_INITIAL_BASE_FEE, EMPTY_WITHDRAWALS, HOLESKY_GENESIS_HASH,
-        MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
-    },
-    Header, SealedHeader,
-};
-use reth_trie_common::root::state_root_ref_unhashed;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-#[cfg(feature = "optimism")]
-use crate::constants::optimism::{
-    BASE_SEPOLIA_BASE_FEE_PARAMS, BASE_SEPOLIA_CANYON_BASE_FEE_PARAMS, OP_BASE_FEE_PARAMS,
-    OP_CANYON_BASE_FEE_PARAMS, OP_SEPOLIA_BASE_FEE_PARAMS, OP_SEPOLIA_CANYON_BASE_FEE_PARAMS,
-};
+use alloy_chains::{Chain, ChainKind, NamedChain};
 pub use alloy_eips::eip1559::BaseFeeParams;
+use alloy_genesis::Genesis;
+use alloy_primitives::{address, Address, b256, B256, BlockNumber, U256};
+use alloy_trie::EMPTY_ROOT_HASH;
+use derive_more::From;
+use once_cell::sync::Lazy;
+
+use reth_ethereum_forks::{
+    ChainHardforks, DEV_HARDFORKS, DisplayHardforks, EthereumHardfork, EthereumHardforks,
+    ForkCondition, ForkFilter, ForkFilterKey, ForkHash, ForkId, Hardfork, Head,
+};
 #[cfg(feature = "bsc")]
 use reth_ethereum_forks::BscHardfork;
 #[cfg(feature = "optimism")]
@@ -41,6 +27,22 @@ use reth_network_peers::{
 use reth_network_peers::{bsc_mainnet_nodes, bsc_testnet_nodes};
 #[cfg(feature = "optimism")]
 use reth_network_peers::{opbnb_mainnet_nodes, opbnb_testnet_nodes};
+use reth_network_peers::NodeRecord;
+use reth_primitives_traits::{
+    constants::{
+        DEV_GENESIS_HASH, EIP1559_INITIAL_BASE_FEE, EMPTY_WITHDRAWALS, HOLESKY_GENESIS_HASH,
+        MAINNET_GENESIS_HASH, SEPOLIA_GENESIS_HASH,
+    },
+    Header, SealedHeader,
+};
+use reth_trie_common::root::state_root_ref_unhashed;
+
+use crate::constants::MAINNET_DEPOSIT_CONTRACT;
+#[cfg(feature = "optimism")]
+use crate::constants::optimism::{
+    BASE_SEPOLIA_BASE_FEE_PARAMS, BASE_SEPOLIA_CANYON_BASE_FEE_PARAMS, OP_BASE_FEE_PARAMS,
+    OP_CANYON_BASE_FEE_PARAMS, OP_SEPOLIA_BASE_FEE_PARAMS, OP_SEPOLIA_CANYON_BASE_FEE_PARAMS,
+};
 
 /// The BSC mainnet spec
 #[cfg(feature = "bsc")]
@@ -310,6 +312,27 @@ pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     .into()
 });
 
+/// The opBNB testnet spec
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
+    ChainSpec {
+        chain: Chain::from_id(4530),
+        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
+            .expect("Can't deserialize opBNB qa genesis json"),
+        genesis_hash: Some(b256!(
+            "bb2282e70cc2aebb17342003ad1c0aeab6a8114f8a4718730c13711d787b5de9"
+        )),
+        paris_block_and_final_difficulty: Some((0, U256::from(0))),
+        hardforks: OptimismHardfork::opbnb_qa(),
+        base_fee_params: BaseFeeParamsKind::Variable(
+            vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
+        ),
+        prune_delete_limit: 0,
+        ..Default::default()
+    }
+    .into()
+});
+
 /// A wrapper around [`BaseFeeParams`] that allows for specifying constant or dynamic EIP-1559
 /// parameters based on the active [Hardfork].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -419,14 +442,14 @@ impl ChainSpec {
         matches!(
             self.chain.kind(),
             ChainKind::Named(
-                NamedChain::Mainnet |
-                    NamedChain::Morden |
-                    NamedChain::Ropsten |
-                    NamedChain::Rinkeby |
-                    NamedChain::Goerli |
-                    NamedChain::Kovan |
-                    NamedChain::Holesky |
-                    NamedChain::Sepolia
+                NamedChain::Mainnet
+                    | NamedChain::Morden
+                    | NamedChain::Ropsten
+                    | NamedChain::Rinkeby
+                    | NamedChain::Goerli
+                    | NamedChain::Kovan
+                    | NamedChain::Holesky
+                    | NamedChain::Sepolia
             )
         )
     }
@@ -434,9 +457,9 @@ impl ChainSpec {
     /// Returns `true` if this chain contains Bsc configuration.
     #[inline]
     pub fn is_bsc(&self) -> bool {
-        self.chain == Chain::bsc_mainnet() ||
-            self.chain == Chain::bsc_testnet() ||
-            self.chain == Chain::from_id(714)
+        self.chain == Chain::bsc_mainnet()
+            || self.chain == Chain::bsc_testnet()
+            || self.chain == Chain::from_id(714)
     }
 
     /// Returns `true` if this chain is Bsc mainnet.
@@ -567,7 +590,7 @@ impl ChainSpec {
                 // given timestamp.
                 for (fork, params) in bf_params.iter().rev() {
                     if self.hardforks.is_fork_active_at_block(fork.clone(), block_number) {
-                        return *params
+                        return *params;
                     }
                 }
 
@@ -655,8 +678,8 @@ impl ChainSpec {
             // We filter out TTD-based forks w/o a pre-known block since those do not show up in the
             // fork filter.
             Some(match condition {
-                ForkCondition::Block(block) |
-                ForkCondition::TTD { fork_block: Some(block), .. } => ForkFilterKey::Block(block),
+                ForkCondition::Block(block)
+                | ForkCondition::TTD { fork_block: Some(block), .. } => ForkFilterKey::Block(block),
                 ForkCondition::Timestamp(time) => ForkFilterKey::Time(time),
                 _ => return None,
             })
@@ -674,8 +697,8 @@ impl ChainSpec {
         for (_, cond) in self.hardforks.forks_iter() {
             // handle block based forks and the sepolia merge netsplit block edge case (TTD
             // ForkCondition with Some(block))
-            if let ForkCondition::Block(block) |
-            ForkCondition::TTD { fork_block: Some(block), .. } = cond
+            if let ForkCondition::Block(block)
+            | ForkCondition::TTD { fork_block: Some(block), .. } = cond
             {
                 if cond.active_at_head(head) {
                     if block != current_applied {
@@ -1215,17 +1238,19 @@ impl OptimismGenesisInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use core::ops::Deref;
+    use std::{collections::HashMap, str::FromStr};
+
     use alloy_chains::Chain;
     use alloy_genesis::{ChainConfig, GenesisAccount};
     use alloy_primitives::{b256, hex};
-    use core::ops::Deref;
-    use reth_ethereum_forks::{ForkCondition, ForkHash, ForkId, Head};
-    use reth_trie_common::TrieAccount;
-    use std::{collections::HashMap, str::FromStr};
 
+    use reth_ethereum_forks::{ForkCondition, ForkHash, ForkId, Head};
     #[cfg(feature = "optimism")]
     use reth_ethereum_forks::OptimismHardforks;
+    use reth_trie_common::TrieAccount;
+
+    use super::*;
 
     fn test_fork_ids(spec: &ChainSpec, cases: &[(Head, ForkId)]) {
         for (block, expected_id) in cases {

@@ -1,23 +1,20 @@
 //! Clap parser utilities
 
-use alloy_genesis::Genesis;
-use reth_chainspec::ChainSpec;
-use reth_fs_util as fs;
 use std::{path::PathBuf, sync::Arc};
 
-use reth_chainspec::DEV;
-
-#[cfg(feature = "bsc")]
-use reth_primitives::{BSC_MAINNET, BSC_TESTNET};
+use alloy_genesis::Genesis;
 
 #[cfg(feature = "optimism")]
 use reth_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
-
-#[cfg(all(feature = "optimism", feature = "opbnb"))]
-use reth_chainspec::{OPBNB_MAINNET, OPBNB_TESTNET};
-
 #[cfg(not(feature = "optimism"))]
 use reth_chainspec::{HOLESKY, MAINNET, SEPOLIA};
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+use reth_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
+use reth_chainspec::ChainSpec;
+use reth_chainspec::DEV;
+use reth_fs_util as fs;
+#[cfg(feature = "bsc")]
+use reth_primitives::{BSC_MAINNET, BSC_TESTNET};
 
 #[cfg(feature = "bsc")]
 /// Chains supported by bsc. First value should be used as the default.
@@ -59,6 +56,8 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> 
         "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.clone(),
         #[cfg(all(feature = "optimism", feature = "opbnb"))]
         "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.clone(),
+        #[cfg(all(feature = "optimism", feature = "opbnb"))]
+        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.clone(),
         #[cfg(feature = "bsc")]
         "bsc" | "bsc-mainnet" => BSC_MAINNET.clone(),
         #[cfg(feature = "bsc")]
@@ -72,7 +71,7 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> 
                     if s.contains('{') {
                         s.to_string()
                     } else {
-                        return Err(io_err.into()) // assume invalid path
+                        return Err(io_err.into()); // assume invalid path
                     }
                 }
             };

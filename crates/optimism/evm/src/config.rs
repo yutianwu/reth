@@ -11,6 +11,8 @@ pub fn revm_spec_by_timestamp_after_bedrock(
 ) -> revm_primitives::SpecId {
     if chain_spec.fork(OptimismHardfork::Fjord).active_at_timestamp(timestamp) {
         revm_primitives::FJORD
+    } else if chain_spec.fork(OptimismHardfork::Wright).active_at_timestamp(timestamp) {
+        revm_primitives::WRIGHT
     } else if chain_spec.fork(OptimismHardfork::Haber).active_at_timestamp(timestamp) {
         revm_primitives::HABER
     } else if chain_spec.fork(OptimismHardfork::Ecotone).active_at_timestamp(timestamp) {
@@ -30,6 +32,8 @@ pub fn revm_spec_by_timestamp_after_bedrock(
 pub fn revm_spec(chain_spec: &ChainSpec, block: &Head) -> revm_primitives::SpecId {
     if chain_spec.fork(OptimismHardfork::Fjord).active_at_head(block) {
         revm_primitives::FJORD
+    } else if chain_spec.fork(OptimismHardfork::Wright).active_at_head(block) {
+        revm_primitives::WRIGHT
     } else if chain_spec.fork(OptimismHardfork::Haber).active_at_head(block) {
         revm_primitives::HABER
     } else if chain_spec.fork(OptimismHardfork::Ecotone).active_at_head(block) {
@@ -78,8 +82,9 @@ pub fn revm_spec(chain_spec: &ChainSpec, block: &Head) -> revm_primitives::SpecI
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use reth_chainspec::ChainSpecBuilder;
+
+    use super::*;
 
     #[test]
     fn test_revm_spec_by_timestamp_after_merge() {
