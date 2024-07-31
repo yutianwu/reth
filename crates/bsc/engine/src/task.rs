@@ -20,6 +20,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+use reth_rpc_types::{BlockId, RpcBlockHash};
 use tokio::{
     signal,
     sync::{
@@ -40,7 +41,7 @@ enum ForkChoiceMessage {
 #[derive(Debug, Clone)]
 struct NewHeaderEvent {
     header: SealedHeader,
-    trusted_header: SealedHeader,
+    local_header: SealedHeader,
     pipeline_sync: bool,
 }
 
@@ -147,6 +148,7 @@ impl<
             loop {
                 let read_storage = storage.read().await;
                 let best_header = read_storage.best_header.clone();
+                let finalized_hash = read_storage.best_finalized_hash;
                 drop(read_storage);
                 let mut engine_rx_guard = engine_rx.lock().await;
                 let mut info = BlockInfo {
@@ -231,19 +233,25 @@ impl<
                     }
                 }
                 let latest_header = header_option.unwrap();
-
-                // skip if parent hash is not equal to best hash
-                if latest_header.number == best_header.number + 1 &&
-                    latest_header.parent_hash != best_header.hash()
-                {
-                    continue;
-                }
-
-                let trusted_header = client
+                let finalized_header = client
+                    .sealed_header_by_id(BlockId::Hash(RpcBlockHash::from(finalized_hash)))
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| chain_spec.sealed_genesis_header());
+                debug!(target: "consensus::parlia", { finalized_header_number = ?finalized_header.number, finalized_header_hash = ?finalized_header.hash() }, "Latest finalized header");
+                let latest_unsafe_header = client
                     .latest_header()
                     .ok()
                     .flatten()
                     .unwrap_or_else(|| chain_spec.sealed_genesis_header());
+                debug!(target: "consensus::parlia", { latest_unsafe_header_number = ?latest_unsafe_header.number, latest_unsafe_header_hash = ?latest_unsafe_header.hash() }, "Latest unsafe header");
+
+                let mut trusted_header = latest_unsafe_header.clone();
+                // if parent hash is not equal to latest unsafe hash
+                // may be a fork chain detected, we need to trust the finalized header
+                if latest_header.parent_hash != latest_unsafe_header.hash() {
+                    trusted_header = finalized_header.clone();
+                }
 
                 // verify header and timestamp
                 // predict timestamp is the trusted header timestamp plus the block interval times
@@ -354,7 +362,7 @@ impl<
                             // and finalized hash.
                             // this can make Block Sync Engine to use pipeline sync mode.
                             pipeline_sync,
-                            trusted_header: trusted_header.clone(),
+                            local_header: latest_unsafe_header.clone(),
                         }));
                     if result.is_err() {
                         error!(target: "consensus::parlia", "Failed to send new block event to
@@ -366,7 +374,7 @@ impl<
                 let result = chain_tracker_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
                     header: sealed_header.clone(),
                     pipeline_sync,
-                    trusted_header: trusted_header.clone(),
+                    local_header: latest_unsafe_header.clone(),
                 }));
                 if result.is_err() {
                     error!(target: "consensus::parlia", "Failed to send new block event to chain tracker");
@@ -476,7 +484,7 @@ impl<
                         }
                         match msg.unwrap() {
                             ForkChoiceMessage::NewHeader(event) => {
-                                let new_header = event.trusted_header;
+                                let new_header = event.local_header;
 
                                 let snap = match snapshot_reader.snapshot(&new_header, None) {
                                     Ok(snap) => snap,
