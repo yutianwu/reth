@@ -1,5 +1,5 @@
 use crate::{client::ParliaClient, Storage};
-use reth_beacon_consensus::{BeaconEngineMessage, ForkchoiceStatus};
+use reth_beacon_consensus::{BeaconEngineMessage, ForkchoiceStatus, MIN_BLOCKS_FOR_PIPELINE_RUN};
 use reth_bsc_consensus::Parlia;
 use reth_chainspec::ChainSpec;
 use reth_engine_primitives::EngineTypes;
@@ -10,7 +10,6 @@ use reth_network_p2p::{
     priority::Priority,
 };
 use reth_primitives::{Block, BlockBody, BlockHashOrNumber, SealedHeader, B256};
-use reth_primitives_traits::constants::EPOCH_SLOTS;
 use reth_provider::{BlockReaderIdExt, CanonChainTracker, ParliaProvider};
 use reth_rpc_types::engine::ForkchoiceState;
 use std::{
@@ -21,6 +20,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 
+use reth_rpc_types::{BlockId, RpcBlockHash};
 use tokio::{
     signal,
     sync::{
@@ -41,7 +41,7 @@ enum ForkChoiceMessage {
 #[derive(Debug, Clone)]
 struct NewHeaderEvent {
     header: SealedHeader,
-    trusted_header: SealedHeader,
+    local_header: SealedHeader,
     pipeline_sync: bool,
 }
 
@@ -148,6 +148,7 @@ impl<
             loop {
                 let read_storage = storage.read().await;
                 let best_header = read_storage.best_header.clone();
+                let finalized_hash = read_storage.best_finalized_hash;
                 drop(read_storage);
                 let mut engine_rx_guard = engine_rx.lock().await;
                 let mut info = BlockInfo {
@@ -210,7 +211,7 @@ impl<
                     // fetch header and verify
                     let fetch_header_result = match timeout(
                         fetch_header_timeout_duration,
-                        block_fetcher.get_header_with_priority(info.block_hash, Priority::High),
+                        block_fetcher.get_header_with_priority(info.block_hash, Priority::Normal),
                     )
                     .await
                     {
@@ -232,19 +233,25 @@ impl<
                     }
                 }
                 let latest_header = header_option.unwrap();
-
-                // skip if parent hash is not equal to best hash
-                if latest_header.number == best_header.number + 1 &&
-                    latest_header.parent_hash != best_header.hash()
-                {
-                    continue;
-                }
-
-                let trusted_header = client
+                let finalized_header = client
+                    .sealed_header_by_id(BlockId::Hash(RpcBlockHash::from(finalized_hash)))
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| chain_spec.sealed_genesis_header());
+                debug!(target: "consensus::parlia", { finalized_header_number = ?finalized_header.number, finalized_header_hash = ?finalized_header.hash() }, "Latest finalized header");
+                let latest_unsafe_header = client
                     .latest_header()
                     .ok()
                     .flatten()
                     .unwrap_or_else(|| chain_spec.sealed_genesis_header());
+                debug!(target: "consensus::parlia", { latest_unsafe_header_number = ?latest_unsafe_header.number, latest_unsafe_header_hash = ?latest_unsafe_header.hash() }, "Latest unsafe header");
+
+                let mut trusted_header = latest_unsafe_header.clone();
+                // if parent hash is not equal to latest unsafe hash
+                // may be a fork chain detected, we need to trust the finalized header
+                if latest_header.parent_hash != latest_unsafe_header.hash() {
+                    trusted_header = finalized_header.clone();
+                }
 
                 // verify header and timestamp
                 // predict timestamp is the trusted header timestamp plus the block interval times
@@ -267,10 +274,25 @@ impl<
                 if !is_valid_header {
                     continue
                 };
+                // check if the header is the same as the block hash
+                // that probably means the block is not sealed yet
+                let block_hash = match info.block_hash {
+                    BlockHashOrNumber::Hash(hash) => hash,
+                    BlockHashOrNumber::Number(number) => {
+                        // trigger by the interval tick, can only trust the number
+                        if number != sealed_header.number {
+                            continue;
+                        }
+                        sealed_header.hash()
+                    }
+                };
+                if sealed_header.hash() != block_hash {
+                    continue;
+                }
 
                 let mut disconnected_headers = Vec::new();
-                disconnected_headers.push(sealed_header.clone());
-                let pipeline_sync = (trusted_header.number + EPOCH_SLOTS) < sealed_header.number;
+                let pipeline_sync =
+                    (trusted_header.number + MIN_BLOCKS_FOR_PIPELINE_RUN) < sealed_header.number;
                 if !pipeline_sync && (sealed_header.number - 1) > trusted_header.number {
                     let fetch_headers_result = match timeout(
                         fetch_header_timeout_duration,
@@ -294,24 +316,35 @@ impl<
                     }
 
                     let headers = fetch_headers_result.unwrap().into_data();
-                    for header in headers {
-                        let sealed_header = header.clone().seal_slow();
-                        let predicted_timestamp = trusted_header.timestamp +
-                            block_interval * (sealed_header.number - 1 - trusted_header.number);
-                        if consensus
-                            .validate_header_with_predicted_timestamp(
-                                &sealed_header,
-                                predicted_timestamp,
-                            )
-                            .is_err()
-                        {
-                            trace!(target: "consensus::parlia", "Invalid header");
-                            continue
+                    if headers.is_empty() {
+                        continue
+                    }
+                    let mut parent_hash = sealed_header.parent_hash;
+                    for (i, _) in headers.iter().enumerate() {
+                        let sealed_header = headers[i].clone().seal_slow();
+                        if sealed_header.hash() != parent_hash {
+                            break;
                         }
+                        parent_hash = sealed_header.parent_hash;
                         disconnected_headers.push(sealed_header.clone());
+                    }
+
+                    // check if the length of the disconnected headers is the same as the headers
+                    // if not, the headers are not valid
+                    if disconnected_headers.len() != headers.len() {
+                        continue;
+                    }
+
+                    // check last header.parent_hash is match the trusted header
+                    if !disconnected_headers.is_empty() &&
+                        disconnected_headers.last().unwrap().parent_hash != trusted_header.hash()
+                    {
+                        continue;
                     }
                 };
 
+                disconnected_headers.insert(0, sealed_header.clone());
+                disconnected_headers.reverse();
                 // cache header and block
                 let mut storage = storage.write().await;
                 if info.block.is_some() {
@@ -320,7 +353,6 @@ impl<
                         BlockBody::from(info.block.clone().unwrap()),
                     );
                 }
-
                 for header in disconnected_headers {
                     storage.insert_new_header(header.clone());
                     let result =
@@ -330,22 +362,23 @@ impl<
                             // and finalized hash.
                             // this can make Block Sync Engine to use pipeline sync mode.
                             pipeline_sync,
-                            trusted_header: trusted_header.clone(),
+                            local_header: latest_unsafe_header.clone(),
                         }));
                     if result.is_err() {
-                        error!(target: "consensus::parlia", "Failed to send new block event to fork choice");
+                        error!(target: "consensus::parlia", "Failed to send new block event to
+                    fork choice");
                     }
                 }
+                drop(storage);
 
                 let result = chain_tracker_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
                     header: sealed_header.clone(),
                     pipeline_sync,
-                    trusted_header: trusted_header.clone(),
+                    local_header: latest_unsafe_header.clone(),
                 }));
                 if result.is_err() {
                     error!(target: "consensus::parlia", "Failed to send new block event to chain tracker");
                 }
-                drop(storage);
             }
         });
         info!(target: "consensus::parlia", "started listening to network block event")
@@ -451,7 +484,7 @@ impl<
                         }
                         match msg.unwrap() {
                             ForkChoiceMessage::NewHeader(event) => {
-                                let new_header = event.trusted_header;
+                                let new_header = event.local_header;
 
                                 let snap = match snapshot_reader.snapshot(&new_header, None) {
                                     Ok(snap) => snap,

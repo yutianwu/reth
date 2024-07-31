@@ -46,7 +46,8 @@ pub struct ParliaEngineBuilder<Provider, Engine: EngineTypes, P> {
     network_block_event_rx: Arc<Mutex<UnboundedReceiver<EngineMessage>>>,
     fetch_client: FetchClient,
     provider: Provider,
-    parlia_provider: P,
+    parlia: Parlia,
+    snapshot_reader: SnapshotReader<P>,
 }
 
 // === impl ParliaEngineBuilder ===
@@ -72,13 +73,26 @@ where
             .ok()
             .flatten()
             .unwrap_or_else(|| chain_spec.sealed_genesis_header());
+        let parlia = Parlia::new(chain_spec.clone(), cfg.clone());
+
+        let mut finalized_hash = None;
+        let mut safe_hash = None;
+        let snapshot_reader =
+            SnapshotReader::new(Arc::new(parlia_provider), Arc::new(parlia.clone()));
+        let snapshot_result = snapshot_reader.snapshot(&latest_header, None);
+        if snapshot_result.is_ok() {
+            let snap = snapshot_result.unwrap();
+            finalized_hash = Some(snap.vote_data.source_hash);
+            safe_hash = Some(snap.vote_data.target_hash);
+        }
 
         Self {
             chain_spec,
             cfg,
             provider,
-            parlia_provider,
-            storage: Storage::new(latest_header),
+            snapshot_reader,
+            parlia,
+            storage: Storage::new(latest_header, finalized_hash, safe_hash),
             to_engine,
             network_block_event_rx,
             fetch_client,
@@ -96,16 +110,16 @@ where
             network_block_event_rx,
             fetch_client,
             provider,
-            parlia_provider,
+            parlia,
+            snapshot_reader,
         } = self;
         let parlia_client = ParliaClient::new(storage.clone(), fetch_client);
-        let parlia = Parlia::new(chain_spec.clone(), cfg.clone());
         if start_engine_task {
             ParliaEngineTask::start(
                 chain_spec,
-                parlia.clone(),
+                parlia,
                 provider,
-                SnapshotReader::new(Arc::new(parlia_provider), Arc::new(parlia)),
+                snapshot_reader,
                 to_engine,
                 network_block_event_rx,
                 storage,
@@ -128,7 +142,14 @@ pub(crate) struct Storage {
 impl Storage {
     /// Initializes the [Storage] with the given best block. This should be initialized with the
     /// highest block in the chain, if there is a chain already stored on-disk.
-    fn new(best_block: SealedHeader) -> Self {
+    fn new(
+        best_block: SealedHeader,
+        finalized_hash: Option<B256>,
+        safe_hash: Option<B256>,
+    ) -> Self {
+        let best_finalized_hash = finalized_hash.unwrap_or_default();
+        let best_safe_hash = safe_hash.unwrap_or_default();
+
         let mut storage = StorageInner {
             best_hash: best_block.hash(),
             best_block: best_block.number,
@@ -136,8 +157,8 @@ impl Storage {
             headers: LimitedHashSet::new(STORAGE_CACHE_NUM),
             hash_to_number: LimitedHashSet::new(STORAGE_CACHE_NUM),
             bodies: LimitedHashSet::new(STORAGE_CACHE_NUM),
-            best_finalized_hash: B256::default(),
-            best_safe_hash: B256::default(),
+            best_finalized_hash,
+            best_safe_hash,
         };
         storage.headers.put(best_block.number, best_block.clone());
         storage.hash_to_number.put(best_block.hash(), best_block.number);
@@ -218,6 +239,13 @@ impl StorageInner {
     pub(crate) fn insert_finalized_and_safe_hash(&mut self, finalized: B256, safe: B256) {
         self.best_finalized_hash = finalized;
         self.best_safe_hash = safe;
+    }
+
+    /// Cleans the caches
+    pub(crate) fn clean_caches(&mut self) {
+        self.headers = LimitedHashSet::new(STORAGE_CACHE_NUM);
+        self.hash_to_number = LimitedHashSet::new(STORAGE_CACHE_NUM);
+        self.bodies = LimitedHashSet::new(STORAGE_CACHE_NUM);
     }
 }
 
@@ -321,5 +349,47 @@ mod tests {
         assert_eq!(set.get(&1), None);
         assert_eq!(set.get(&2), Some(&2));
         assert_eq!(set.get(&3), Some(&3));
+    }
+
+    #[test]
+    fn test_clean_cache() {
+        let default_block = Header::default().seal_slow();
+        let mut storage = StorageInner {
+            best_hash: default_block.hash(),
+            best_block: default_block.number,
+            best_header: default_block.clone(),
+            headers: LimitedHashSet::new(10),
+            hash_to_number: LimitedHashSet::new(10),
+            bodies: LimitedHashSet::new(10),
+            best_finalized_hash: B256::default(),
+            best_safe_hash: B256::default(),
+        };
+        storage.headers.put(default_block.number, default_block.clone());
+        storage.hash_to_number.put(default_block.hash(), default_block.number);
+
+        let block = Header::default().seal_slow();
+        storage.insert_new_block(block.clone(), BlockBody::default());
+        assert_eq!(storage.best_block, block.number);
+        assert_eq!(storage.best_hash, block.hash());
+        assert_eq!(storage.best_header, block);
+        assert_eq!(storage.headers.get(&block.number), Some(&block));
+        assert_eq!(storage.hash_to_number.get(&block.hash()), Some(&block.number));
+        assert_eq!(storage.bodies.get(&block.hash()), Some(&BlockBody::default()));
+        assert_eq!(
+            storage.header_by_hash_or_number(BlockHashOrNumber::Hash(block.hash())),
+            Some(block.clone())
+        );
+        assert_eq!(
+            storage.header_by_hash_or_number(BlockHashOrNumber::Number(block.number)),
+            Some(block.clone())
+        );
+        assert_eq!(storage.best_block, block.number);
+        assert_eq!(storage.best_hash, block.hash());
+        assert_eq!(storage.best_header, block);
+
+        storage.clean_caches();
+        assert_eq!(storage.headers.get(&block.number), None);
+        assert_eq!(storage.hash_to_number.get(&block.hash()), None);
+        assert_eq!(storage.bodies.get(&block.hash()), None);
     }
 }
