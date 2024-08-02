@@ -17,7 +17,9 @@ use reth_consensus_common::validation::{
     validate_block_pre_execution, validate_header_base_fee, validate_header_extradata,
     validate_header_gas,
 };
-use reth_primitives::{BlockWithSenders, Header, GotExpected, SealedBlock, SealedHeader, EMPTY_OMMER_ROOT_HASH, U256};
+use reth_primitives::{
+    BlockWithSenders, GotExpected, Header, SealedBlock, SealedHeader, EMPTY_OMMER_ROOT_HASH, U256,
+};
 use std::{sync::Arc, time::SystemTime};
 
 mod validation;

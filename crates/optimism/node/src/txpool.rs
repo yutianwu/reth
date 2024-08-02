@@ -115,8 +115,11 @@ where
             let mut encoded = Vec::new();
             valid_tx.transaction().to_recovered_transaction().encode_enveloped(&mut encoded);
 
-            let cost_addition = if self.chain_spec().is_wright_active_at_timestamp(self.block_timestamp()) &&
-                valid_tx.transaction().priority_fee_or_price() == 0 {
+            let cost_addition = if self
+                .chain_spec()
+                .is_wright_active_at_timestamp(self.block_timestamp()) &&
+                valid_tx.transaction().priority_fee_or_price() == 0
+            {
                 U256::from(0)
             } else {
                 match l1_block_info.l1_tx_data_fee(
