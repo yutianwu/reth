@@ -115,22 +115,22 @@ where
             let mut encoded = Vec::new();
             valid_tx.transaction().to_recovered_transaction().encode_enveloped(&mut encoded);
 
-            let mut cost_addition = match l1_block_info.l1_tx_data_fee(
-                &self.chain_spec(),
-                self.block_timestamp(),
-                &encoded,
-                false,
-            ) {
-                Ok(cost) => cost,
-                Err(err) => {
-                    return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err))
+            let cost_addition = if self.chain_spec().is_wright_active_at_timestamp(self.block_timestamp()) &&
+                valid_tx.transaction().priority_fee_or_price() == 0 {
+                U256::from(0)
+            } else {
+                match l1_block_info.l1_tx_data_fee(
+                    &self.chain_spec(),
+                    self.block_timestamp(),
+                    &encoded,
+                    false,
+                ) {
+                    Ok(cost) => cost,
+                    Err(err) => {
+                        return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err))
+                    }
                 }
             };
-
-            if self.chain_spec().is_wright_active_at_timestamp(self.block_timestamp()) &&
-                valid_tx.transaction().priority_fee_or_price() == 0 {
-                cost_addition = U256::from(0);
-            }
 
             let cost = valid_tx.transaction().cost().saturating_add(cost_addition);
 

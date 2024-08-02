@@ -64,10 +64,7 @@ impl Consensus for OptimismBeaconConsensus {
         if self.chain_spec.is_wright_active_at_timestamp(header.timestamp) {
             let base_fee = header.base_fee_per_gas.ok_or(ConsensusError::BaseFeeMissing)?;
             if base_fee != 0 {
-                return Err(ConsensusError::BaseFeeDiff(GotExpected {
-                    expected: 0,
-                    got: base_fee,
-                }))
+                return Err(ConsensusError::BaseFeeDiff(GotExpected { expected: 0, got: base_fee }))
             }
         } else {
             validate_against_parent_eip1559_base_fee(header, parent, &self.chain_spec)?;
