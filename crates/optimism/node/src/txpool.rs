@@ -1,8 +1,8 @@
 //! OP transaction pool types
 use parking_lot::RwLock;
-use reth_chainspec::ChainSpec;
+use reth_chainspec::{ChainSpec, OptimismHardforks};
 use reth_evm_optimism::RethL1BlockInfo;
-use reth_primitives::{Block, GotExpected, InvalidTransactionError, SealedBlock};
+use reth_primitives::{Block, GotExpected, InvalidTransactionError, SealedBlock, U256};
 use reth_provider::{BlockReaderIdExt, StateProviderFactory};
 use reth_revm::L1BlockInfo;
 use reth_transaction_pool::{
@@ -115,7 +115,7 @@ where
             let mut encoded = Vec::new();
             valid_tx.transaction().to_recovered_transaction().encode_enveloped(&mut encoded);
 
-            let cost_addition = match l1_block_info.l1_tx_data_fee(
+            let mut cost_addition = match l1_block_info.l1_tx_data_fee(
                 &self.chain_spec(),
                 self.block_timestamp(),
                 &encoded,
@@ -126,6 +126,12 @@ where
                     return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err))
                 }
             };
+
+            if self.chain_spec().is_wright_active_at_timestamp(self.block_timestamp()) &&
+                valid_tx.transaction().priority_fee_or_price() == 0 {
+                cost_addition = U256::from(0);
+            }
+
             let cost = valid_tx.transaction().cost().saturating_add(cost_addition);
 
             // Checks for max cost
