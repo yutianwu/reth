@@ -157,6 +157,10 @@ pub enum BscBlockExecutionError {
     /// Error when failed to execute system contract upgrade
     #[error("system contract upgrade error")]
     SystemContractUpgradeError,
+
+    /// Error when the turn length is different from the calculated turn length
+    #[error("mismatching turn length on epoch block")]
+    MismatchingEpochTurnLengthError,
 }
 
 impl From<BscBlockExecutionError> for BlockExecutionError {

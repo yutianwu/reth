@@ -107,6 +107,11 @@ pub trait BscHardforks: EthereumHardforks {
     fn is_haber_fix_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.is_fork_active_at_timestamp(BscHardfork::HaberFix, timestamp)
     }
+
+    /// Convenience method to check if [`BscHardfork::Bohr`] is active at a given timestamp.
+    fn is_bohr_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.is_fork_active_at_timestamp(BscHardfork::Bohr, timestamp)
+    }
 }
 
 impl BscHardforks for ChainHardforks {}

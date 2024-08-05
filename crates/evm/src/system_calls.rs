@@ -6,7 +6,7 @@ use alloy_eips::{
     eip7002::{WithdrawalRequest, WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS},
     eip7251::{ConsolidationRequest, CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS},
 };
-use reth_chainspec::{ChainSpec, EthereumHardforks};
+use reth_chainspec::{BscHardforks, ChainSpec, EthereumHardforks};
 use reth_execution_errors::{BlockExecutionError, BlockValidationError};
 use reth_primitives::{Buf, Request};
 use revm::{interpreter::Host, Database, DatabaseCommit, Evm};
@@ -38,6 +38,13 @@ where
     DB::Error: std::fmt::Display,
     EvmConfig: ConfigureEvm,
 {
+    // Return immediately if beaconRoot equals the zero hash when using the Parlia engine.
+    if chain_spec.is_bohr_active_at_timestamp(block_timestamp) &&
+        parent_beacon_block_root == Some(B256::ZERO)
+    {
+        return Ok(())
+    }
+
     // apply pre-block EIP-4788 contract call
     let mut evm_pre_block = Evm::builder()
         .with_db(db)

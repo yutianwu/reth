@@ -6,6 +6,8 @@ pub const EXTRA_VANITY_LEN: usize = 32;
 pub const EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM: usize = 33;
 /// Fixed number of extra-data suffix bytes reserved for signer seal
 pub const EXTRA_SEAL_LEN: usize = 65;
+/// Fixed number of extra-data suffix bytes reserved for turnLength
+pub const TURN_LEN: usize = 1;
 /// Address length of signer
 pub const ADDRESS_LENGTH: usize = 20;
 /// BLS public key bytes length
@@ -29,3 +31,6 @@ pub const COLLECT_ADDITIONAL_VOTES_REWARD_RATIO: usize = 100;
 pub(crate) const BACKOFF_TIME_OF_INITIAL: u64 = 1_u64;
 /// Random additional delay (per signer) to allow concurrent signers, second
 pub(crate) const BACKOFF_TIME_OF_WIGGLE: u64 = 1_u64;
+
+/// Default turn length
+pub const DEFAULT_TURN_LENGTH: u8 = 1;

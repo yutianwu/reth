@@ -5,7 +5,7 @@ use crate::{hex, Address, BlockNumber};
 use alloy_chains::Chain;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use reth_chainspec::{ChainSpec, BSC_MAINNET, BSC_TESTNET};
+use reth_chainspec::{ChainSpec, BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
 use reth_ethereum_forks::BscHardfork;
 use revm_primitives::Bytecode;
 use std::collections::HashMap;
@@ -60,7 +60,7 @@ lazy_static! {
 
     /// qa system contracts: hardfork -> address -> Bytecode
     pub(crate) static ref BSC_QA_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
-        read_all_system_contracts(BSC_TESTNET.as_ref());
+        read_all_system_contracts(BSC_RIALTO.as_ref());
 }
 
 /// System contracts with their names as keys and addresses as values.
@@ -153,6 +153,7 @@ fn hardforks_with_system_contracts() -> Vec<BscHardfork> {
         BscHardfork::Plato,
         BscHardfork::Ramanujan,
         BscHardfork::HaberFix,
+        BscHardfork::Bohr,
     ]
 }
 
@@ -173,6 +174,7 @@ fn hardfork_to_dir_name(hardfork: &BscHardfork) -> Result<String, SystemContract
         BscHardfork::Plato => "plato",
         BscHardfork::Ramanujan => "ramanujan",
         BscHardfork::HaberFix => "haber_fix",
+        BscHardfork::Bohr => "bohr",
         _ => {
             return Err(SystemContractError::InvalidHardfork);
         }

@@ -4,14 +4,20 @@ use reth_primitives::{
     keccak256, system_contracts::SYSTEM_CONTRACTS_SET, Address, BufMut, BytesMut, Header,
     TransactionSigned, B256, B64, U256,
 };
+use std::env;
 
 const SECONDS_PER_DAY: u64 = 86400; // 24 * 60 * 60
 
-pub const fn is_same_day_in_utc(first: u64, second: u64) -> bool {
-    first / SECONDS_PER_DAY == second / SECONDS_PER_DAY
+pub fn is_same_day_in_utc(first: u64, second: u64) -> bool {
+    let interval = env::var("BREATHE_BLOCK_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(SECONDS_PER_DAY);
+
+    first / interval == second / interval
 }
 
-pub const fn is_breathe_block(last_block_time: u64, block_time: u64) -> bool {
+pub fn is_breathe_block(last_block_time: u64, block_time: u64) -> bool {
     last_block_time != 0 && !is_same_day_in_utc(last_block_time, block_time)
 }
 
@@ -57,6 +63,16 @@ pub fn encode_header_with_chain_id(header: &Header, out: &mut dyn BufMut, chain_
     Encodable::encode(&header.extra_data[..header.extra_data.len() - EXTRA_SEAL_LEN], out); // will panic if extra_data is less than EXTRA_SEAL_LEN
     Encodable::encode(&header.mix_hash, out);
     Encodable::encode(&B64::new(header.nonce.to_be_bytes()), out);
+
+    if header.parent_beacon_block_root.is_some() &&
+        header.parent_beacon_block_root.unwrap() == B256::default()
+    {
+        Encodable::encode(&U256::from(header.base_fee_per_gas.unwrap()), out);
+        Encodable::encode(&header.withdrawals_root.unwrap(), out);
+        Encodable::encode(&header.blob_gas_used.unwrap(), out);
+        Encodable::encode(&header.excess_blob_gas.unwrap(), out);
+        Encodable::encode(&header.parent_beacon_block_root.unwrap(), out);
+    }
 }
 
 fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
@@ -81,6 +97,15 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
     rlp_head.payload_length += header.mix_hash.length(); // mix_hash
     rlp_head.payload_length += &B64::new(header.nonce.to_be_bytes()).length(); // nonce
 
+    if header.parent_beacon_block_root.is_some() &&
+        header.parent_beacon_block_root.unwrap() == B256::default()
+    {
+        rlp_head.payload_length += U256::from(header.base_fee_per_gas.unwrap()).length();
+        rlp_head.payload_length += header.withdrawals_root.unwrap().length();
+        rlp_head.payload_length += header.blob_gas_used.unwrap().length();
+        rlp_head.payload_length += header.excess_blob_gas.unwrap().length();
+        rlp_head.payload_length += header.parent_beacon_block_root.unwrap().length();
+    }
     rlp_head
 }
 

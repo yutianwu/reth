@@ -41,4 +41,8 @@ pub enum ParliaConsensusError {
     /// Error when encountering a recover ecdsa inner error
     #[error("recover ecdsa inner error")]
     RecoverECDSAInnerError,
+
+    /// Error when header extra turn is invalid
+    #[error("invalid turnLength")]
+    ExtraInvalidTurnLength,
 }

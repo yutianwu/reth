@@ -126,7 +126,7 @@ pub use optimism::*;
 /// Bsc specific re-exports
 #[cfg(feature = "bsc")]
 mod bsc {
-    pub use reth_chainspec::{BSC_MAINNET, BSC_TESTNET};
+    pub use reth_chainspec::{BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
 }
 
 #[cfg(feature = "bsc")]

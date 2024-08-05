@@ -18,7 +18,7 @@ pub use spec::{
 #[cfg(feature = "optimism")]
 pub use spec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 #[cfg(feature = "bsc")]
-pub use spec::{BSC_MAINNET, BSC_TESTNET};
+pub use spec::{BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
 #[cfg(feature = "opbnb")]
 pub use spec::{OPBNB_MAINNET, OPBNB_TESTNET};
 

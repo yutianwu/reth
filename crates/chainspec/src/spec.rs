@@ -80,6 +80,25 @@ pub static BSC_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     .into()
 });
 
+/// The BSC qa (rialto) spec
+#[cfg(feature = "bsc")]
+pub static BSC_RIALTO: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
+    ChainSpec {
+        chain: Chain::from_id(714),
+        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_qa.json"))
+            .expect("Can't deserialize BSC Rialto genesis json"),
+        genesis_hash: Some(b256!(
+            "281bcec9447d74982bb746f753eecd1320a9b7f4fdbd2cfaf1ae7170a93cff50"
+        )),
+        paris_block_and_final_difficulty: Some((0, U256::from(0))),
+        hardforks: BscHardfork::bsc_qa(),
+        deposit_contract: None,
+        base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
+        prune_delete_limit: 3500,
+    }
+    .into()
+});
+
 /// The Ethereum mainnet spec
 pub static MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
