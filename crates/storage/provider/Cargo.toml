@@ -16,7 +16,7 @@ workspace = true
 reth-chainspec.workspace = true
 reth-blockchain-tree-api.workspace = true
 reth-execution-types.workspace = true
-reth-primitives.workspace = true
+reth-primitives = { workspace = true, features = ["reth-codec"] }
 reth-fs-util.workspace = true
 reth-errors.workspace = true
 reth-storage-errors.workspace = true
@@ -48,6 +48,7 @@ metrics.workspace = true
 
 # misc
 auto_impl.workspace = true
+derive_more.workspace = true
 itertools.workspace = true
 pin-project.workspace = true
 parking_lot.workspace = true
