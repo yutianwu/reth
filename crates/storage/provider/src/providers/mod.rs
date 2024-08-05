@@ -55,7 +55,7 @@ mod bundle_state_provider;
 pub use bundle_state_provider::BundleStateProvider;
 
 mod chain_info;
-use chain_info::ChainInfoTracker;
+pub use chain_info::ChainInfoTracker;
 
 mod consistent_view;
 use alloy_rpc_types_engine::ForkchoiceState;
@@ -75,6 +75,8 @@ pub struct BlockchainProvider<DB> {
     tree: Arc<dyn TreeViewer>,
     /// Tracks the chain info wrt forkchoice updates
     chain_info: ChainInfoTracker,
+    // TODO: replace chain_info with CanonicalInMemoryState.
+    //canonical_in_memory_state: CanonicalInMemoryState,
 }
 
 impl<DB> Clone for BlockchainProvider<DB> {
@@ -83,6 +85,8 @@ impl<DB> Clone for BlockchainProvider<DB> {
             database: self.database.clone(),
             tree: self.tree.clone(),
             chain_info: self.chain_info.clone(),
+            // TODO: add canonical_in_memory_state
+            // canonical_in_memory_state: self.canonical_in_memory_state.clone(),
         }
     }
 }
@@ -93,9 +97,17 @@ impl<DB> BlockchainProvider<DB> {
     pub fn with_latest(
         database: ProviderFactory<DB>,
         tree: Arc<dyn TreeViewer>,
+        // TODO: add in_memory_state
+        // in_memory_state: Arc<dyn InMemoryState>,
         latest: SealedHeader,
     ) -> Self {
-        Self { database, tree, chain_info: ChainInfoTracker::new(latest) }
+        Self {
+            database,
+            tree,
+            // TODO: add in_memory_state
+            // in_memory_state,
+            chain_info: ChainInfoTracker::new(latest),
+        }
     }
 
     /// Sets the treeviewer for the provider.
@@ -594,6 +606,10 @@ where
         segment: PruneSegment,
     ) -> ProviderResult<Option<PruneCheckpoint>> {
         self.database.provider()?.get_prune_checkpoint(segment)
+    }
+
+    fn get_prune_checkpoints(&self) -> ProviderResult<Vec<(PruneSegment, PruneCheckpoint)>> {
+        self.database.provider()?.get_prune_checkpoints()
     }
 }
 
