@@ -7,12 +7,12 @@ use crate::{
     },
     writer::StorageWriter,
     AccountReader, BlockExecutionReader, BlockExecutionWriter, BlockHashReader, BlockNumReader,
-    BlockReader, BlockWriter, EvmEnvProvider, FinalizedBlockReader, FinalizedBlockWriter,
+    BlockReader, BlockWriter, Chain, EvmEnvProvider, FinalizedBlockReader, FinalizedBlockWriter,
     HashingWriter, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, HistoricalStateProvider,
-    HistoryWriter, LatestStateProvider, OriginalValuesKnown, ProviderError, PruneCheckpointReader,
-    PruneCheckpointWriter, RequestsProvider, StageCheckpointReader, StateProviderBox, StateWriter,
-    StatsReader, StorageReader, TransactionVariant, TransactionsProvider, TransactionsProviderExt,
-    WithdrawalsProvider,
+    HistoryWriter, LatestStateProvider, OriginalValuesKnown, ParliaSnapshotReader, ProviderError,
+    PruneCheckpointReader, PruneCheckpointWriter, RequestsProvider, SidecarsProvider,
+    StageCheckpointReader, StateProviderBox, StateWriter, StatsReader, StorageReader,
+    TransactionVariant, TransactionsProvider, TransactionsProviderExt, WithdrawalsProvider,
 };
 use itertools::{izip, Itertools};
 use reth_chainspec::{ChainInfo, ChainSpec, EthereumHardforks};
@@ -695,6 +695,7 @@ impl<TX: DbTx> DatabaseProvider<TX> {
         let block_ommers = self.get::<tables::BlockOmmers>(range.clone())?;
         let block_withdrawals = self.get::<tables::BlockWithdrawals>(range.clone())?;
         let block_requests = self.get::<tables::BlockRequests>(range.clone())?;
+        let block_sidecars = self.get::<tables::Sidecars>(range.clone())?;
 
         let block_tx = self.get_block_transaction_range(range)?;
 
@@ -707,9 +708,11 @@ impl<TX: DbTx> DatabaseProvider<TX> {
         let mut block_ommers_iter = block_ommers.into_iter();
         let mut block_withdrawals_iter = block_withdrawals.into_iter();
         let mut block_requests_iter = block_requests.into_iter();
+        let mut block_sidecars_iter = block_sidecars.into_iter();
         let mut block_ommers = block_ommers_iter.next();
         let mut block_withdrawals = block_withdrawals_iter.next();
         let mut block_requests = block_requests_iter.next();
+        let mut block_sidecars = block_sidecars_iter.next();
 
         let mut blocks = Vec::new();
         for ((main_block_number, header), (_, header_hash), (_, tx)) in
@@ -757,8 +760,22 @@ impl<TX: DbTx> DatabaseProvider<TX> {
                 requests = None;
             }
 
+            // sidecars can be missing
+            let cancun_is_active = self.chain_spec.is_cancun_active_at_timestamp(header.timestamp);
+            let mut sidecars = Some(BlobSidecars::default());
+            if cancun_is_active {
+                if let Some((block_number, _)) = block_sidecars.as_ref() {
+                    if *block_number == main_block_number {
+                        sidecars = Some(block_sidecars.take().unwrap().1);
+                        block_sidecars = block_sidecars_iter.next();
+                    }
+                }
+            } else {
+                sidecars = None;
+            };
+
             blocks.push(SealedBlockWithSenders {
-                block: SealedBlock { header, body, ommers, withdrawals, requests },
+                block: SealedBlock { header, body, ommers, withdrawals, sidecars, requests },
                 senders,
             })
         }
@@ -1390,6 +1407,7 @@ impl<TX: DbTxMut + DbTx> DatabaseProvider<TX> {
         let block_withdrawals = self.take::<tables::BlockWithdrawals>(range.clone())?;
         let block_requests = self.take::<tables::BlockRequests>(range.clone())?;
         let block_tx = self.take_block_transaction_range(range.clone())?;
+        let block_sidecars = self.take::<tables::Sidecars>(range.clone())?;
 
         // rm HeaderTerminalDifficulties
         self.remove::<tables::HeaderTerminalDifficulties>(range)?;

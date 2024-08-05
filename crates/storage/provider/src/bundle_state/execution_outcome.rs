@@ -21,8 +21,11 @@ impl StateWriter for ExecutionOutcome {
 
         StateReverts(reverts).write_to_db(provider_rw, self.first_block)?;
 
-        StorageWriter::new(Some(provider_rw), static_file_producer)
-            .append_receipts_from_blocks(self.first_block, self.receipts.into_iter())?;
+        StorageWriter::new(Some(provider_rw), static_file_producer).append_receipts_from_blocks(
+            self.first_block,
+            self.receipts.into_iter(),
+            self.snapshots,
+        )?;
 
         StateChanges(plain_state).write_to_db(provider_rw)?;
 

@@ -2,7 +2,8 @@ use crate::{
     parlia::{VoteAddress, VoteAttestation, VoteData},
     Address, BlockNumber, Header, B256,
 };
-use reth_codecs::{main_codec, Compact};
+#[cfg(feature = "reth-codec")]
+use reth_codecs::Compact;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
@@ -12,8 +13,8 @@ pub const CHECKPOINT_INTERVAL: u64 = 1024;
 pub const DEFAULT_TURN_LENGTH: u8 = 1;
 
 /// record validators information
-#[main_codec]
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::reth_codec)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ValidatorInfo {
     /// The index of the validator
     /// The index should offset by 1
