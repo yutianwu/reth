@@ -14,7 +14,7 @@ use reth_primitives::{BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
 use reth_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
 
 #[cfg(all(feature = "optimism", feature = "opbnb"))]
-use reth_chainspec::{OPBNB_MAINNET, OPBNB_TESTNET};
+use reth_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 
 #[cfg(not(feature = "optimism"))]
 use reth_chainspec::{HOLESKY, MAINNET, SEPOLIA};
@@ -59,6 +59,8 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> 
         "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.clone(),
         #[cfg(all(feature = "optimism", feature = "opbnb"))]
         "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.clone(),
+        #[cfg(all(feature = "optimism", feature = "opbnb"))]
+        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.clone(),
         #[cfg(feature = "bsc")]
         "bsc" | "bsc-mainnet" => BSC_MAINNET.clone(),
         #[cfg(feature = "bsc")]

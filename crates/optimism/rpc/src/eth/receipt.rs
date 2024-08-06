@@ -1,5 +1,6 @@
-//! Loads and formats OP receipt RPC response.   
+//! Loads and formats OP receipt RPC response.
 
+use reth_chainspec::OptimismHardforks;
 use reth_primitives::{Receipt, TransactionMeta, TransactionSigned};
 use reth_rpc_eth_api::helpers::{EthApiSpec, LoadReceipt, LoadTransaction};
 use reth_rpc_eth_types::{EthApiError, EthResult, EthStateCache, ReceiptBuilder};
@@ -29,7 +30,13 @@ where
 
         let block = block.unseal();
         let l1_block_info = reth_evm_optimism::extract_l1_info(&block).ok();
-        let optimism_tx_meta = self.build_op_tx_meta(&tx, l1_block_info, block.timestamp)?;
+        let mut optimism_tx_meta = self.build_op_tx_meta(&tx, l1_block_info, block.timestamp)?;
+
+        if self.inner.chain_spec().is_wright_active_at_timestamp(block.timestamp) &&
+            tx.effective_gas_price(meta.base_fee) == 0
+        {
+            optimism_tx_meta.l1_fee = Some(0);
+        }
 
         let resp_builder = ReceiptBuilder::new(&tx, meta, &receipt, &receipts)?;
         let resp_builder = op_receipt_fields(resp_builder, &tx, &receipt, optimism_tx_meta);

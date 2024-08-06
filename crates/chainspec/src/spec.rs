@@ -337,6 +337,27 @@ pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     .into()
 });
 
+/// The opBNB qa net spec
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
+    ChainSpec {
+        chain: Chain::from_id(4530),
+        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
+            .expect("Can't deserialize opBNB qa genesis json"),
+        genesis_hash: Some(b256!(
+            "bb2282e70cc2aebb17342003ad1c0aeab6a8114f8a4718730c13711d787b5de9"
+        )),
+        paris_block_and_final_difficulty: Some((0, U256::from(0))),
+        hardforks: OptimismHardfork::opbnb_qa(),
+        base_fee_params: BaseFeeParamsKind::Variable(
+            vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
+        ),
+        prune_delete_limit: 0,
+        ..Default::default()
+    }
+    .into()
+});
+
 /// A wrapper around [`BaseFeeParams`] that allows for specifying constant or dynamic EIP-1559
 /// parameters based on the active [Hardfork].
 #[derive(Clone, Debug, PartialEq, Eq)]
