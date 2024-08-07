@@ -258,6 +258,7 @@ impl BscHardfork {
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
         ])
     }
 
