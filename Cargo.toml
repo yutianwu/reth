@@ -554,15 +554,15 @@ test-fuzz = "5"
 iai-callgrind = "0.11"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm", rev = "8675437c8943c2664840d6c4aaad7c1c2f8681d6" }
-revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "8675437c8943c2664840d6c4aaad7c1c2f8681d6" }
-revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "8675437c8943c2664840d6c4aaad7c1c2f8681d6" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "8675437c8943c2664840d6c4aaad7c1c2f8681d6" }
-alloy-chains = { git = "https://github.com/bnb-chain/alloy-chains-rs.git", rev = "b7c5379cf47345181f8dce350acafb958f47152a" }
-alloy-rpc-types-eth = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-consensus = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-eips = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-network = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-serde = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-signer = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
-alloy-signer-local = { git = "https://github.com/bnb-chain/alloy", rev = "534f4a4b1cac6d649032238f6c314d34d3a2628e" }
+revm = { git = "https://github.com/bnb-chain/revm", tag = "v1.0.0" }
+revm-interpreter = { git = "https://github.com/bnb-chain/revm", tag = "v1.0.0" }
+revm-precompile = { git = "https://github.com/bnb-chain/revm", tag = "v1.0.0" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm", tag = "v1.0.0" }
+alloy-chains = { git = "https://github.com/bnb-chain/alloy-chains-rs.git", tag = "v1.0.0" }
+alloy-rpc-types-eth = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-consensus = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-eips = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-network = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-serde = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-signer = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
+alloy-signer-local = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
