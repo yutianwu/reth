@@ -2,16 +2,19 @@ use crate::{
     parlia::{VoteAddress, VoteAttestation, VoteData},
     Address, BlockNumber, Header, B256,
 };
-use reth_codecs::{main_codec, Compact};
+#[cfg(feature = "reth-codec")]
+use reth_codecs::Compact;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 /// Number of blocks after which to save the snapshot to the database
 pub const CHECKPOINT_INTERVAL: u64 = 1024;
+/// Default turn length before Bohr upgrade
+pub const DEFAULT_TURN_LENGTH: u8 = 1;
 
 /// record validators information
-#[main_codec]
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::reth_codec)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ValidatorInfo {
     /// The index of the validator
     /// The index should offset by 1
@@ -37,6 +40,9 @@ pub struct Snapshot {
     pub recent_proposers: BTreeMap<BlockNumber, Address>,
     /// record the block attestation's vote data
     pub vote_data: VoteData,
+    /// record length of `turn`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_length: Option<u8>,
 }
 
 impl Snapshot {
@@ -77,10 +83,12 @@ impl Snapshot {
             validators_map,
             recent_proposers: Default::default(),
             vote_data: Default::default(),
+            turn_length: Some(DEFAULT_TURN_LENGTH),
         }
     }
 
     /// Apply the next block to the snapshot
+    #[allow(clippy::too_many_arguments)]
     pub fn apply(
         &self,
         validator: Address,
@@ -88,6 +96,8 @@ impl Snapshot {
         mut new_validators: Vec<Address>,
         vote_addrs: Option<Vec<VoteAddress>>,
         attestation: Option<VoteAttestation>,
+        turn_length: Option<u8>,
+        is_bohr: bool,
     ) -> Option<Self> {
         let block_number = next_header.number;
         if self.block_number + 1 != block_number {
@@ -97,26 +107,37 @@ impl Snapshot {
         let mut snap = self.clone();
         snap.block_hash = next_header.hash_slow();
         snap.block_number = block_number;
-        let limit = (snap.validators.len() / 2 + 1) as u64;
-        if block_number >= limit || block_number >= snap.validators.len() as u64 {
+        let limit = self.miner_history_check_len() + 1;
+        if block_number >= limit {
             snap.recent_proposers.remove(&(block_number - limit));
         }
 
         if !snap.validators.contains(&validator) {
             return None;
         }
-        if snap.recent_proposers.iter().any(|(_, &addr)| addr == validator) {
+        if snap.sign_recently(validator) {
             return None;
         }
         snap.recent_proposers.insert(block_number, validator);
 
-        if !new_validators.is_empty() {
+        let epoch_key = u64::MAX - next_header.number / snap.epoch_num;
+        if !new_validators.is_empty() &&
+            (!is_bohr || !snap.recent_proposers.contains_key(&epoch_key))
+        {
             new_validators.sort();
+            if let Some(turn_length) = turn_length {
+                snap.turn_length = Some(turn_length);
+            }
 
-            let new_limit = (new_validators.len() / 2 + 1) as u64;
-            if new_limit < limit {
-                for i in 0..(limit - new_limit) {
-                    snap.recent_proposers.remove(&(block_number - new_limit - i));
+            if is_bohr {
+                snap.recent_proposers = Default::default();
+                snap.recent_proposers.insert(epoch_key, Address::default());
+            } else {
+                let new_limit = (new_validators.len() / 2 + 1) as u64;
+                if new_limit < limit {
+                    for i in 0..(limit - new_limit) {
+                        snap.recent_proposers.remove(&(block_number - new_limit - i));
+                    }
                 }
             }
 
@@ -153,9 +174,17 @@ impl Snapshot {
         self.inturn_validator() == proposer
     }
 
+    /// Returns the number of blocks after which the miner history should be checked
+    pub fn miner_history_check_len(&self) -> u64 {
+        let turn_length = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
+        (self.validators.len() / 2 + 1) as u64 * turn_length - 1
+    }
+
     /// Returns the validator who should propose the block
     pub fn inturn_validator(&self) -> Address {
-        self.validators[((self.block_number + 1) as usize) % self.validators.len()]
+        let turn_length = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
+        self.validators
+            [((self.block_number + 1) as usize) / turn_length as usize % self.validators.len()]
     }
 
     /// Return index of the validator's index in validators list
@@ -168,14 +197,41 @@ impl Snapshot {
         None
     }
 
+    /// Returns the map of the number of times each validator has signed a block in the recent
+    /// blocks
+    pub fn count_recent_proposers(&self) -> HashMap<Address, u8> {
+        let left_history_bound = if self.block_number > self.miner_history_check_len() {
+            self.block_number - self.miner_history_check_len()
+        } else {
+            0
+        };
+
+        let mut counts = HashMap::new();
+        for (&seen, &recent) in &self.recent_proposers {
+            if seen <= left_history_bound || recent == Address::default() {
+                continue;
+            }
+            *counts.entry(recent).or_insert(0) += 1;
+        }
+
+        counts
+    }
+
     /// Returns true if the validator has signed a block in the last limit blocks
     pub fn sign_recently(&self, validator: Address) -> bool {
-        for (&num, &addr) in &self.recent_proposers {
-            if addr == validator {
-                let limit = (self.validators.len() / 2 + 1) as u64;
-                if num > self.block_number.saturating_sub(limit - 1) {
-                    return true;
-                }
+        self.sign_recently_by_counts(validator, &self.count_recent_proposers())
+    }
+
+    /// Returns true if the validator has signed a block in the recents blocks
+    pub fn sign_recently_by_counts(
+        &self,
+        validator: Address,
+        counts: &HashMap<Address, u8>,
+    ) -> bool {
+        if let Some(&seen_times) = counts.get(&validator) {
+            let turn_length = self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH);
+            if seen_times >= turn_length {
+                return true;
             }
         }
         false

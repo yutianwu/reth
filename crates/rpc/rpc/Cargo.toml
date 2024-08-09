@@ -32,7 +32,7 @@ reth-network-peers.workspace = true
 reth-evm.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-rpc-server-types.workspace = true
-reth-evm-optimism = { workspace = true, optional = true }
+reth-node-api.workspace = true
 
 # eth
 alloy-dyn-abi.workspace = true
@@ -54,7 +54,6 @@ http-body.workspace = true
 hyper.workspace = true
 jsonwebtoken.workspace = true
 serde_json.workspace = true
-jsonrpsee-types = { workspace = true, optional = true }
 
 # async
 async-trait.workspace = true
@@ -72,12 +71,15 @@ rand.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true
+cfg-if = "1.0.0"
 
 [dev-dependencies]
 reth-evm-ethereum.workspace = true
 reth-testing-utils.workspace = true
-jsonrpsee-types.workspace = true
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
 
+jsonrpsee-types.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 assert_matches.workspace = true
 tempfile.workspace = true
@@ -85,15 +87,13 @@ tempfile.workspace = true
 [features]
 bsc = [
     "reth-primitives/bsc",
+    "reth-rpc-eth-api/bsc",
 ]
 optimism = [
     "reth-primitives/optimism",
     "reth-rpc-types-compat/optimism",
     "reth-provider/optimism",
-    "reth-rpc-api/optimism",
     "reth-rpc-eth-api/optimism",
     "reth-revm/optimism",
-    "jsonrpsee-types",
-    "reth-evm-optimism",
     "reth-rpc-eth-types/optimism",
 ]

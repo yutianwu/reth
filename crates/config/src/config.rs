@@ -75,6 +75,8 @@ pub struct StageConfig {
     pub sender_recovery: SenderRecoveryConfig,
     /// Execution stage configuration.
     pub execution: ExecutionConfig,
+    /// Prune stage configuration.
+    pub prune: PruneStageConfig,
     /// Account Hashing stage configuration.
     pub account_hashing: HashingConfig,
     /// Storage Hashing stage configuration.
@@ -232,6 +234,20 @@ impl From<ExecutionConfig> for ExecutionStageThresholds {
     }
 }
 
+/// Prune stage configuration.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(default)]
+pub struct PruneStageConfig {
+    /// The maximum number of entries to prune before committing progress to the database.
+    pub commit_threshold: usize,
+}
+
+impl Default for PruneStageConfig {
+    fn default() -> Self {
+        Self { commit_threshold: 1_000_000 }
+    }
+}
+
 /// Hashing stage configuration.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default)]
@@ -332,6 +348,8 @@ impl Default for IndexHistoryConfig {
 pub struct PruneConfig {
     /// Minimum pruning interval measured in blocks.
     pub block_interval: usize,
+    /// The number of recent sidecars to keep in the static file provider.
+    pub recent_sidecars_kept_blocks: usize,
     /// Pruning configuration for every part of the data that can be pruned.
     #[serde(alias = "parts")]
     pub segments: PruneModes,
@@ -339,7 +357,7 @@ pub struct PruneConfig {
 
 impl Default for PruneConfig {
     fn default() -> Self {
-        Self { block_interval: 5, segments: PruneModes::none() }
+        Self { block_interval: 5, recent_sidecars_kept_blocks: 0, segments: PruneModes::none() }
     }
 }
 

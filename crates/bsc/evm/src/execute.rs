@@ -5,8 +5,7 @@ use lazy_static::lazy_static;
 use lru::LruCache;
 use parking_lot::RwLock;
 use reth_bsc_consensus::{
-    is_breathe_block, is_system_transaction, validate_block_post_execution, Parlia,
-    ValidatorElectionInfo, ValidatorsInfo,
+    is_breathe_block, validate_block_post_execution, Parlia, ValidatorElectionInfo, ValidatorsInfo,
 };
 use reth_chainspec::{BscHardforks, ChainSpec, EthereumHardforks};
 use reth_errors::{BlockExecutionError, BlockValidationError, ProviderError};
@@ -17,8 +16,8 @@ use reth_evm::{
     ConfigureEvm,
 };
 use reth_primitives::{
-    parlia::{ParliaConfig, Snapshot, VoteAddress, CHECKPOINT_INTERVAL},
-    system_contracts::{get_upgrade_system_contracts, SLASH_CONTRACT},
+    parlia::{ParliaConfig, Snapshot, VoteAddress, CHECKPOINT_INTERVAL, DEFAULT_TURN_LENGTH},
+    system_contracts::{get_upgrade_system_contracts, is_system_transaction, SLASH_CONTRACT},
     Address, BlockNumber, BlockWithSenders, Bytes, Header, Receipt, Transaction, TransactionSigned,
     B256, BSC_MAINNET, U256,
 };
@@ -168,7 +167,7 @@ where
         let mut system_txs = Vec::with_capacity(2); // Normally there are 2 system transactions.
         let mut receipts = Vec::with_capacity(block.body.len());
         for (sender, transaction) in block.transactions_with_sender() {
-            if is_system_transaction(transaction, *sender, &block.header) {
+            if is_system_transaction(transaction, *sender, block.beneficiary) {
                 system_txs.push(transaction.clone());
                 continue;
             }
@@ -800,7 +799,7 @@ impl<P> SnapshotReader<P>
 where
     P: ParliaProvider,
 {
-    pub fn new(provider: Arc<P>, parlia: Arc<Parlia>) -> Self {
+    pub const fn new(provider: Arc<P>, parlia: Arc<Parlia>) -> Self {
         Self { provider, parlia }
     }
 
@@ -867,21 +866,37 @@ where
 
         let mut snap = snap.ok_or_else(|| BscBlockExecutionError::SnapshotNotFound)?;
 
+        // the old snapshots don't have turn length, make sure we initialize it with default
+        // before accessing it
+        if snap.turn_length.is_none() || snap.turn_length == Some(0) {
+            snap.turn_length = Some(DEFAULT_TURN_LENGTH);
+        }
+
         // apply skip headers
         skip_headers.reverse();
         for header in &skip_headers {
-            let ValidatorsInfo { consensus_addrs, vote_addrs } = if header.number > 0 &&
-                header.number % self.parlia.epoch() == (snap.validators.len() / 2) as u64
+            let (ValidatorsInfo { consensus_addrs, vote_addrs }, turn_length) = if header.number > 0 &&
+                header.number % self.parlia.epoch() == snap.miner_history_check_len()
             {
                 // change validator set
                 let checkpoint_header =
-                    self.find_ancient_header(header, (snap.validators.len() / 2) as u64)?;
+                    self.find_ancient_header(header, snap.miner_history_check_len())?;
 
-                self.parlia.parse_validators_from_header(&checkpoint_header).map_err(|err| {
-                    BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
-                })?
+                let validators_info = self
+                    .parlia
+                    .parse_validators_from_header(&checkpoint_header)
+                    .map_err(|err| BscBlockExecutionError::ParliaConsensusInnerError {
+                        error: err.into(),
+                    })?;
+
+                let turn_length =
+                    self.parlia.get_turn_length_from_header(&checkpoint_header).map_err(|err| {
+                        BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+                    })?;
+
+                (validators_info, turn_length)
             } else {
-                ValidatorsInfo::default()
+                (ValidatorsInfo::default(), None)
             };
 
             let validator = self.parlia.recover_proposer(header).map_err(|err| {
@@ -893,7 +908,15 @@ where
                 })?;
 
             snap = snap
-                .apply(validator, header, consensus_addrs, vote_addrs, attestation)
+                .apply(
+                    validator,
+                    header,
+                    consensus_addrs,
+                    vote_addrs,
+                    attestation,
+                    turn_length,
+                    self.parlia.chain_spec().is_bohr_active_at_timestamp(header.timestamp),
+                )
                 .ok_or_else(|| BscBlockExecutionError::ApplySnapshotFailed)?;
         }
 

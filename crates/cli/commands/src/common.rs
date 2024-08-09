@@ -76,7 +76,7 @@ impl EnvironmentArgs {
             config.stages.etl.dir = Some(EtlConfig::from_datadir(data_dir.data_dir()));
         }
 
-        info!(target: "reth::cli", ?db_path, ?sf_path, "Opening storage");
+        info!(target: "reth::cli", ?db_path, ?sf_path, ?self.chain, "Opening storage");
         let (db, sfp) = match access {
             AccessRights::RW => (
                 Arc::new(init_db(db_path, self.db.database_args())?),

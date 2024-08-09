@@ -4,11 +4,13 @@ use crate::{
     table::{Compress, Decode, Decompress, Encode},
     DatabaseError,
 };
-use reth_codecs::{main_codec, Compact};
+
+use reth_codecs::{reth_codec, Compact};
 use reth_primitives::{parlia::Snapshot, Address, B256, *};
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::StageCheckpoint;
 use reth_trie_common::{StoredNibbles, StoredNibblesSubKey, *};
+use serde::{Deserialize, Serialize};
 
 pub mod accounts;
 pub mod blocks;
@@ -203,7 +205,7 @@ macro_rules! impl_compression_for_compact {
                 type Compressed = Vec<u8>;
 
                 fn compress_to_buf<B: bytes::BufMut + AsMut<[u8]>>(self, buf: &mut B) {
-                    let _ = Compact::to_compact(self, buf);
+                    let _ = Compact::to_compact(&self, buf);
                 }
             }
 
@@ -226,7 +228,7 @@ impl_compression_for_compact!(
     Receipt,
     TxType,
     StorageEntry,
-    StoredBranchNode,
+    BranchNodeCompact,
     StoredNibbles,
     StoredNibblesSubKey,
     StorageTrieEntry,
@@ -255,7 +257,7 @@ macro_rules! impl_compression_fixed_compact {
                 type Compressed = Vec<u8>;
 
                 fn compress_to_buf<B: bytes::BufMut + AsMut<[u8]>>(self, buf: &mut B) {
-                    let _  = Compact::to_compact(self, buf);
+                    let _  = Compact::to_compact(&self, buf);
                 }
 
                 fn uncompressable_ref(&self) -> Option<&[u8]> {
@@ -284,8 +286,8 @@ macro_rules! add_wrapper_struct {
     ($(($name:tt, $wrapper:tt)),+) => {
         $(
             /// Wrapper struct so it can use StructFlags from Compact, when used as pure table values.
-            #[main_codec]
-            #[derive(Debug, Clone, PartialEq, Eq, Default)]
+            #[reth_codec]
+            #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
             pub struct $wrapper(pub $name);
 
             impl From<$name> for $wrapper {
@@ -321,7 +323,7 @@ mod tests {
     use super::*;
     use rand::Rng;
     use reth_primitives::{
-        parlia::{ValidatorInfo, VoteAddress, VoteData},
+        parlia::{ValidatorInfo, VoteAddress, VoteData, DEFAULT_TURN_LENGTH},
         Account, Header, Receipt, ReceiptWithBloom, SealedHeader, TxEip1559, TxEip2930, TxEip4844,
         TxLegacy, Withdrawals,
     };
@@ -416,6 +418,7 @@ mod tests {
             validators_map: HashMap::new(),
             recent_proposers: BTreeMap::new(),
             vote_data: VoteData::default(),
+            turn_length: Some(DEFAULT_TURN_LENGTH),
         };
         snap.validators_map.insert(
             snap.validators[0],

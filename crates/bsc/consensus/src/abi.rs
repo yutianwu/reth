@@ -924,6 +924,19 @@ lazy_static! {
             "stateMutability": "view"
           },
           {
+            "inputs": [],
+            "name": "getTurnLength",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+          },
+          {
             "type": "function",
             "name": "getValidators",
             "inputs": [],
@@ -5971,6 +5984,19 @@ impl Parlia {
     pub fn unpack_data_into_max_elected_validators(&self, data: &[u8]) -> U256 {
         let function =
             self.stake_hub_abi.function("maxElectedValidators").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data, true).unwrap();
+
+        output[0].as_uint().unwrap().0
+    }
+
+    pub fn get_turn_length(&self) -> (Address, Bytes) {
+        let function = self.validator_abi.function("getTurnLength").unwrap().first().unwrap();
+
+        (VALIDATOR_CONTRACT.parse().unwrap(), Bytes::from(function.abi_encode_input(&[]).unwrap()))
+    }
+
+    pub fn unpack_data_into_turn_length(&self, data: &[u8]) -> U256 {
+        let function = self.validator_abi.function("getTurnLength").unwrap().first().unwrap();
         let output = function.abi_decode_output(data, true).unwrap();
 
         output[0].as_uint().unwrap().0
