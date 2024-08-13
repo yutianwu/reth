@@ -1,20 +1,26 @@
 //! Loads and formats OP receipt RPC response.
 
+use reth_node_api::FullNodeComponents;
 use reth_chainspec::OptimismHardforks;
 use reth_primitives::{Receipt, TransactionMeta, TransactionSigned};
-use reth_rpc_eth_api::helpers::{EthApiSpec, LoadReceipt, LoadTransaction};
-use reth_rpc_eth_types::{EthApiError, EthResult, EthStateCache, ReceiptBuilder};
+use reth_rpc_eth_api::{
+    helpers::{EthApiSpec, LoadReceipt, LoadTransaction},
+    FromEthApiError,
+};
+use reth_rpc_eth_types::{EthApiError, EthStateCache, ReceiptBuilder};
 use reth_rpc_types::{AnyTransactionReceipt, OptimismTransactionReceiptFields};
 
-use crate::{OpEthApi, OptimismTxMeta};
+use crate::{OpEthApi, OpEthApiError, OptimismTxMeta};
 
-impl<Eth> LoadReceipt for OpEthApi<Eth>
+impl<N> LoadReceipt for OpEthApi<N>
 where
-    Eth: LoadReceipt + EthApiSpec + LoadTransaction,
+    Self: EthApiSpec + LoadTransaction,
+    Self::Error: From<OpEthApiError>,
+    N: FullNodeComponents,
 {
     #[inline]
     fn cache(&self) -> &EthStateCache {
-        LoadReceipt::cache(&self.inner)
+        self.inner.cache()
     }
 
     async fn build_transaction_receipt(
@@ -22,11 +28,12 @@ where
         tx: TransactionSigned,
         meta: TransactionMeta,
         receipt: Receipt,
-    ) -> EthResult<AnyTransactionReceipt> {
+    ) -> Result<AnyTransactionReceipt, Self::Error> {
         let (block, receipts) = LoadReceipt::cache(self)
             .get_block_and_receipts(meta.block_hash)
-            .await?
-            .ok_or(EthApiError::UnknownBlockNumber)?;
+            .await
+            .map_err(Self::Error::from_eth_err)?
+            .ok_or(Self::Error::from_eth_err(EthApiError::UnknownBlockNumber))?;
 
         let block = block.unseal();
         let l1_block_info = reth_evm_optimism::extract_l1_info(&block).ok();
@@ -38,7 +45,8 @@ where
             optimism_tx_meta.l1_fee = Some(0);
         }
 
-        let resp_builder = ReceiptBuilder::new(&tx, meta, &receipt, &receipts)?;
+        let resp_builder = ReceiptBuilder::new(&tx, meta, &receipt, &receipts)
+            .map_err(Self::Error::from_eth_err)?;
         let resp_builder = op_receipt_fields(resp_builder, &tx, &receipt, optimism_tx_meta);
 
         Ok(resp_builder.build())

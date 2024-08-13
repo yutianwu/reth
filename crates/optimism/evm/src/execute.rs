@@ -17,10 +17,8 @@ use reth_primitives::{
 };
 use reth_prune_types::PruneModes;
 use reth_revm::{
-    batch::{BlockBatchRecord, BlockExecutorStats},
-    db::states::bundle_state::BundleRetention,
-    state_change::post_block_balance_increments,
-    Evm, State,
+    batch::BlockBatchRecord, db::states::bundle_state::BundleRetention,
+    state_change::post_block_balance_increments, Evm, State,
 };
 use revm::db::states::StorageSlot;
 use revm_primitives::{
@@ -88,11 +86,7 @@ where
         DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
     {
         let executor = self.op_executor(db);
-        OpBatchExecutor {
-            executor,
-            batch_record: BlockBatchRecord::default(),
-            stats: BlockExecutorStats::default(),
-        }
+        OpBatchExecutor { executor, batch_record: BlockBatchRecord::default() }
     }
 }
 
@@ -428,7 +422,6 @@ pub struct OpBatchExecutor<EvmConfig, DB> {
     executor: OpBlockExecutor<EvmConfig, DB>,
     /// Keeps track of the batch and record receipts based on the configured prune mode
     batch_record: BlockBatchRecord,
-    stats: BlockExecutorStats,
 }
 
 impl<EvmConfig, DB> OpBatchExecutor<EvmConfig, DB> {
@@ -475,8 +468,6 @@ where
     }
 
     fn finalize(mut self) -> Self::Output {
-        self.stats.log_debug();
-
         ExecutionOutcome::new(
             self.executor.state.take_bundle(),
             self.batch_record.take_receipts(),

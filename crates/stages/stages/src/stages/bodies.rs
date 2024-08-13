@@ -24,7 +24,6 @@ use reth_stages_api::{
 use reth_storage_errors::provider::ProviderResult;
 use tracing::*;
 
-// TODO(onbjerg): Metrics and events (gradual status for e.g. CLI)
 /// The body stage downloads block bodies.
 ///
 /// The body stage downloads block bodies for all block headers stored locally in storage.
@@ -213,8 +212,7 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
 
             // Increment block on static file header.
             if block_number > 0 {
-                let appended_block_number = static_file_producer_tx
-                    .increment_block(StaticFileSegment::Transactions, block_number)?;
+                let appended_block_number = static_file_producer_tx.increment_block(block_number)?;
 
                 if appended_block_number != block_number {
                     // This scenario indicates a critical error in the logic of adding new
@@ -237,7 +235,7 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                     // Write transactions
                     for transaction in block.body {
                         let appended_tx_number = static_file_producer_tx
-                            .append_transaction(next_tx_num, transaction.into())?;
+                            .append_transaction(next_tx_num, &transaction.into())?;
 
                         if appended_tx_number != next_tx_num {
                             // This scenario indicates a critical error in the logic of adding new
@@ -813,7 +811,7 @@ mod tests {
                         body.tx_num_range().try_for_each(|tx_num| {
                             let transaction = random_signed_tx(&mut rng);
                             static_file_producer_tx
-                                .append_transaction(tx_num, transaction.into())
+                                .append_transaction(tx_num, &transaction.into())
                                 .map(drop)
                         })?;
 

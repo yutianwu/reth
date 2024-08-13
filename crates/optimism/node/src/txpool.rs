@@ -112,8 +112,8 @@ where
         {
             let l1_block_info = self.block_info.l1_block_info.read().clone();
 
-            let mut encoded = Vec::new();
-            valid_tx.transaction().to_recovered_transaction().encode_enveloped(&mut encoded);
+            let mut encoded = Vec::with_capacity(valid_tx.transaction().encoded_length());
+            valid_tx.transaction().clone().into().encode_enveloped(&mut encoded);
 
             let cost_addition = if self
                 .chain_spec()

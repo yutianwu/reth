@@ -28,7 +28,6 @@ fn transform_block<F: FnOnce(Block) -> Block>(src: SealedBlock, f: F) -> Executi
         sidecars: transformed.sidecars,
         requests: transformed.requests,
     })
-    .0
 }
 
 #[test]
