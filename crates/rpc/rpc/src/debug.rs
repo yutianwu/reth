@@ -5,6 +5,8 @@ use jsonrpsee::core::RpcResult;
 #[cfg(feature = "bsc")]
 use reth_chainspec::BscHardforks;
 use reth_chainspec::EthereumHardforks;
+#[cfg(feature = "bsc")]
+use reth_errors::RethError;
 use reth_evm::{system_calls::pre_block_beacon_root_contract_call, ConfigureEvmEnv};
 #[cfg(feature = "bsc")]
 use reth_primitives::system_contracts::{get_upgrade_system_contracts, is_system_transaction};
@@ -135,7 +137,9 @@ where
                     .expect("get upgrade system contracts failed");
 
                     for (k, v) in contracts {
-                        let account = db.load_account(k)?;
+                        let account = db.load_account(k).map_err(|error| {
+                            EthApiError::Internal(RethError::Other("load account failed".into()))
+                        })?;
                         if account.account_state == NotExisting {
                             account.account_state = Touched;
                         }
@@ -178,7 +182,11 @@ where
                             .expect("get upgrade system contracts failed");
 
                             for (k, v) in contracts {
-                                let account = db.load_account(k)?;
+                                let account = db.load_account(k).map_err(|error| {
+                                    EthApiError::Internal(RethError::Other(
+                                        "load account failed".into(),
+                                    ))
+                                })?;
                                 if account.account_state == NotExisting {
                                     account.account_state = Touched;
                                 }

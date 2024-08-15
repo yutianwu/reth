@@ -24,6 +24,7 @@ pub(crate) fn to_execution_outcome(
         receipts: block_execution_output.receipts.clone().into(),
         first_block: block_number,
         requests: vec![Requests(block_execution_output.requests.clone())],
+        snapshots: vec![],
     }
 }
 

@@ -337,11 +337,8 @@ where
             let governance_token_contract_address =
                 Address::from_str("0x4200000000000000000000000000000000000042").unwrap();
 
-            let w_bnb_contract_account = self
-                .state
-                .load_cache_account(w_bnb_contract_address)
-                .map_err(|err| BlockExecutionError::Other(Box::new(err.into())))
-                .unwrap();
+            let w_bnb_contract_account =
+                self.state.load_cache_account(w_bnb_contract_address).map_err(|err| err.into())?;
             // change the token symbol and token name
             let w_bnb_contract_change =  w_bnb_contract_account.change(
                 w_bnb_contract_account.account_info().unwrap(), HashMap::from([
@@ -361,8 +358,7 @@ where
             let governance_token_account = self
                 .state
                 .load_cache_account(governance_token_contract_address)
-                .map_err(|err| BlockExecutionError::Other(Box::new(err.into())))
-                .unwrap();
+                .map_err(|err| err.into())?;
             // destroy governance token contract
             let governance_token_change = governance_token_account.selfdestruct().unwrap();
 

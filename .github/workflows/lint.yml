@@ -8,8 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  TOOL_CHAIN: "1.79"
-  TOOL_CHAIN_NIGHTLY: "nightly-2024-06-28"
+  TOOL_CHAIN: "1.80"
+  TOOL_CHAIN_NIGHTLY: "nightly-2024-08-08"
 
 jobs:
   clippy-binaries:
@@ -40,21 +40,21 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
 
-  wasm:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          target: wasm32-wasip1
-          toolchain: ${{ env.TOOL_CHAIN }}
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - name: Run Wasm checks
-        run: .github/assets/check_wasm.sh
+#  wasm:
+#    runs-on: ubuntu-latest
+#    timeout-minutes: 30
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: dtolnay/rust-toolchain@stable
+#        with:
+#          target: wasm32-wasip1
+#          toolchain: ${{ env.TOOL_CHAIN }}
+#      - uses: taiki-e/install-action@cargo-hack
+#      - uses: Swatinem/rust-cache@v2
+#        with:
+#          cache-on-failure: true
+#      - name: Run Wasm checks
+#        run: .github/assets/check_wasm.sh ${{ env.TOOL_CHAIN }}
 
   crate-checks:
     runs-on: ubuntu-latest

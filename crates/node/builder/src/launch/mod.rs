@@ -8,18 +8,28 @@ pub(crate) mod engine;
 pub use common::LaunchContext;
 pub use exex::ExExLauncher;
 
+use crate::{
+    builder::{NodeAdapter, NodeTypesAdapter},
+    components::{NodeComponents, NodeComponentsBuilder},
+    hooks::NodeHooks,
+    node::FullNode,
+    rpc::EthApiBuilderProvider,
+    AddOns, NodeBuilderWithComponents, NodeHandle,
+};
 use futures::{future::Either, stream, stream_select, StreamExt};
 use reth_beacon_consensus::{
     hooks::{EngineHooks, PruneHook, StaticFileHook},
     BeaconConsensusEngine,
 };
+use reth_blockchain_tree::{noop::NoopBlockchainTree, BlockchainTreeConfig};
 #[cfg(feature = "bsc")]
 use reth_bsc_engine::ParliaEngineBuilder;
-use reth_blockchain_tree::{noop::NoopBlockchainTree, BlockchainTreeConfig};
 use reth_consensus_debug_client::{DebugConsensusClient, EtherscanBlockProvider, RpcBlockProvider};
 use reth_engine_util::EngineMessageStreamExt;
 use reth_exex::ExExManagerHandle;
 use reth_network::{BlockDownloaderProvider, NetworkEventListenerProvider};
+#[cfg(feature = "bsc")]
+use reth_network_api::EngineRxProvider;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeAddOns};
 use reth_node_core::{
     dirs::{ChainPath, DataDirPath},
@@ -40,15 +50,6 @@ use reth_transaction_pool::TransactionPool;
 use std::{future::Future, sync::Arc};
 use tokio::sync::{mpsc::unbounded_channel, oneshot};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-
-use crate::{
-    builder::{NodeAdapter, NodeTypesAdapter},
-    components::{NodeComponents, NodeComponentsBuilder},
-    hooks::NodeHooks,
-    node::FullNode,
-    rpc::EthApiBuilderProvider,
-    AddOns, NodeBuilderWithComponents, NodeHandle,
-};
 
 /// Alias for [`reth_rpc_eth_types::EthApiBuilderCtx`], adapter for [`FullNodeComponents`].
 pub type EthApiBuilderCtx<N> = reth_rpc_eth_types::EthApiBuilderCtx<

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set +e  # Disable immediate exit on error
 
+tool_chain=$1
+
 # Array of crates 
 wasm_crates=(
   # The following were confirmed not working in the past, but could be enabled if issues have been resolved
@@ -24,7 +26,7 @@ results=()
 any_failed=0
 
 for crate in "${wasm_crates[@]}"; do
-  cmd="cargo +stable build -p $crate --target wasm32-wasip1 --no-default-features"
+  cmd="cargo +$tool_chain build -p $crate --target wasm32-wasip1 --no-default-features"
 
   if [ -n "$CI" ]; then
     echo "::group::$cmd"

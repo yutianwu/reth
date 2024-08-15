@@ -27,24 +27,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::{Future, StreamExt};
-use parking_lot::Mutex;
-use reth_eth_wire::{capability::CapabilityMessage, Capabilities, DisconnectReason};
-use reth_fs_util::{self as fs, FsPathError};
-use reth_metrics::common::mpsc::UnboundedMeteredSender;
-use reth_network_api::{
-    test_utils::PeersHandle, EthProtocolInfo, NetworkEvent, NetworkStatus, PeerInfo, PeerRequest,
-};
-use reth_network_peers::{NodeRecord, PeerId};
-use reth_network_types::ReputationChangeKind;
-use reth_storage_api::BlockNumReader;
-use reth_tasks::shutdown::GracefulShutdown;
-use reth_tokio_util::EventSender;
-use secp256k1::SecretKey;
-use tokio::sync::mpsc::{self, error::TrySendError};
-use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, trace, warn};
-
 use crate::{
     budget::{DEFAULT_BUDGET_TRY_DRAIN_NETWORK_HANDLE_CHANNEL, DEFAULT_BUDGET_TRY_DRAIN_SWARM},
     config::NetworkConfig,
@@ -53,10 +35,7 @@ use crate::{
     eth_requests::IncomingEthRequest,
     import::{BlockImport, BlockImportOutcome, BlockValidation},
     listener::ConnectionListener,
-    message::{
-        BlockEvent, BlockHashesEvent, EngineMessage, NewBlockMessage, PeerMessage, PeerRequest,
-        PeerRequestSender,
-    },
+    message::{NewBlockMessage, PeerMessage},
     metrics::{
         DisconnectMetrics, NetworkMetrics, NETWORK_PEER_SCOPE, NETWORK_POOL_TRANSACTIONS_SCOPE,
     },
@@ -70,6 +49,25 @@ use crate::{
     transactions::NetworkTransactionEvent,
     FetchClient, NetworkBuilder,
 };
+use futures::{Future, StreamExt};
+use parking_lot::Mutex;
+use reth_eth_wire::{capability::CapabilityMessage, Capabilities, DisconnectReason};
+use reth_fs_util::{self as fs, FsPathError};
+use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use reth_network_api::{
+    events::{BlockEvent, BlockHashesEvent, EngineMessage},
+    test_utils::PeersHandle,
+    EthProtocolInfo, NetworkEvent, NetworkStatus, PeerInfo, PeerRequest,
+};
+use reth_network_peers::{NodeRecord, PeerId};
+use reth_network_types::ReputationChangeKind;
+use reth_storage_api::BlockNumReader;
+use reth_tasks::shutdown::GracefulShutdown;
+use reth_tokio_util::EventSender;
+use secp256k1::SecretKey;
+use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::{debug, error, trace, warn};
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
 /// Manages the _entire_ state of the network.

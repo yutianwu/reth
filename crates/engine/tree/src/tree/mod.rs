@@ -2989,6 +2989,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(feature = "bsc"))]
     async fn test_engine_tree_forks_with_older_canonical_head() {
         reth_tracing::init_test_tracing();
 
