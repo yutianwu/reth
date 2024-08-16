@@ -455,6 +455,7 @@ impl OptimismHardfork {
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718871600)),
             (Self::Ecotone.boxed(), ForkCondition::Timestamp(1718871600)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718872200)),
+            (Self::Wright.boxed(), ForkCondition::Timestamp(1724738400)),
         ])
     }
 
