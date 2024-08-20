@@ -161,7 +161,7 @@ where
             }
             .with_senders_unchecked(senders);
 
-            executor.execute_and_verify_one((&block, td).into())?;
+            executor.execute_and_verify_one((&block, td, None).into())?;
             execution_duration += execute_start.elapsed();
 
             // TODO(alexey): report gas metrics using `block.header.gas_used`
@@ -287,7 +287,11 @@ mod tests {
                 provider.tx_ref(),
                 provider.static_file_provider().clone(),
             )))
-            .execute(BlockExecutionInput { block, total_difficulty: U256::ZERO })?;
+            .execute(BlockExecutionInput {
+                block,
+                total_difficulty: U256::ZERO,
+                ancestor_headers: None,
+            })?;
         block_execution_output.state.reverts.sort();
 
         // Convert the block execution output to an execution outcome for committing to the database

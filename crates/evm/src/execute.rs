@@ -1,7 +1,9 @@
 //! Traits for execution.
 
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives::{parlia::Snapshot, BlockNumber, BlockWithSenders, Receipt, Request, U256};
+use reth_primitives::{
+    parlia::Snapshot, BlockNumber, BlockWithSenders, Header, Receipt, Request, B256, U256,
+};
 use reth_prune_types::PruneModes;
 use revm::db::BundleState;
 use revm_primitives::db::Database;
@@ -9,6 +11,7 @@ use std::fmt::Display;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+use std::collections::HashMap;
 
 pub use reth_execution_errors::{BlockExecutionError, BlockValidationError};
 pub use reth_storage_errors::provider::ProviderError;
@@ -119,23 +122,37 @@ pub struct BlockExecutionOutput<T> {
 
 /// A helper type for ethereum block inputs that consists of a block and the total difficulty.
 #[derive(Debug)]
-pub struct BlockExecutionInput<'a, Block> {
+pub struct BlockExecutionInput<'a, Block, Header> {
     /// The block to execute.
     pub block: &'a Block,
     /// The total difficulty of the block.
     pub total_difficulty: U256,
+    /// The headers of the block's ancestor
+    pub ancestor_headers: Option<&'a HashMap<B256, Header>>,
 }
 
-impl<'a, Block> BlockExecutionInput<'a, Block> {
+impl<'a, Block, Header> BlockExecutionInput<'a, Block, Header> {
     /// Creates a new input.
-    pub const fn new(block: &'a Block, total_difficulty: U256) -> Self {
-        Self { block, total_difficulty }
+    pub const fn new(
+        block: &'a Block,
+        total_difficulty: U256,
+        ancestor_headers: Option<&'a HashMap<B256, Header>>,
+    ) -> Self {
+        Self { block, total_difficulty, ancestor_headers }
     }
 }
 
-impl<'a, Block> From<(&'a Block, U256)> for BlockExecutionInput<'a, Block> {
-    fn from((block, total_difficulty): (&'a Block, U256)) -> Self {
-        Self::new(block, total_difficulty)
+impl<'a, Block, Header> From<(&'a Block, U256, Option<&'a HashMap<B256, Header>>)>
+    for BlockExecutionInput<'a, Block, Header>
+{
+    fn from(
+        (block, total_difficulty, ancestor_headers): (
+            &'a Block,
+            U256,
+            Option<&'a HashMap<B256, Header>>,
+        ),
+    ) -> Self {
+        Self::new(block, total_difficulty, ancestor_headers)
     }
 }
 
@@ -154,7 +171,7 @@ pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     /// the returned state.
     type Executor<DB: Database<Error: Into<ProviderError> + Display>>: for<'a> Executor<
         DB,
-        Input<'a> = BlockExecutionInput<'a, BlockWithSenders>,
+        Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>,
         Output = BlockExecutionOutput<Receipt>,
         Error = BlockExecutionError,
     >;
@@ -162,7 +179,7 @@ pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     /// An executor that can execute a batch of blocks given a database.
     type BatchExecutor<DB: Database<Error: Into<ProviderError> + Display>>: for<'a> BatchExecutor<
         DB,
-        Input<'a> = BlockExecutionInput<'a, BlockWithSenders>,
+        Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>,
         Output = ExecutionOutcome,
         Error = BlockExecutionError,
     >;
@@ -215,7 +232,7 @@ mod tests {
     struct TestExecutor<DB>(PhantomData<DB>);
 
     impl<DB> Executor<DB> for TestExecutor<DB> {
-        type Input<'a> = BlockExecutionInput<'a, BlockWithSenders>;
+        type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
         type Output = BlockExecutionOutput<Receipt>;
         type Error = BlockExecutionError;
 
@@ -225,7 +242,7 @@ mod tests {
     }
 
     impl<DB> BatchExecutor<DB> for TestExecutor<DB> {
-        type Input<'a> = BlockExecutionInput<'a, BlockWithSenders>;
+        type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
         type Output = ExecutionOutcome;
         type Error = BlockExecutionError;
 
@@ -264,6 +281,6 @@ mod tests {
             requests: None,
         };
         let block = BlockWithSenders::new(block, Default::default()).unwrap();
-        let _ = executor.execute(BlockExecutionInput::new(&block, U256::ZERO));
+        let _ = executor.execute(BlockExecutionInput::new(&block, U256::ZERO, None));
     }
 }
