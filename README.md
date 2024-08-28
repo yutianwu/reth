@@ -110,6 +110,7 @@ docker run -d -p 8545:8545 -p 30303:30303 -p 30303:30303/udp -v ${data_dir}:/dat
 There are snapshots available from the community, you can use a snapshot to reduce the sync time for catching up.
 
 * [fuzzland snapshot](https://github.com/fuzzland/snapshots)
+* [bnb-chain snapshot](https://github.com/bnb-chain/reth-snapshots)
 
 ## Run Reth for opBNB
 
