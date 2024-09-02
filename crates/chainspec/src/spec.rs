@@ -1,17 +1,26 @@
-use crate::constants::MAINNET_DEPOSIT_CONTRACT;
+pub use alloy_eips::eip1559::BaseFeeParams;
+
 #[cfg(not(feature = "std"))]
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+#[cfg(feature = "std")]
+use std::sync::Arc;
+
 use alloy_chains::{Chain, ChainKind, NamedChain};
 use alloy_genesis::Genesis;
 use alloy_primitives::{address, b256, Address, BlockNumber, B256, U256};
 use alloy_trie::EMPTY_ROOT_HASH;
 use derive_more::From;
 use once_cell::sync::Lazy;
+#[cfg(feature = "optimism")]
+use reth_ethereum_forks::OptimismHardfork;
 use reth_ethereum_forks::{
     ChainHardforks, DisplayHardforks, EthereumHardfork, EthereumHardforks, ForkCondition,
     ForkFilter, ForkFilterKey, ForkHash, ForkId, Hardfork, Head, DEV_HARDFORKS,
 };
-use reth_network_peers::NodeRecord;
+use reth_network_peers::{
+    base_nodes, base_testnet_nodes, holesky_nodes, mainnet_nodes, op_nodes, op_testnet_nodes,
+    sepolia_nodes, NodeRecord,
+};
 use reth_primitives_traits::{
     constants::{
         DEV_GENESIS_HASH, EIP1559_INITIAL_BASE_FEE, EMPTY_WITHDRAWALS, ETHEREUM_BLOCK_GAS_LIMIT,
@@ -20,82 +29,8 @@ use reth_primitives_traits::{
     Header, SealedHeader,
 };
 use reth_trie_common::root::state_root_ref_unhashed;
-#[cfg(feature = "std")]
-use std::sync::Arc;
 
-pub use alloy_eips::eip1559::BaseFeeParams;
-#[cfg(feature = "bsc")]
-use reth_ethereum_forks::BscHardfork;
-#[cfg(feature = "optimism")]
-use reth_ethereum_forks::OptimismHardfork;
-use reth_network_peers::{
-    base_nodes, base_testnet_nodes, holesky_nodes, mainnet_nodes, op_nodes, op_testnet_nodes,
-    sepolia_nodes,
-};
-#[cfg(feature = "bsc")]
-use reth_network_peers::{bsc_mainnet_nodes, bsc_testnet_nodes};
-#[cfg(feature = "optimism")]
-use reth_network_peers::{opbnb_mainnet_nodes, opbnb_testnet_nodes};
-
-/// The BSC mainnet spec
-#[cfg(feature = "bsc")]
-pub static BSC_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::from_named(NamedChain::BNBSmartChain),
-        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_mainnet.json"))
-            .expect("Can't deserialize BSC Mainnet genesis json"),
-        genesis_hash: Some(b256!(
-            "0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: BscHardfork::bsc_mainnet(),
-        deposit_contract: None,
-        base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
-        prune_delete_limit: 3500,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The BSC testnet (chapel) spec
-#[cfg(feature = "bsc")]
-pub static BSC_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::from_named(NamedChain::BNBSmartChainTestnet),
-        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_testnet.json"))
-            .expect("Can't deserialize BSC Testnet genesis json"),
-        genesis_hash: Some(b256!(
-            "6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: BscHardfork::bsc_testnet(),
-        deposit_contract: None,
-        base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
-        prune_delete_limit: 3500,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The BSC qa (rialto) spec
-#[cfg(feature = "bsc")]
-pub static BSC_RIALTO: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::from_id(714),
-        genesis: serde_json::from_str(include_str!("../res/genesis/bsc_qa.json"))
-            .expect("Can't deserialize BSC Rialto genesis json"),
-        genesis_hash: Some(b256!(
-            "281bcec9447d74982bb746f753eecd1320a9b7f4fdbd2cfaf1ae7170a93cff50"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: BscHardfork::bsc_qa(),
-        deposit_contract: None,
-        base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
-        prune_delete_limit: 3500,
-        ..Default::default()
-    }
-    .into()
-});
+use crate::{constants::MAINNET_DEPOSIT_CONTRACT, EthChainSpec};
 
 /// The Ethereum mainnet spec
 pub static MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
@@ -184,175 +119,6 @@ pub static DEV: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
         hardforks: DEV_HARDFORKS.clone(),
         base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::ethereum()),
         deposit_contract: None, // TODO: do we even have?
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The Optimism Mainnet spec
-#[cfg(feature = "optimism")]
-pub static OP_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::optimism_mainnet(),
-        // genesis contains empty alloc field because state at first bedrock block is imported
-        // manually from trusted source
-        genesis: serde_json::from_str(include_str!("../res/genesis/optimism.json"))
-            .expect("Can't deserialize Optimism Mainnet genesis json"),
-        genesis_hash: Some(b256!(
-            "7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::op_mainnet(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![
-                (EthereumHardfork::London.boxed(), BaseFeeParams::optimism()),
-                (OptimismHardfork::Canyon.boxed(), BaseFeeParams::optimism_canyon()),
-            ]
-            .into(),
-        ),
-        max_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
-        prune_delete_limit: 10000,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The OP Sepolia spec
-#[cfg(feature = "optimism")]
-pub static OP_SEPOLIA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::from_named(NamedChain::OptimismSepolia),
-        genesis: serde_json::from_str(include_str!("../res/genesis/sepolia_op.json"))
-            .expect("Can't deserialize OP Sepolia genesis json"),
-        genesis_hash: Some(b256!(
-            "102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::op_sepolia(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![
-                (EthereumHardfork::London.boxed(), BaseFeeParams::optimism_sepolia()),
-                (OptimismHardfork::Canyon.boxed(), BaseFeeParams::optimism_sepolia_canyon()),
-            ]
-            .into(),
-        ),
-        max_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
-        prune_delete_limit: 10000,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The Base Sepolia spec
-#[cfg(feature = "optimism")]
-pub static BASE_SEPOLIA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::base_sepolia(),
-        genesis: serde_json::from_str(include_str!("../res/genesis/sepolia_base.json"))
-            .expect("Can't deserialize Base Sepolia genesis json"),
-        genesis_hash: Some(b256!(
-            "0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::base_sepolia(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![
-                (EthereumHardfork::London.boxed(), BaseFeeParams::base_sepolia()),
-                (OptimismHardfork::Canyon.boxed(), BaseFeeParams::base_sepolia_canyon()),
-            ]
-            .into(),
-        ),
-        max_gas_limit: crate::constants::BASE_SEPOLIA_MAX_GAS_LIMIT,
-        prune_delete_limit: 10000,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The Base mainnet spec
-#[cfg(feature = "optimism")]
-pub static BASE_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::base_mainnet(),
-        genesis: serde_json::from_str(include_str!("../res/genesis/base.json"))
-            .expect("Can't deserialize Base genesis json"),
-        genesis_hash: Some(b256!(
-            "f712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::base_mainnet(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![
-                (EthereumHardfork::London.boxed(), BaseFeeParams::optimism()),
-                (OptimismHardfork::Canyon.boxed(), BaseFeeParams::optimism_canyon()),
-            ]
-            .into(),
-        ),
-        max_gas_limit: crate::constants::BASE_MAINNET_MAX_GAS_LIMIT,
-        prune_delete_limit: 10000,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The opBNB mainnet spec
-#[cfg(all(feature = "optimism", feature = "opbnb"))]
-pub static OPBNB_MAINNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::opbnb_mainnet(),
-        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_mainnet.json"))
-            .expect("Can't deserialize opBNB mainent genesis json"),
-        genesis_hash: Some(b256!(
-            "4dd61178c8b0f01670c231597e7bcb368e84545acd46d940a896d6a791dd6df4"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::opbnb_mainnet(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
-        ),
-        prune_delete_limit: 0,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The opBNB testnet spec
-#[cfg(all(feature = "optimism", feature = "opbnb"))]
-pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::opbnb_testnet(),
-        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_testnet.json"))
-            .expect("Can't deserialize opBNB testnet genesis json"),
-        genesis_hash: Some(b256!(
-            "51fa57729dfb1c27542c21b06cb72a0459c57440ceb43a465dae1307cd04fe80"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::opbnb_testnet(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
-        ),
-        prune_delete_limit: 0,
-        ..Default::default()
-    }
-    .into()
-});
-
-/// The opBNB qa net spec
-#[cfg(all(feature = "optimism", feature = "opbnb"))]
-pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
-    ChainSpec {
-        chain: Chain::from_id(4530),
-        genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
-            .expect("Can't deserialize opBNB qa genesis json"),
-        genesis_hash: Some(b256!(
-            "bb2282e70cc2aebb17342003ad1c0aeab6a8114f8a4718730c13711d787b5de9"
-        )),
-        paris_block_and_final_difficulty: Some((0, U256::from(0))),
-        hardforks: OptimismHardfork::opbnb_qa(),
-        base_fee_params: BaseFeeParamsKind::Variable(
-            vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
-        ),
-        prune_delete_limit: 0,
         ..Default::default()
     }
     .into()
@@ -598,7 +364,7 @@ impl ChainSpec {
                 // given timestamp.
                 for (fork, params) in bf_params.iter().rev() {
                     if self.hardforks.is_fork_active_at_timestamp(fork.clone(), timestamp) {
-                        return *params;
+                        return *params
                     }
                 }
 
@@ -735,7 +501,7 @@ impl ChainSpec {
                 } else {
                     // we can return here because this block fork is not active, so we set the
                     // `next` value
-                    return ForkId { hash: forkhash, next: block };
+                    return ForkId { hash: forkhash, next: block }
                 }
             }
         }
@@ -761,7 +527,7 @@ impl ChainSpec {
                 // can safely return here because we have already handled all block forks and
                 // have handled all active timestamp forks, and set the next value to the
                 // timestamp that is known but not active yet
-                return ForkId { hash: forkhash, next: timestamp };
+                return ForkId { hash: forkhash, next: timestamp }
             }
         }
 
@@ -776,7 +542,7 @@ impl ChainSpec {
                 // to satisfy every timestamp ForkCondition, we find the last ForkCondition::Block
                 // if one exists, and include its block_num in the returned Head
                 if let Some(last_block_num) = self.last_block_fork_before_merge_or_timestamp() {
-                    return Head { timestamp, number: last_block_num, ..Default::default() };
+                    return Head { timestamp, number: last_block_num, ..Default::default() }
                 }
                 Head { timestamp, ..Default::default() }
             }
@@ -804,17 +570,17 @@ impl ChainSpec {
                     ForkCondition::TTD { fork_block, .. } => {
                         // handle Sepolia merge netsplit case
                         if fork_block.is_some() {
-                            return *fork_block;
+                            return *fork_block
                         }
                         // ensure curr_cond is indeed ForkCondition::Block and return block_num
                         if let ForkCondition::Block(block_num) = curr_cond {
-                            return Some(block_num);
+                            return Some(block_num)
                         }
                     }
                     ForkCondition::Timestamp(_) => {
                         // ensure curr_cond is indeed ForkCondition::Block and return block_num
                         if let ForkCondition::Block(block_num) = curr_cond {
-                            return Some(block_num);
+                            return Some(block_num)
                         }
                     }
                     ForkCondition::Block(_) | ForkCondition::Never => continue,
@@ -914,6 +680,8 @@ impl From<Genesis> for ChainSpec {
             (OptimismHardfork::Ecotone.boxed(), genesis_info.ecotone_time),
             #[cfg(feature = "optimism")]
             (OptimismHardfork::Fjord.boxed(), genesis_info.fjord_time),
+            #[cfg(feature = "optimism")]
+            (OptimismHardfork::Granite.boxed(), genesis_info.granite_time),
         ];
 
         let time_hardforks = time_hardfork_opts
@@ -962,6 +730,16 @@ impl From<Genesis> for ChainSpec {
             ..Default::default()
         }
     }
+}
+
+/// A trait for reading the current [`ChainSpec`].
+#[auto_impl::auto_impl(&, Arc)]
+pub trait ChainSpecProvider: Send + Sync {
+    /// The chain spec type.
+    type ChainSpec: EthChainSpec;
+
+    /// Get an [`Arc`] to the [`ChainSpec`].
+    fn chain_spec(&self) -> Arc<Self::ChainSpec>;
 }
 
 /// A helper to build custom chain specs
@@ -1161,6 +939,14 @@ impl ChainSpecBuilder {
         self
     }
 
+    /// Enable Granite at genesis
+    #[cfg(feature = "optimism")]
+    pub fn granite_activated(mut self) -> Self {
+        self = self.fjord_activated();
+        self.hardforks.insert(OptimismHardfork::Granite, ForkCondition::Timestamp(0));
+        self
+    }
+
     /// Build the resulting [`ChainSpec`].
     ///
     /// # Panics
@@ -1270,30 +1056,31 @@ impl OptimismGenesisInfo {
     }
 }
 
+/// Verifies [`ChainSpec`] configuration against expected data in given cases.
+#[cfg(any(test, feature = "test-utils"))]
+pub fn test_fork_ids(spec: &ChainSpec, cases: &[(Head, ForkId)]) {
+    for (block, expected_id) in cases {
+        let computed_id = spec.fork_id(block);
+        assert_eq!(
+            expected_id, &computed_id,
+            "Expected fork ID {:?}, computed fork ID {:?} at block {}",
+            expected_id, computed_id, block.number
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use core::ops::Deref;
+    use std::{collections::HashMap, str::FromStr};
+
     use alloy_chains::Chain;
     use alloy_genesis::{ChainConfig, GenesisAccount};
     use alloy_primitives::{b256, hex};
-    use core::ops::Deref;
     use reth_ethereum_forks::{ForkCondition, ForkHash, ForkId, Head};
     use reth_trie_common::TrieAccount;
-    use std::{collections::HashMap, str::FromStr};
 
-    #[cfg(feature = "optimism")]
-    use reth_ethereum_forks::OptimismHardforks;
-
-    fn test_fork_ids(spec: &ChainSpec, cases: &[(Head, ForkId)]) {
-        for (block, expected_id) in cases {
-            let computed_id = spec.fork_id(block);
-            assert_eq!(
-                expected_id, &computed_id,
-                "Expected fork ID {:?}, computed fork ID {:?} at block {}",
-                expected_id, computed_id, block.number
-            );
-        }
-    }
+    use super::*;
 
     fn test_hardfork_fork_ids(spec: &ChainSpec, cases: &[(EthereumHardfork, ForkId)]) {
         for (hardfork, expected_id) in cases {
@@ -1793,139 +1580,6 @@ Post-merge hard forks (timestamp based):
                 (
                     Head { number: 1735372, timestamp: 1706655072, ..Default::default() },
                     ForkId { hash: ForkHash([0x88, 0xcf, 0x81, 0xd9]), next: 0 },
-                ),
-            ],
-        );
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn base_mainnet_forkids() {
-        test_fork_ids(
-            &BASE_MAINNET,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xda, 0x02, 0x60]), next: 1704992401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1704992400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xda, 0x02, 0x60]), next: 1704992401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3c, 0x28, 0x3c, 0xb3]), next: 1710374401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1710374400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3c, 0x28, 0x3c, 0xb3]), next: 1710374401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1710374401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x51, 0xcc, 0x98, 0xb3]), next: 1720627201 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1720627200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x51, 0xcc, 0x98, 0xb3]), next: 1720627201 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1720627201, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe4, 0x01, 0x0e, 0xb9]), next: 0 },
-                ),
-            ],
-        );
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn op_sepolia_forkids() {
-        test_fork_ids(
-            &OP_SEPOLIA,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981199, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981200, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
-                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
-                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 0 },
-                ),
-            ],
-        );
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn op_mainnet_forkids() {
-        test_fork_ids(
-            &OP_MAINNET,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3950000 },
-                ),
-                // TODO: complete these, see https://github.com/paradigmxyz/reth/issues/8012
-                (
-                    Head { number: 105235063, timestamp: 1710374401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: 1720627201 },
-                ),
-            ],
-        );
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn base_sepolia_forkids() {
-        test_fork_ids(
-            &BASE_SEPOLIA,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0xb9, 0x59, 0xb9, 0xf7]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981199, ..Default::default() },
-                    ForkId { hash: ForkHash([0xb9, 0x59, 0xb9, 0xf7]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x60, 0x7c, 0xd5, 0xa1]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
-                    ForkId { hash: ForkHash([0x60, 0x7c, 0xd5, 0xa1]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbe, 0x96, 0x9b, 0x17]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbe, 0x96, 0x9b, 0x17]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4e, 0x45, 0x7a, 0x49]), next: 0 },
                 ),
             ],
         );
@@ -2724,295 +2378,10 @@ Post-merge hard forks (timestamp based):
     }
 
     #[test]
-    #[cfg(feature = "optimism")]
-    fn base_mainnet_genesis() {
-        let genesis = BASE_MAINNET.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("f712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd")
-        );
-        let base_fee = genesis
-            .next_block_base_fee(BASE_MAINNET.base_fee_params_at_timestamp(genesis.timestamp))
-            .unwrap();
-        // <https://base.blockscout.com/block/1>
-        assert_eq!(base_fee, 980000000);
-    }
-
-    #[test]
-    #[cfg(feature = "optimism")]
-    fn base_sepolia_genesis() {
-        let genesis = BASE_SEPOLIA.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4")
-        );
-        let base_fee = genesis
-            .next_block_base_fee(BASE_SEPOLIA.base_fee_params_at_timestamp(genesis.timestamp))
-            .unwrap();
-        // <https://base-sepolia.blockscout.com/block/1>
-        assert_eq!(base_fee, 980000000);
-    }
-
-    #[test]
-    #[cfg(feature = "optimism")]
-    fn op_sepolia_genesis() {
-        let genesis = OP_SEPOLIA.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d")
-        );
-        let base_fee = genesis
-            .next_block_base_fee(OP_SEPOLIA.base_fee_params_at_timestamp(genesis.timestamp))
-            .unwrap();
-        // <https://optimism-sepolia.blockscout.com/block/1>
-        assert_eq!(base_fee, 980000000);
-    }
-
-    #[test]
     fn latest_eth_mainnet_fork_id() {
         assert_eq!(
             ForkId { hash: ForkHash([0x9f, 0x3d, 0x22, 0x54]), next: 0 },
             MAINNET.latest_fork_id()
         )
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn latest_base_mainnet_fork_id() {
-        assert_eq!(
-            ForkId { hash: ForkHash([0xe4, 0x01, 0x0e, 0xb9]), next: 0 },
-            BASE_MAINNET.latest_fork_id()
-        )
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn is_bedrock_active() {
-        assert!(!OP_MAINNET.is_bedrock_active_at_block(1))
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn parse_optimism_hardforks() {
-        let geth_genesis = r#"
-    {
-      "config": {
-        "bedrockBlock": 10,
-        "regolithTime": 20,
-        "canyonTime": 30,
-        "ecotoneTime": 40,
-        "fjordTime": 50,
-        "optimism": {
-          "eip1559Elasticity": 60,
-          "eip1559Denominator": 70
-        }
-      }
-    }
-    "#;
-        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
-
-        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
-        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(10)).as_ref());
-        let actual_regolith_timestamp = genesis.config.extra_fields.get("regolithTime");
-        assert_eq!(actual_regolith_timestamp, Some(serde_json::Value::from(20)).as_ref());
-        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
-        assert_eq!(actual_canyon_timestamp, Some(serde_json::Value::from(30)).as_ref());
-        let actual_ecotone_timestamp = genesis.config.extra_fields.get("ecotoneTime");
-        assert_eq!(actual_ecotone_timestamp, Some(serde_json::Value::from(40)).as_ref());
-        let actual_fjord_timestamp = genesis.config.extra_fields.get("fjordTime");
-        assert_eq!(actual_fjord_timestamp, Some(serde_json::Value::from(50)).as_ref());
-
-        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
-        assert_eq!(
-            optimism_object,
-            &serde_json::json!({
-                "eip1559Elasticity": 60,
-                "eip1559Denominator": 70,
-            })
-        );
-
-        let chain_spec: ChainSpec = genesis.into();
-
-        assert_eq!(
-            chain_spec.base_fee_params,
-            BaseFeeParamsKind::Constant(BaseFeeParams::new(70, 60))
-        );
-
-        assert!(!chain_spec.is_fork_active_at_block(OptimismHardfork::Bedrock, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Regolith, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Canyon, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Ecotone, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Fjord, 0));
-
-        assert!(chain_spec.is_fork_active_at_block(OptimismHardfork::Bedrock, 10));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Regolith, 20));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Canyon, 30));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Ecotone, 40));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Fjord, 50));
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn parse_optimism_hardforks_variable_base_fee_params() {
-        let geth_genesis = r#"
-    {
-      "config": {
-        "bedrockBlock": 10,
-        "regolithTime": 20,
-        "canyonTime": 30,
-        "ecotoneTime": 40,
-        "fjordTime": 50,
-        "optimism": {
-          "eip1559Elasticity": 60,
-          "eip1559Denominator": 70,
-          "eip1559DenominatorCanyon": 80
-        }
-      }
-    }
-    "#;
-        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
-
-        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
-        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(10)).as_ref());
-        let actual_regolith_timestamp = genesis.config.extra_fields.get("regolithTime");
-        assert_eq!(actual_regolith_timestamp, Some(serde_json::Value::from(20)).as_ref());
-        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
-        assert_eq!(actual_canyon_timestamp, Some(serde_json::Value::from(30)).as_ref());
-        let actual_ecotone_timestamp = genesis.config.extra_fields.get("ecotoneTime");
-        assert_eq!(actual_ecotone_timestamp, Some(serde_json::Value::from(40)).as_ref());
-        let actual_fjord_timestamp = genesis.config.extra_fields.get("fjordTime");
-        assert_eq!(actual_fjord_timestamp, Some(serde_json::Value::from(50)).as_ref());
-
-        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
-        assert_eq!(
-            optimism_object,
-            &serde_json::json!({
-                "eip1559Elasticity": 60,
-                "eip1559Denominator": 70,
-                "eip1559DenominatorCanyon": 80
-            })
-        );
-
-        let chain_spec: ChainSpec = genesis.into();
-
-        assert_eq!(
-            chain_spec.base_fee_params,
-            BaseFeeParamsKind::Variable(
-                vec![
-                    (EthereumHardfork::London.boxed(), BaseFeeParams::new(70, 60)),
-                    (OptimismHardfork::Canyon.boxed(), BaseFeeParams::new(80, 60)),
-                ]
-                .into()
-            )
-        );
-
-        assert!(!chain_spec.is_fork_active_at_block(OptimismHardfork::Bedrock, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Regolith, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Canyon, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Ecotone, 0));
-        assert!(!chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Fjord, 0));
-
-        assert!(chain_spec.is_fork_active_at_block(OptimismHardfork::Bedrock, 10));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Regolith, 20));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Canyon, 30));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Ecotone, 40));
-        assert!(chain_spec.is_fork_active_at_timestamp(OptimismHardfork::Fjord, 50));
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn parse_genesis_optimism_with_variable_base_fee_params() {
-        use op_alloy_rpc_types::genesis::OptimismBaseFeeInfo;
-
-        let geth_genesis = r#"
-    {
-      "config": {
-        "chainId": 8453,
-        "homesteadBlock": 0,
-        "eip150Block": 0,
-        "eip155Block": 0,
-        "eip158Block": 0,
-        "byzantiumBlock": 0,
-        "constantinopleBlock": 0,
-        "petersburgBlock": 0,
-        "istanbulBlock": 0,
-        "muirGlacierBlock": 0,
-        "berlinBlock": 0,
-        "londonBlock": 0,
-        "arrowGlacierBlock": 0,
-        "grayGlacierBlock": 0,
-        "mergeNetsplitBlock": 0,
-        "bedrockBlock": 0,
-        "regolithTime": 15,
-        "terminalTotalDifficulty": 0,
-        "terminalTotalDifficultyPassed": true,
-        "optimism": {
-          "eip1559Elasticity": 6,
-          "eip1559Denominator": 50
-        }
-      }
-    }
-    "#;
-        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
-        let chainspec = ChainSpec::from(genesis.clone());
-
-        let actual_chain_id = genesis.config.chain_id;
-        assert_eq!(actual_chain_id, 8453);
-
-        assert_eq!(
-            chainspec.hardforks.get(EthereumHardfork::Istanbul),
-            Some(ForkCondition::Block(0))
-        );
-
-        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
-        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(0)).as_ref());
-        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
-        assert_eq!(actual_canyon_timestamp, None);
-
-        assert!(genesis.config.terminal_total_difficulty_passed);
-
-        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
-        let optimism_base_fee_info =
-            serde_json::from_value::<OptimismBaseFeeInfo>(optimism_object.clone()).unwrap();
-
-        assert_eq!(
-            optimism_base_fee_info,
-            OptimismBaseFeeInfo {
-                eip1559_elasticity: Some(6),
-                eip1559_denominator: Some(50),
-                eip1559_denominator_canyon: None,
-            }
-        );
-        assert_eq!(
-            chainspec.base_fee_params,
-            BaseFeeParamsKind::Constant(BaseFeeParams {
-                max_change_denominator: 50,
-                elasticity_multiplier: 6,
-            })
-        );
-
-        assert!(chainspec.is_fork_active_at_block(OptimismHardfork::Bedrock, 0));
-
-        assert!(chainspec.is_fork_active_at_timestamp(OptimismHardfork::Regolith, 20));
-    }
-
-    #[test]
-    #[cfg(feature = "bsc")]
-    fn bsc_mainnet_genesis() {
-        let genesis = BSC_MAINNET.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b")
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "bsc")]
-    fn bsc_testnet_genesis() {
-        let genesis = BSC_TESTNET.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34")
-        );
     }
 }
