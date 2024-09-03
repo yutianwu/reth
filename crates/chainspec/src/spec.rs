@@ -345,7 +345,7 @@ pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
         genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
             .expect("Can't deserialize opBNB qa genesis json"),
         genesis_hash: Some(b256!(
-            "bb2282e70cc2aebb17342003ad1c0aeab6a8114f8a4718730c13711d787b5de9"
+            "9c6edc17c0f3a16df0e9384bb84a4f4847d56a32e5ccaaa10a0be93b83a9698e"
         )),
         paris_block_and_final_difficulty: Some((0, U256::from(0))),
         hardforks: OptimismHardfork::opbnb_qa(),
