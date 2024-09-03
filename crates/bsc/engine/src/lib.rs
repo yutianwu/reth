@@ -5,28 +5,28 @@
 // The `bsc` feature must be enabled to use this crate.
 #![cfg(feature = "bsc")]
 
+use reth_beacon_consensus::BeaconEngineMessage;
 use reth_bsc_consensus::Parlia;
 use reth_chainspec::ChainSpec;
-use reth_primitives::{parlia::ParliaConfig, SealedHeader, B256};
+use reth_engine_primitives::EngineTypes;
+use reth_evm_bsc::SnapshotReader;
+use reth_network_api::events::EngineMessage;
+use reth_network_p2p::BlockClient;
+use reth_primitives::{
+    parlia::ParliaConfig, BlockBody, BlockHash, BlockHashOrNumber, BlockNumber, SealedHeader, B256,
+};
+use reth_provider::{BlockReaderIdExt, CanonChainTracker, ParliaProvider};
 use std::{
     clone::Clone,
     collections::{HashMap, VecDeque},
     fmt::Debug,
     sync::Arc,
 };
-
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     Mutex, RwLockReadGuard, RwLockWriteGuard,
 };
 use tracing::trace;
-
-use reth_beacon_consensus::BeaconEngineMessage;
-use reth_engine_primitives::EngineTypes;
-use reth_evm_bsc::SnapshotReader;
-use reth_network::{fetch::FetchClient, message::EngineMessage};
-use reth_primitives::{BlockBody, BlockHash, BlockHashOrNumber, BlockNumber};
-use reth_provider::{BlockReaderIdExt, CanonChainTracker, ParliaProvider};
 
 mod client;
 use client::*;
@@ -38,13 +38,13 @@ const STORAGE_CACHE_NUM: usize = 1000;
 
 /// Builder type for configuring the setup
 #[derive(Debug)]
-pub struct ParliaEngineBuilder<Provider, Engine: EngineTypes, P> {
+pub struct ParliaEngineBuilder<Client, Provider, Engine: EngineTypes, P> {
     chain_spec: Arc<ChainSpec>,
     cfg: ParliaConfig,
     storage: Storage,
     to_engine: UnboundedSender<BeaconEngineMessage<Engine>>,
     network_block_event_rx: Arc<Mutex<UnboundedReceiver<EngineMessage>>>,
-    fetch_client: FetchClient,
+    fetch_client: Client,
     provider: Provider,
     parlia: Parlia,
     snapshot_reader: SnapshotReader<P>,
@@ -52,8 +52,9 @@ pub struct ParliaEngineBuilder<Provider, Engine: EngineTypes, P> {
 
 // === impl ParliaEngineBuilder ===
 
-impl<Provider, Engine, P> ParliaEngineBuilder<Provider, Engine, P>
+impl<Client, Provider, Engine, P> ParliaEngineBuilder<Client, Provider, Engine, P>
 where
+    Client: BlockClient + 'static,
     Provider: BlockReaderIdExt + CanonChainTracker + Clone + 'static,
     Engine: EngineTypes + 'static,
     P: ParliaProvider + 'static,
@@ -66,7 +67,7 @@ where
         parlia_provider: P,
         to_engine: UnboundedSender<BeaconEngineMessage<Engine>>,
         network_block_event_rx: Arc<Mutex<UnboundedReceiver<EngineMessage>>>,
-        fetch_client: FetchClient,
+        fetch_client: Client,
     ) -> Self {
         let latest_header = provider
             .latest_header()
@@ -101,7 +102,7 @@ where
 
     /// Consumes the type and returns all components
     #[track_caller]
-    pub fn build(self, start_engine_task: bool) -> ParliaClient {
+    pub fn build(self, start_engine_task: bool) -> ParliaClient<Client> {
         let Self {
             chain_spec,
             cfg,

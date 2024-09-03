@@ -208,7 +208,7 @@ where
         if self.chain_spec().is_on_luban_at_block(number) {
             vote_addrs_map = validators
                 .iter()
-                .cloned()
+                .copied()
                 .zip(vec![VoteAddress::default(); validator_num])
                 .collect::<HashMap<_, _>>();
         }
@@ -401,7 +401,7 @@ where
             target_hash = header.parent_hash;
         }
 
-        let mut validators: Vec<Address> = accumulated_weights.keys().cloned().collect();
+        let mut validators: Vec<Address> = accumulated_weights.keys().copied().collect();
         validators.sort();
         let weights: Vec<U256> = validators.iter().map(|val| accumulated_weights[val]).collect();
 

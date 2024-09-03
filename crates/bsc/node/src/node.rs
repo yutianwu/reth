@@ -3,6 +3,7 @@
 use crate::EthEngineTypes;
 use reth_basic_payload_builder::{BasicPayloadJobGenerator, BasicPayloadJobGeneratorConfig};
 use reth_bsc_consensus::Parlia;
+use reth_chainspec::ChainSpec;
 use reth_evm_bsc::{BscEvmConfig, BscExecutorProvider};
 use reth_network::NetworkHandle;
 use reth_node_api::{FullNodeComponents, NodeAddOns};
@@ -39,7 +40,7 @@ impl BscNode {
         BscConsensusBuilder,
     >
     where
-        Node: FullNodeTypes<Engine = EthEngineTypes>,
+        Node: FullNodeTypes<Engine = EthEngineTypes, ChainSpec = ChainSpec>,
     {
         ComponentsBuilder::default()
             .node_types::<Node>()
@@ -54,6 +55,7 @@ impl BscNode {
 impl NodeTypes for BscNode {
     type Primitives = ();
     type Engine = EthEngineTypes;
+    type ChainSpec = ChainSpec;
 }
 
 /// Add-ons w.r.t. l1 bsc.
@@ -66,7 +68,7 @@ impl<N: FullNodeComponents> NodeAddOns<N> for BSCAddOns {
 
 impl<N> Node<N> for BscNode
 where
-    N: FullNodeTypes<Engine = EthEngineTypes>,
+    N: FullNodeTypes<Engine = EthEngineTypes, ChainSpec = ChainSpec>,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,

@@ -11,7 +11,7 @@ use reth_blockchain_tree_api::{
 };
 use reth_consensus::{Consensus, ConsensusError, PostExecutionInput};
 use reth_db_api::database::Database;
-use reth_evm::execute::{BlockExecutionOutput, BlockExecutorProvider, Executor};
+use reth_evm::execute::{BlockExecutorProvider, Executor};
 use reth_execution_errors::BlockExecutionError;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{
@@ -23,7 +23,7 @@ use reth_provider::{
     FullExecutionDataProvider, ProviderError, StateRootProvider,
 };
 use reth_revm::{database::StateProviderDatabase, primitives::EvmState};
-use reth_trie::updates::TrieUpdates;
+use reth_trie::{updates::TrieUpdates, HashedPostState};
 use reth_trie_parallel::parallel_root::ParallelStateRoot;
 use reth_trie_prefetch::TriePrefetch;
 use std::{
@@ -228,18 +228,12 @@ impl AppendableChain {
         let block = block.unseal();
 
         let state = executor.execute((&block, U256::MAX, ancestor_blocks).into())?;
-        let BlockExecutionOutput { state, receipts, requests, gas_used: _, snapshot } = state;
-        externals
-            .consensus
-            .validate_block_post_execution(&block, PostExecutionInput::new(&receipts, &requests))?;
+        externals.consensus.validate_block_post_execution(
+            &block,
+            PostExecutionInput::new(&state.receipts, &state.requests),
+        )?;
 
-        let initial_execution_outcome = ExecutionOutcome::new_with_snapshots(
-            state,
-            receipts.into(),
-            block.number,
-            vec![requests.into()],
-            vec![snapshot.unwrap_or_default()],
-        );
+        let initial_execution_outcome = ExecutionOutcome::from((state, block.number));
 
         // stop the prefetch task.
         if let Some(interrupt_tx) = interrupt_tx {
@@ -261,7 +255,10 @@ impl AppendableChain {
                     .map(|(root, updates)| (root, Some(updates)))
                     .map_err(ProviderError::from)?
             } else {
-                (provider.state_root(initial_execution_outcome.state())?, None)
+                let hashed_state =
+                    HashedPostState::from_bundle_state(&initial_execution_outcome.state().state);
+                let state_root = provider.state_root(hashed_state)?;
+                (state_root, None)
             };
             if block.state_root != state_root {
                 return Err(ConsensusError::BodyStateRootDiff(

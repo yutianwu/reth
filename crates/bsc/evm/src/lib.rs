@@ -2,7 +2,6 @@
 
 // TODO: doc
 #![allow(missing_docs)]
-#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 // The `bsc` feature must be enabled to use this crate.
 #![cfg(feature = "bsc")]
@@ -80,13 +79,13 @@ impl ConfigureEvmEnv for BscEvmConfig {
 impl ConfigureEvm for BscEvmConfig {
     type DefaultExternalContext<'a> = ();
 
-    fn evm<'a, DB: Database + 'a>(&self, db: DB) -> Evm<'a, Self::DefaultExternalContext<'a>, DB> {
+    fn evm<DB: Database>(&self, db: DB) -> Evm<'_, Self::DefaultExternalContext<'_>, DB> {
         EvmBuilder::default().with_db(db).bsc().build()
     }
 
-    fn evm_with_inspector<'a, DB, I>(&self, db: DB, inspector: I) -> Evm<'a, I, DB>
+    fn evm_with_inspector<DB, I>(&self, db: DB, inspector: I) -> Evm<'_, I, DB>
     where
-        DB: Database + 'a,
+        DB: Database,
         I: GetInspector<DB>,
     {
         EvmBuilder::default()
@@ -96,6 +95,8 @@ impl ConfigureEvm for BscEvmConfig {
             .append_handler_register(inspector_handle_register)
             .build()
     }
+
+    fn default_external_context<'a>(&self) -> Self::DefaultExternalContext<'a> {}
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SEED: rustethereumethereumrust
-  TOOL_CHAIN: "1.79"
+  TOOL_CHAIN: "1.80"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -51,7 +51,7 @@ jobs:
         run: |
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }} opbnb" \
-            --workspace --exclude ef-tests --exclude reth-node-ethereum \
+            --workspace --exclude ef-tests --exclude reth-node-ethereum --exclude reth-bsc-chainspec \
             --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
       - if: matrix.network == 'bsc'
@@ -59,8 +59,9 @@ jobs:
         run: |
           cargo nextest run \
             --locked --features "asm-keccak ${{ matrix.network }}" \
-            --workspace --exclude examples --exclude example-exex-rollup --exclude ef-tests --exclude reth-beacon-consensus \
+            --workspace --exclude examples --exclude ef-tests --exclude reth-beacon-consensus \
             --exclude reth-blockchain-tree --exclude reth-node-ethereum --exclude reth-rpc-engine-api \
+            --exclude reth-optimism-chainspec \
             --partition hash:${{ matrix.partition }}/3 \
             -E "!kind(test)"
 
