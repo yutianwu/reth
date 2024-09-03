@@ -7292,6 +7292,7 @@ dependencies = [
  "reth-testing-utils",
  "reth-trie",
  "reth-trie-parallel",
+ "reth-trie-prefetch",
  "tokio",
  "tracing",
 ]
@@ -8135,6 +8136,7 @@ dependencies = [
  "reth-storage-errors",
  "revm",
  "revm-primitives",
+ "tokio",
 ]
 
 [[package]]
@@ -8157,6 +8159,7 @@ dependencies = [
  "reth-revm",
  "revm-primitives",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 
@@ -8178,6 +8181,8 @@ dependencies = [
  "revm-primitives",
  "secp256k1",
  "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -8197,6 +8202,7 @@ dependencies = [
  "revm",
  "revm-primitives",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 
@@ -9787,6 +9793,30 @@ dependencies = [
  "reth-provider",
  "reth-tasks",
  "reth-trie",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "reth-trie-prefetch"
+version = "1.0.2"
+dependencies = [
+ "alloy-rlp",
+ "criterion",
+ "derive_more",
+ "metrics",
+ "proptest",
+ "rand 0.8.5",
+ "rayon",
+ "reth-db",
+ "reth-execution-errors",
+ "reth-metrics",
+ "reth-primitives",
+ "reth-provider",
+ "reth-tasks",
+ "reth-trie",
+ "reth-trie-parallel",
  "thiserror",
  "tokio",
  "tracing",

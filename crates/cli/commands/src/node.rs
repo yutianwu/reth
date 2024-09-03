@@ -106,6 +106,10 @@ pub struct NodeCommand<Ext: clap::Args + fmt::Debug = NoArgs> {
     /// Additional cli arguments
     #[command(flatten, next_help_heading = "Extension")]
     pub ext: Ext,
+
+    /// Enable prefetch when executing block
+    #[arg(long, default_value_t = false)]
+    pub enable_prefetch: bool,
 }
 
 impl NodeCommand {
@@ -152,6 +156,7 @@ impl<Ext: clap::Args + fmt::Debug> NodeCommand<Ext> {
             dev,
             pruning,
             ext,
+            enable_prefetch,
         } = self;
 
         // set up node config
@@ -169,6 +174,7 @@ impl<Ext: clap::Args + fmt::Debug> NodeCommand<Ext> {
             db,
             dev,
             pruning,
+            enable_prefetch,
         };
 
         // Register the prometheus recorder before creating the database,
