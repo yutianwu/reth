@@ -528,7 +528,9 @@ impl OptimismHardfork {
             (Self::Canyon.boxed(), ForkCondition::Timestamp(0)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(0)),
             (Self::Ecotone.boxed(), ForkCondition::Timestamp(0)),
+            (Self::Haber.boxed(), ForkCondition::Timestamp(0)),
             (Self::Wright.boxed(), ForkCondition::Timestamp(0)),
+            (Self::Fjord.boxed(), ForkCondition::Timestamp(0)),Ø
         ])
     }
 }
