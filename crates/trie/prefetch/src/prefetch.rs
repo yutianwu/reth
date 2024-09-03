@@ -12,6 +12,7 @@ use reth_trie::{
     walker::TrieWalker,
     HashedPostState, HashedStorage, StorageRoot,
 };
+use reth_trie_db::{DatabaseHashedCursorFactory, DatabaseTrieCursorFactory};
 use reth_trie_parallel::{parallel_root::ParallelStateRootError, StorageRootTargets};
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
@@ -158,10 +159,14 @@ impl TriePrefetch {
             .into_par_iter()
             .map(|(hashed_address, prefix_set)| {
                 let provider_ro = consistent_view.provider_ro()?;
-
+                let trie_cursor_factory = DatabaseTrieCursorFactory::new(provider_ro.tx_ref());
+                let hashed_cursor_factory = HashedPostStateCursorFactory::new(
+                    DatabaseHashedCursorFactory::new(provider_ro.tx_ref()),
+                    &hashed_state_sorted,
+                );
                 let storage_root_result = StorageRoot::new_hashed(
-                    provider_ro.tx_ref(),
-                    HashedPostStateCursorFactory::new(provider_ro.tx_ref(), &hashed_state_sorted),
+                    trie_cursor_factory,
+                    hashed_cursor_factory,
                     hashed_address,
                     #[cfg(feature = "metrics")]
                     self.metrics.clone(),
@@ -175,9 +180,12 @@ impl TriePrefetch {
 
         trace!(target: "trie::trie_prefetch", "prefetching account tries");
         let provider_ro = consistent_view.provider_ro()?;
-        let hashed_cursor_factory =
-            HashedPostStateCursorFactory::new(provider_ro.tx_ref(), &hashed_state_sorted);
-        let trie_cursor_factory = provider_ro.tx_ref();
+        let tx = provider_ro.tx_ref();
+        let trie_cursor_factory = DatabaseTrieCursorFactory::new(tx);
+        let hashed_cursor_factory = HashedPostStateCursorFactory::new(
+            DatabaseHashedCursorFactory::new(tx),
+            &hashed_state_sorted,
+        );
 
         let walker = TrieWalker::new(
             trie_cursor_factory.account_trie_cursor().map_err(ProviderError::Database)?,
@@ -200,7 +208,7 @@ impl TriePrefetch {
                         // Since we do not store all intermediate nodes in the database, there might
                         // be a possibility of re-adding a non-modified leaf to the hash builder.
                         None => StorageRoot::new_hashed(
-                            trie_cursor_factory,
+                            trie_cursor_factory.clone(),
                             hashed_cursor_factory.clone(),
                             hashed_address,
                             #[cfg(feature = "metrics")]
@@ -250,44 +258,10 @@ impl From<TriePrefetchError> for ProviderError {
     fn from(error: TriePrefetchError) -> Self {
         match error {
             TriePrefetchError::Provider(error) => error,
-            TriePrefetchError::StorageRoot(StorageRootError::DB(error)) => Self::Database(error),
+            TriePrefetchError::StorageRoot(StorageRootError::Database(error)) => {
+                Self::Database(error)
+            }
             TriePrefetchError::ParallelStateRoot(error) => error.into(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use tokio::time;
-
-    #[tokio::test]
-    async fn test_channel() {
-        let (prefetch_tx, mut prefetch_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (interrupt_tx, mut interrupt_rx) = tokio::sync::oneshot::channel();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = prefetch_rx.recv() => {
-                        println!("got message");
-                        time::sleep(time::Duration::from_secs(3)).await;
-                    }
-                    _ = &mut interrupt_rx => {
-                        println!("left items in channel: {}" ,prefetch_rx.len());
-                        break;
-                    }
-                }
-            }
-        });
-
-        for _ in 0..10 {
-            prefetch_tx.send(()).unwrap();
-        }
-
-        time::sleep(time::Duration::from_secs(3)).await;
-
-        interrupt_tx.send(()).unwrap();
-
-        time::sleep(time::Duration::from_secs(10)).await;
     }
 }

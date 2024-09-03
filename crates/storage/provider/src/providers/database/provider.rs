@@ -2095,13 +2095,20 @@ impl<TX: DbTx> BlockReader for DatabaseProvider<TX> {
             transaction_kind,
             |block_number| self.header_by_number(block_number),
             |header, body, senders, ommers, withdrawals, requests| {
-                Block { header, body, ommers, withdrawals, sidecars: Some(Default::default()), requests }
-                    // Note: we're using unchecked here because we know the block contains valid txs
-                    // wrt to its height and can ignore the s value check so pre
-                    // EIP-2 txs are allowed
-                    .try_with_senders_unchecked(senders)
-                    .map(Some)
-                    .map_err(|_| ProviderError::SenderRecoveryError)
+                Block {
+                    header,
+                    body,
+                    ommers,
+                    withdrawals,
+                    sidecars: Some(Default::default()),
+                    requests,
+                }
+                // Note: we're using unchecked here because we know the block contains valid txs
+                // wrt to its height and can ignore the s value check so pre
+                // EIP-2 txs are allowed
+                .try_with_senders_unchecked(senders)
+                .map(Some)
+                .map_err(|_| ProviderError::SenderRecoveryError)
             },
         )
     }
@@ -2116,13 +2123,20 @@ impl<TX: DbTx> BlockReader for DatabaseProvider<TX> {
             transaction_kind,
             |block_number| self.sealed_header(block_number),
             |header, body, senders, ommers, withdrawals, requests| {
-                SealedBlock { header, body, ommers, withdrawals, sidecars: Some(Default::default()), requests }
-                    // Note: we're using unchecked here because we know the block contains valid txs
-                    // wrt to its height and can ignore the s value check so pre
-                    // EIP-2 txs are allowed
-                    .try_with_senders_unchecked(senders)
-                    .map(Some)
-                    .map_err(|_| ProviderError::SenderRecoveryError)
+                SealedBlock {
+                    header,
+                    body,
+                    ommers,
+                    withdrawals,
+                    sidecars: Some(Default::default()),
+                    requests,
+                }
+                // Note: we're using unchecked here because we know the block contains valid txs
+                // wrt to its height and can ignore the s value check so pre
+                // EIP-2 txs are allowed
+                .try_with_senders_unchecked(senders)
+                .map(Some)
+                .map_err(|_| ProviderError::SenderRecoveryError)
             },
         )
     }

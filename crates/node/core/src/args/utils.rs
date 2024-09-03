@@ -19,8 +19,15 @@ use reth_optimism_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 pub const SUPPORTED_CHAINS: &[&str] = &["bsc", "bsc-testnet"];
 #[cfg(feature = "optimism")]
 /// Chains supported by op-reth. First value should be used as the default.
-pub const SUPPORTED_CHAINS: &[&str] =
-    &["optimism", "optimism-sepolia", "base", "base-sepolia", "opbnb-mainnet", "opbnb-testnet", "dev"];
+pub const SUPPORTED_CHAINS: &[&str] = &[
+    "optimism",
+    "optimism-sepolia",
+    "base",
+    "base-sepolia",
+    "opbnb-mainnet",
+    "opbnb-testnet",
+    "dev",
+];
 #[cfg(all(not(feature = "optimism"), not(feature = "bsc")))]
 /// Chains supported by reth. First value should be used as the default.
 pub const SUPPORTED_CHAINS: &[&str] = &["mainnet", "sepolia", "holesky", "dev"];

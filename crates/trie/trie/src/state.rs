@@ -1,14 +1,16 @@
-use crate::{
-    prefix_set::{PrefixSetMut, TriePrefixSetsMut},
-    Nibbles,
+use std::{
+    borrow::Cow,
+    collections::{hash_map, HashMap, HashSet},
 };
+
 use itertools::Itertools;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use reth_primitives::{keccak256, Account, Address, B256, U256};
 use revm::db::{states::CacheAccount, AccountStatus, BundleAccount};
-use std::{
-    borrow::Cow,
-    collections::{hash_map, HashMap, HashSet},
+
+use crate::{
+    prefix_set::{PrefixSetMut, TriePrefixSetsMut},
+    Nibbles,
 };
 
 /// Representation of in-memory hashed state.
@@ -59,7 +61,7 @@ impl HashedPostState {
             this.accounts.insert(hashed_address, Some(account.info.clone().into()));
 
             let hashed_storage = HashedStorage::from_iter(
-                account.status == AccountStatus::SelfDestructed,
+                account.status == revm::primitives::AccountStatus::SelfDestructed,
                 account.storage.iter().map(|(key, value)| {
                     (keccak256(B256::new(key.to_be_bytes())), value.present_value)
                 }),
