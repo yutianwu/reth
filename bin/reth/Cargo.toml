@@ -157,11 +157,11 @@ opbnb = [
 bsc = [
     "reth-rpc/bsc",
     "reth-primitives/bsc",
-    "dep:reth-node-bsc",
     "reth-node-core/bsc",
     "reth-stages/bsc",
     "reth-node-builder/bsc",
     "reth-beacon-consensus/bsc",
+    "dep:reth-node-bsc",
 ]
 
 # no-op feature flag for switching between the `optimism` and default functionality in CI matrices

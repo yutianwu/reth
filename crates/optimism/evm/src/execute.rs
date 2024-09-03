@@ -1,5 +1,7 @@
 //! Optimism block executor.
 
+use std::{collections::HashMap, str::FromStr, sync::Arc};
+
 use crate::{l1::ensure_create2_deployer, OptimismBlockExecutionError, OptimismEvmConfig};
 use reth_chainspec::{ChainSpec, EthereumHardforks, OptimismHardfork};
 use reth_evm::{
@@ -25,7 +27,6 @@ use revm_primitives::{
     db::{Database, DatabaseCommit},
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, EnvWithHandlerCfg, EvmState, ResultAndState,
 };
-use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 

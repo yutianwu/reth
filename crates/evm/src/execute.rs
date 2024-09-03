@@ -7,12 +7,9 @@ pub use reth_storage_errors::provider::ProviderError;
 
 use core::fmt::Display;
 
-use std::collections::HashMap;
-
 use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt};
 use reth_prune_types::PruneModes;
-use revm_primitives::db::Database;
-use revm_primitives::EvmState;
+use revm_primitives::{db::Database, EvmState};
 use tokio::sync::mpsc::UnboundedSender;
 
 /// A general purpose executor trait that executes an input (e.g. block) and produces an output

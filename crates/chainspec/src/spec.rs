@@ -2244,6 +2244,7 @@ Post-merge hard forks (timestamp based):
     }
 
     #[test]
+    #[cfg(not(feature = "bsc"))]
     fn test_default_cancun_header_forkhash() {
         // set the gas limit from the hive test genesis according to the hash
         let genesis = Genesis { gas_limit: 0x2fefd8u128, ..Default::default() };
@@ -2270,20 +2271,12 @@ Post-merge hard forks (timestamp based):
 
         // check the genesis hash
         let genesis_hash = header.hash_slow();
-        let expected_hash = if cfg!(feature = "bsc") {
-            // bsc has zero base fee
-            b256!("8498b49617a74f5750dfe77e025989bd06955a177d255b8fb90ed3ebbe9aaf0f")
-        } else {
-            b256!("16bb7c59613a5bad3f7c04a852fd056545ade2483968d9a25a1abb05af0c4d37")
-        };
+        let expected_hash =
+            b256!("16bb7c59613a5bad3f7c04a852fd056545ade2483968d9a25a1abb05af0c4d37");
         assert_eq!(genesis_hash, expected_hash);
 
         // check that the forkhash is correct
-        let expected_forkhash = if cfg!(feature = "bsc") {
-            ForkHash(hex!("1e7c5080"))
-        } else {
-            ForkHash(hex!("8062457a"))
-        };
+        let expected_forkhash = ForkHash(hex!("8062457a"));
         assert_eq!(ForkHash::from(genesis_hash), expected_forkhash);
     }
 

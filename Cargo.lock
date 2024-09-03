@@ -9734,11 +9734,11 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-prefetch"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "alloy-rlp",
  "criterion",
- "derive_more",
+ "derive_more 1.0.0",
  "metrics",
  "proptest",
  "rand 0.8.5",
@@ -9750,6 +9750,7 @@ dependencies = [
  "reth-provider",
  "reth-tasks",
  "reth-trie",
+ "reth-trie-db",
  "reth-trie-parallel",
  "thiserror",
  "tokio",
