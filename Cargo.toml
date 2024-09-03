@@ -125,6 +125,7 @@ members = [
     "crates/trie/common",
     "crates/trie/db",
     "crates/trie/parallel/",
+    "crates/trie/prefetch/",
     "crates/trie/trie",
     "crates/bsc/node/",
     "crates/bsc/engine/",
@@ -406,6 +407,7 @@ reth-trie = { path = "crates/trie/trie" }
 reth-trie-common = { path = "crates/trie/common" }
 reth-trie-db = { path = "crates/trie/db" }
 reth-trie-parallel = { path = "crates/trie/parallel" }
+reth-trie-prefetch = { path = "crates/trie/prefetch" }
 
 # revm
 revm = { version = "14.0.0", features = [

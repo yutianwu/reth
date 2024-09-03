@@ -8,7 +8,8 @@ use reth_execution_types::{BlockExecutionInput, BlockExecutionOutput, ExecutionO
 use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt};
 use reth_prune_types::PruneModes;
 use reth_storage_errors::provider::ProviderError;
-use revm_primitives::db::Database;
+use revm_primitives::{db::Database, EvmState};
+use tokio::sync::mpsc::UnboundedSender;
 
 // re-export Either
 pub use futures_util::future::Either;
@@ -24,13 +25,17 @@ where
     type BatchExecutor<DB: Database<Error: Into<ProviderError> + Display>> =
         Either<A::BatchExecutor<DB>, B::BatchExecutor<DB>>;
 
-    fn executor<DB>(&self, db: DB) -> Self::Executor<DB>
+    fn executor<DB>(
+        &self,
+        db: DB,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
+    ) -> Self::Executor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>,
     {
         match self {
-            Self::Left(a) => Either::Left(a.executor(db)),
-            Self::Right(b) => Either::Right(b.executor(db)),
+            Self::Left(a) => Either::Left(a.executor(db, prefetch_tx)),
+            Self::Right(b) => Either::Right(b.executor(db, prefetch_tx)),
         }
     }
 

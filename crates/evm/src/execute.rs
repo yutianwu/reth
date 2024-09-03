@@ -7,9 +7,13 @@ pub use reth_storage_errors::provider::ProviderError;
 
 use core::fmt::Display;
 
+use std::collections::HashMap;
+
 use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt};
 use reth_prune_types::PruneModes;
 use revm_primitives::db::Database;
+use revm_primitives::EvmState;
+use tokio::sync::mpsc::UnboundedSender;
 
 /// A general purpose executor trait that executes an input (e.g. block) and produces an output
 /// (e.g. state changes and receipts).
@@ -125,7 +129,11 @@ pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     /// Creates a new executor for single block execution.
     ///
     /// This is used to execute a single block and get the changed state.
-    fn executor<DB>(&self, db: DB) -> Self::Executor<DB>
+    fn executor<DB>(
+        &self,
+        db: DB,
+        prefetch_rx: Option<UnboundedSender<EvmState>>,
+    ) -> Self::Executor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>;
 
@@ -153,7 +161,11 @@ mod tests {
         type Executor<DB: Database<Error: Into<ProviderError> + Display>> = TestExecutor<DB>;
         type BatchExecutor<DB: Database<Error: Into<ProviderError> + Display>> = TestExecutor<DB>;
 
-        fn executor<DB>(&self, _db: DB) -> Self::Executor<DB>
+        fn executor<DB>(
+            &self,
+            _db: DB,
+            _prefetch_tx: Option<UnboundedSender<EvmState>>,
+        ) -> Self::Executor<DB>
         where
             DB: Database<Error: Into<ProviderError> + Display>,
         {
@@ -210,7 +222,7 @@ mod tests {
     fn test_provider() {
         let provider = TestExecutorProvider;
         let db = CacheDB::<EmptyDBTyped<ProviderError>>::default();
-        let executor = provider.executor(db);
+        let executor = provider.executor(db, None);
         let block = Block {
             header: Default::default(),
             body: vec![],

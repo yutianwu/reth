@@ -1750,7 +1750,8 @@ where
             return Err(e.into())
         }
 
-        let executor = self.executor_provider.executor(StateProviderDatabase::new(&state_provider));
+        let executor =
+            self.executor_provider.executor(StateProviderDatabase::new(&state_provider), None);
 
         let block_number = block.number;
         let block_hash = block.hash();
