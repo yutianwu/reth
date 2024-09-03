@@ -18,7 +18,8 @@ use reth_ethereum_forks::{
     ForkFilter, ForkFilterKey, ForkHash, ForkId, Hardfork, Head, DEV_HARDFORKS,
 };
 use reth_network_peers::{
-    base_nodes, base_testnet_nodes, holesky_nodes, mainnet_nodes, op_nodes, op_testnet_nodes,
+    base_nodes, base_testnet_nodes, bsc_mainnet_nodes, bsc_testnet_nodes, holesky_nodes,
+    mainnet_nodes, op_nodes, op_testnet_nodes, opbnb_mainnet_nodes, opbnb_testnet_nodes,
     sepolia_nodes, NodeRecord,
 };
 use reth_primitives_traits::{
@@ -607,13 +608,9 @@ impl ChainSpec {
             C::Optimism => Some(op_nodes()),
             C::BaseGoerli | C::BaseSepolia => Some(base_testnet_nodes()),
             C::OptimismSepolia | C::OptimismGoerli | C::OptimismKovan => Some(op_testnet_nodes()),
-            #[cfg(feature = "bsc")]
             C::BNBSmartChain => Some(bsc_mainnet_nodes()),
-            #[cfg(feature = "bsc")]
             C::BNBSmartChainTestnet => Some(bsc_testnet_nodes()),
-            #[cfg(all(feature = "optimism", feature = "opbnb"))]
             C::OpBNBTestnet => Some(opbnb_testnet_nodes()),
-            #[cfg(all(feature = "optimism", feature = "opbnb"))]
             C::OpBNBMainnet => Some(opbnb_mainnet_nodes()),
             _ => None,
         }

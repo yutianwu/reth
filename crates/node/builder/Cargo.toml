@@ -55,9 +55,6 @@ reth-engine-service.workspace = true
 reth-tokio-util.workspace = true
 reth-engine-tree.workspace = true
 
-reth-bsc-consensus = { workspace = true, optional = true }
-reth-bsc-engine = { workspace = true, optional = true }
-
 ## ethereum
 alloy-network.workspace = true
 
@@ -84,8 +81,12 @@ eyre.workspace = true
 fdlimit.workspace = true
 rayon.workspace = true
 
-# tracing
+## tracing
 tracing.workspace = true
+
+## bsc
+reth-bsc-consensus = { workspace = true, optional = true }
+reth-bsc-engine = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

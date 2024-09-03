@@ -5,7 +5,7 @@ use alloc::sync::Arc;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-use alloy_chains::{Chain, NamedChain};
+use alloy_chains::Chain;
 use alloy_primitives::{b256, U256};
 use once_cell::sync::Lazy;
 use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec};

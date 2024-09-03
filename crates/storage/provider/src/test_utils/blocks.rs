@@ -6,9 +6,8 @@ use reth_db::tables;
 use reth_db_api::{database::Database, models::StoredBlockBodyIndices};
 use reth_primitives::{
     alloy_primitives, b256, hex_literal::hex, Account, Address, BlobSidecars, BlockNumber, Bytes,
-    Header, Receipt, Requests, SealedBlock, SealedBlockWithSenders, SealedHeader, Signature, Transaction,
-    TransactionSigned, TxKind, TxLegacy, TxType, Withdrawal,
-    Withdrawals, B256, U256,
+    Header, Receipt, Requests, SealedBlock, SealedBlockWithSenders, SealedHeader, Signature,
+    Transaction, TransactionSigned, TxKind, TxLegacy, TxType, Withdrawal, Withdrawals, B256, U256,
 };
 use reth_trie::root::{state_root_unhashed, storage_root_unhashed};
 use revm::{

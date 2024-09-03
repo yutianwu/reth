@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::Arc};
+
 use alloy_rlp::{Decodable, Encodable};
 use async_trait::async_trait;
 use cfg_if::cfg_if;
@@ -5,6 +7,8 @@ use jsonrpsee::core::RpcResult;
 #[cfg(feature = "bsc")]
 use reth_chainspec::BscHardforks;
 use reth_chainspec::{ChainSpec, EthereumHardforks};
+#[cfg(feature = "bsc")]
+use reth_errors::RethError;
 use reth_evm::{
     system_calls::{pre_block_beacon_root_contract_call, pre_block_blockhashes_contract_call},
     ConfigureEvmEnv,
@@ -48,8 +52,7 @@ use revm::{
 use revm_inspectors::tracing::{
     FourByteInspector, MuxInspector, TracingInspector, TracingInspectorConfig, TransactionContext,
 };
-use revm_primitives::{keccak256, HashMap};
-use std::sync::Arc;
+use revm_primitives::keccak256;
 use tokio::sync::{AcquireError, OwnedSemaphorePermit};
 
 /// `debug` API implementation.
@@ -137,7 +140,9 @@ where
                     .expect("get upgrade system contracts failed");
 
                     for (k, v) in contracts {
-                        let account = db.load_account(k)?;
+                        let account = db.load_account(k).map_err(|error| {
+                            EthApiError::Internal(RethError::Other("load account failed".into()))
+                        })?;
                         if account.account_state == NotExisting {
                             account.account_state = Touched;
                         }
@@ -180,7 +185,11 @@ where
                             .expect("get upgrade system contracts failed");
 
                             for (k, v) in contracts {
-                                let account = db.load_account(k)?;
+                                let account = db.load_account(k).map_err(|error| {
+                                    EthApiError::Internal(RethError::Other(
+                                        "load account failed".into(),
+                                    ))
+                                })?;
                                 if account.account_state == NotExisting {
                                     account.account_state = Touched;
                                 }

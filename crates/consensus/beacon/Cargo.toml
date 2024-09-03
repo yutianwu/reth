@@ -78,7 +78,6 @@ optimism = [
     "reth-provider/optimism",
     "reth-blockchain-tree/optimism",
 ]
-
 bsc = [
     "reth-bsc-consensus/bsc"
 ]

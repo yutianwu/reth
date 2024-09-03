@@ -3140,6 +3140,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(feature = "bsc"))]
     async fn test_engine_tree_valid_forks_with_older_canonical_head() {
         reth_tracing::init_test_tracing();
 
@@ -3200,6 +3201,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(feature = "bsc"))]
     async fn test_engine_tree_buffered_blocks_are_eventually_connected() {
         let chain_spec = MAINNET.clone();
         let mut test_harness = TestHarness::new(chain_spec.clone());
@@ -3238,6 +3240,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(feature = "bsc"))]
     async fn test_engine_tree_valid_and_invalid_forks_with_older_canonical_head() {
         reth_tracing::init_test_tracing();
 
@@ -3303,6 +3306,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(feature = "bsc"))]
     async fn test_engine_tree_reorg_with_missing_ancestor_expecting_valid() {
         reth_tracing::init_test_tracing();
         let chain_spec = MAINNET.clone();

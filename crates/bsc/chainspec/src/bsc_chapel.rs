@@ -9,22 +9,22 @@ use alloy_chains::{Chain, NamedChain};
 use alloy_primitives::{b256, U256};
 use once_cell::sync::Lazy;
 use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec};
-use reth_ethereum_forks::{BscHardfork};
+use reth_ethereum_forks::BscHardfork;
 
 use crate::BscChainSpec;
 
 /// The BSC mainnet spec
-pub static BSC_MAINNET: Lazy<Arc<BscChainSpec>> = Lazy::new(|| {
+pub static BSC_CHAPEL: Lazy<Arc<BscChainSpec>> = Lazy::new(|| {
     BscChainSpec {
-        inner:     ChainSpec {
-            chain: Chain::from_named(NamedChain::BNBSmartChain),
-            genesis: serde_json::from_str(include_str!("../res/genesis/bsc.json"))
-                .expect("Can't deserialize BSC Mainnet genesis json"),
+        inner: ChainSpec {
+            chain: Chain::from_named(NamedChain::BNBSmartChainTestnet),
+            genesis: serde_json::from_str(include_str!("../res/genesis/bsc_rialto.json"))
+                .expect("Can't deserialize BSC Testnet genesis json"),
             genesis_hash: Some(b256!(
-            "0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"
-        )),
+                "6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34"
+            )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
-            hardforks: BscHardfork::bsc_mainnet(),
+            hardforks: BscHardfork::bsc_testnet(),
             deposit_contract: None,
             base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
             prune_delete_limit: 3500,

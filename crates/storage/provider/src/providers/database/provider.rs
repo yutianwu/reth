@@ -7,13 +7,14 @@ use crate::{
     },
     writer::UnifiedStorageWriter,
     AccountReader, BlockExecutionReader, BlockExecutionWriter, BlockHashReader, BlockNumReader,
-    BlockReader, BlockWriter, BundleStateInit, EvmEnvProvider, FinalizedBlockReader,
+    BlockReader, BlockWriter, BundleStateInit, Chain, EvmEnvProvider, FinalizedBlockReader,
     FinalizedBlockWriter, HashingWriter, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider,
     HistoricalStateProvider, HistoryWriter, LatestStateProvider, OriginalValuesKnown,
-    ProviderError, PruneCheckpointReader, PruneCheckpointWriter, RequestsProvider, RevertsInit,
-    StageCheckpointReader, StateChangeWriter, StateProviderBox, StateWriter, StatsReader,
-    StorageReader, StorageTrieWriter, TransactionVariant, TransactionsProvider,
-    TransactionsProviderExt, TrieWriter, WithdrawalsProvider,
+    ParliaSnapshotReader, ProviderError, PruneCheckpointReader, PruneCheckpointWriter,
+    RequestsProvider, RevertsInit, SidecarsProvider, StageCheckpointReader, StateChangeWriter,
+    StateProviderBox, StateWriter, StatsReader, StorageReader, StorageTrieWriter,
+    TransactionVariant, TransactionsProvider, TransactionsProviderExt, TrieWriter,
+    WithdrawalsProvider,
 };
 use itertools::{izip, Itertools};
 use rayon::slice::ParallelSliceMut;
@@ -38,8 +39,8 @@ use reth_execution_types::ExecutionOutcome;
 use reth_network_p2p::headers::downloader::SyncTarget;
 use reth_primitives::{
     keccak256, parlia::Snapshot, Account, Address, BlobSidecars, Block, BlockHash,
-    BlockHashOrNumber, BlockNumber, BlockWithSenders, Bytecode,GotExpected, Header, Receipt, Requests,
-    SealedBlock, SealedBlockWithSenders, SealedHeader, StaticFileSegment, StorageEntry,
+    BlockHashOrNumber, BlockNumber, BlockWithSenders, Bytecode, GotExpected, Header, Receipt,
+    Requests, SealedBlock, SealedBlockWithSenders, SealedHeader, StaticFileSegment, StorageEntry,
     TransactionMeta, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
     TxHash, TxNumber, Withdrawal, Withdrawals, B256, U256,
 };
@@ -525,12 +526,7 @@ impl<TX: DbTx> DatabaseProvider<TX> {
                             .unwrap_or_default()
                     };
 
-                let sidecars =
-                    if self.chain_spec.is_cancun_active_at_timestamp(header_ref.timestamp) {
-                        self.static_file_provider.sidecars(&header_ref.hash_slow())?
-                    } else {
-                        None
-                    };
+                let sidecars = Some(Default::default()); // no need to read sidecars
 
                 if let Ok(b) =
                     assemble_block(header, tx_range, ommers, withdrawals, sidecars, requests)
@@ -2099,7 +2095,7 @@ impl<TX: DbTx> BlockReader for DatabaseProvider<TX> {
             transaction_kind,
             |block_number| self.header_by_number(block_number),
             |header, body, senders, ommers, withdrawals, requests| {
-                Block { header, body, ommers, withdrawals, sidecars: None, requests }
+                Block { header, body, ommers, withdrawals, sidecars: Some(Default::default()), requests }
                     // Note: we're using unchecked here because we know the block contains valid txs
                     // wrt to its height and can ignore the s value check so pre
                     // EIP-2 txs are allowed
@@ -2120,7 +2116,7 @@ impl<TX: DbTx> BlockReader for DatabaseProvider<TX> {
             transaction_kind,
             |block_number| self.sealed_header(block_number),
             |header, body, senders, ommers, withdrawals, requests| {
-                SealedBlock { header, body, ommers, withdrawals, sidecars: None, requests }
+                SealedBlock { header, body, ommers, withdrawals, sidecars: Some(Default::default()), requests }
                     // Note: we're using unchecked here because we know the block contains valid txs
                     // wrt to its height and can ignore the s value check so pre
                     // EIP-2 txs are allowed

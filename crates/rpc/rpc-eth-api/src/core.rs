@@ -13,8 +13,9 @@ use reth_rpc_types::{
     serde_helpers::JsonStorageKey,
     simulate::{SimBlock, SimulatedBlock},
     state::{EvmOverrides, StateOverride},
-    AnyTransactionReceipt, BlockOverrides, BlockTransactions, BlockSidecar, Bundle, EIP1186AccountProofResponse,
-    EthCallResponse, FeeHistory, Header, Index, StateContext, SyncStatus, TransactionRequest, Work,
+    AnyTransactionReceipt, BlockOverrides, BlockSidecar, BlockTransactions, Bundle,
+    EIP1186AccountProofResponse, EthCallResponse, FeeHistory, Header, Index, StateContext,
+    SyncStatus, TransactionRequest, Work,
 };
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use tracing::trace;

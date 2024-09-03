@@ -17,11 +17,14 @@ use reth_beacon_consensus::{
 };
 use reth_blockchain_tree::{noop::NoopBlockchainTree, BlockchainTreeConfig};
 #[cfg(feature = "bsc")]
-use reth_bsc_engine::ParliaEngineBuilder;use reth_chainspec::ChainSpec;
+use reth_bsc_engine::ParliaEngineBuilder;
+use reth_chainspec::ChainSpec;
 use reth_consensus_debug_client::{DebugConsensusClient, EtherscanBlockProvider, RpcBlockProvider};
 use reth_engine_util::EngineMessageStreamExt;
 use reth_exex::ExExManagerHandle;
 use reth_network::{BlockDownloaderProvider, NetworkEventListenerProvider};
+#[cfg(feature = "bsc")]
+use reth_network_api::EngineRxProvider;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeAddOns};
 use reth_node_core::{
     dirs::{ChainPath, DataDirPath},

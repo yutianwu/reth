@@ -10,14 +10,16 @@ use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db_api::models::{AccountBeforeTx, StoredBlockBodyIndices};
 use reth_evm::ConfigureEvmEnv;
 use reth_primitives::{
-    keccak256, Account, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockId, BlockNumber,
-    BlockNumberOrTag, BlockWithSenders, Bytecode, Bytes, Header, Receipt, SealedBlock,
+    keccak256, Account, Address, BlobSidecars, Block, BlockHash, BlockHashOrNumber, BlockId,
+    BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode, Bytes, Header, Receipt, SealedBlock,
     SealedBlockWithSenders, SealedHeader, StorageKey, StorageValue, TransactionMeta,
     TransactionSigned, TransactionSignedNoHash, TxHash, TxNumber, Withdrawal, Withdrawals, B256,
     U256,
 };
-use reth_stages_types::{SidecarsProvider, StageCheckpoint, StageId};
-use reth_storage_api::{StageCheckpointReader, StateProofProvider, StorageRootProvider};
+use reth_stages_types::{StageCheckpoint, StageId};
+use reth_storage_api::{
+    SidecarsProvider, StageCheckpointReader, StateProofProvider, StorageRootProvider,
+};
 use reth_storage_errors::provider::{ProviderError, ProviderResult};
 use reth_trie::{
     prefix_set::TriePrefixSetsMut, updates::TrieUpdates, AccountProof, HashedPostState,

@@ -9,14 +9,16 @@ use reth_primitives::{
 };
 use reth_provider::{BlockReaderIdExt, ReceiptProvider, TransactionsProvider};
 use reth_rpc_eth_types::{
-    utils::recover_raw_transaction, EthApiError, EthStateCache, SignError, TransactionSource,
+    utils::recover_raw_transaction, EthApiError, EthResult, EthStateCache, SignError,
+    TransactionSource,
 };
 use reth_rpc_types::{
     transaction::{
         EIP1559TransactionRequest, EIP2930TransactionRequest, EIP4844TransactionRequest,
         LegacyTransactionRequest,
     },
-    AnyTransactionReceipt, BlockSidecar, TransactionInfo, TransactionRequest, TypedTransactionRequest,
+    AnyTransactionReceipt, BlockSidecar, TransactionInfo, TransactionRequest,
+    TypedTransactionRequest,
 };
 use reth_rpc_types_compat::transaction::from_recovered_with_block_context;
 use reth_transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool};

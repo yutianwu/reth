@@ -1,6 +1,6 @@
 //! Loads and formats OP receipt RPC response.
 
-use reth_chainspec::OptimismHardforks;
+use reth_chainspec::{ChainSpecProvider, OptimismHardforks};
 use reth_node_api::FullNodeComponents;
 use reth_primitives::{Receipt, TransactionMeta, TransactionSigned};
 use reth_rpc_eth_api::{
@@ -39,7 +39,7 @@ where
         let l1_block_info = reth_evm_optimism::extract_l1_info(&block).ok();
         let mut optimism_tx_meta = self.build_op_tx_meta(&tx, l1_block_info, block.timestamp)?;
 
-        if self.inner.chain_spec().is_wright_active_at_timestamp(block.timestamp) &&
+        if self.inner.provider().chain_spec().is_wright_active_at_timestamp(block.timestamp) &&
             tx.effective_gas_price(meta.base_fee) == 0
         {
             optimism_tx_meta.l1_fee = Some(0);

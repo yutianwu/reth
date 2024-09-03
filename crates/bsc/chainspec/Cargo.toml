@@ -1,20 +1,20 @@
 [package]
-name = "reth-optimism-chainspec"
+name = "reth-bsc-chainspec"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "EVM chain spec implementation for optimism."
+description = "EVM chain spec implementation for bsc."
 
 [lints]
 workspace = true
 
 [dependencies]
 # reth
-reth-chainspec = { workspace = true, features = ["optimism"] }
-reth-ethereum-forks = { workspace = true, features = ["optimism"] }
+reth-chainspec = { workspace = true, features = ["bsc"] }
+reth-ethereum-forks = { workspace = true, features = ["bsc"] }
 reth-primitives-traits.workspace = true
 
 # ethereum

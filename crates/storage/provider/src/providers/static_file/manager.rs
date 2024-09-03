@@ -745,7 +745,7 @@ impl StaticFileProvider {
                 writer.append_sidecars(Default::default(), block_number, hash)?;
             }
             writer.commit()?;
-            self.writers.insert(segment, writer);
+            self.writers.set_writer(segment, Some(writer));
 
             return Ok(None)
         }
@@ -1035,10 +1035,12 @@ impl StaticFileProvider {
 
         // If there is, check the maximum block or transaction number of the segment.
         if let Some(static_file_upper_bound) = match segment {
-            StaticFileSegment::Headers => self.get_highest_static_file_block(segment),
-            StaticFileSegment::Transactions |
-            StaticFileSegment::Receipts |
-            StaticFileSegment::Sidecars => self.get_highest_static_file_tx(segment),
+            StaticFileSegment::Headers | StaticFileSegment::Sidecars => {
+                self.get_highest_static_file_block(segment)
+            }
+            StaticFileSegment::Transactions | StaticFileSegment::Receipts => {
+                self.get_highest_static_file_tx(segment)
+            }
         } {
             if block_or_tx_range.start <= static_file_upper_bound {
                 let end = block_or_tx_range.end.min(static_file_upper_bound + 1);

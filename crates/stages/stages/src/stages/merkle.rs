@@ -519,8 +519,10 @@ mod tests {
                 random_block(
                     &mut rng,
                     stage_progress,
-                    BlockParams { parent:preblocks.last().map(|b| b.hash()),
-                    ..Default::default() },
+                    BlockParams {
+                        parent: preblocks.last().map(|b| b.hash()),
+                        ..Default::default()
+                    },
                 );
             let mut header = header.unseal();
 

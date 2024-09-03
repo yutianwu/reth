@@ -1,4 +1,4 @@
-//! Chain specification for the OpBNB Mainnet network.
+//! Chain specification for the Opbnb Mainnet network.
 
 #[cfg(not(feature = "std"))]
 use alloc::sync::Arc;
@@ -13,18 +13,18 @@ use reth_ethereum_forks::{EthereumHardfork, OptimismHardfork};
 
 use crate::OpChainSpec;
 
-/// The OpBNB mainnet spec
-pub static OPBNB_MAINNET: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
+/// The opbnb testnet spec
+pub static OPBNB_TESTNET: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
     OpChainSpec {
         inner: ChainSpec {
-            chain: Chain::opbnb_mainnet(),
-            genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_mainnet.json"))
-                .expect("Can't deserialize opBNB mainent genesis json"),
+            chain: Chain::opbnb_testnet(),
+            genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_testnet.json"))
+                .expect("Can't deserialize opBNB testnet genesis json"),
             genesis_hash: Some(b256!(
-                "4dd61178c8b0f01670c231597e7bcb368e84545acd46d940a896d6a791dd6df4"
+                "51fa57729dfb1c27542c21b06cb72a0459c57440ceb43a465dae1307cd04fe80"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
-            hardforks: OptimismHardfork::opbnb_mainnet(),
+            hardforks: OptimismHardfork::opbnb_testnet(),
             base_fee_params: BaseFeeParamsKind::Variable(
                 vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
             ),

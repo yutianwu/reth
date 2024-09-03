@@ -2,9 +2,8 @@
 
 use crate::{
     AccountReader, BlockReaderIdExt, ChainSpecProvider, ChangeSetReader, DatabaseProviderFactory,
-    EvmEnvProvider, HeaderProvider, ParliaSnapshotReader,
-    StageCheckpointReader, StateProviderFactory,
-    StaticFileProviderFactory, TransactionsProvider,
+    EvmEnvProvider, HeaderProvider, ParliaSnapshotReader, StageCheckpointReader,
+    StateProviderFactory, StaticFileProviderFactory, TransactionsProvider,
 };
 use reth_chain_state::{CanonStateSubscriptions, ForkChoiceSubscriptions};
 use reth_chainspec::{ChainSpec, EthChainSpec};

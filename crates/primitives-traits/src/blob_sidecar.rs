@@ -6,15 +6,13 @@ use alloy_rlp::{Decodable, Encodable, RlpDecodableWrapper, RlpEncodableWrapper};
 use bytes::{Buf, BufMut};
 use core::mem;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
-use reth_codecs::{derive_arbitrary, reth_codec, Compact};
+use reth_codecs::Compact;
 use revm_primitives::U256;
 use serde::{Deserialize, Serialize};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-#[reth_codec(no_arbitrary)]
-#[derive_arbitrary]
 #[derive(
     Debug,
     Clone,
@@ -29,7 +27,9 @@ use alloc::vec::Vec;
     RlpDecodableWrapper,
     Serialize,
     Deserialize,
+    Compact,
 )]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 pub struct BlobSidecars(Vec<BlobSidecar>);
 
 impl BlobSidecars {
@@ -51,8 +51,8 @@ impl BlobSidecars {
     }
 }
 
-#[derive_arbitrary]
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 pub struct BlobSidecar {
     pub blob_transaction_sidecar: BlobTransactionSidecar,
     pub block_number: U256,

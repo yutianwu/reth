@@ -1,34 +1,33 @@
-//! Chain specification for the OpBNB Mainnet network.
+//! Chain specification for the BSC Mainnet network.
 
 #[cfg(not(feature = "std"))]
 use alloc::sync::Arc;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-use alloy_chains::Chain;
+use alloy_chains::{Chain, NamedChain};
 use alloy_primitives::{b256, U256};
 use once_cell::sync::Lazy;
 use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec};
-use reth_ethereum_forks::{EthereumHardfork, OptimismHardfork};
+use reth_ethereum_forks::BscHardfork;
 
-use crate::OpChainSpec;
+use crate::BscChainSpec;
 
-/// The OpBNB mainnet spec
-pub static OPBNB_MAINNET: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
-    OpChainSpec {
+/// The BSC mainnet spec
+pub static BSC_MAINNET: Lazy<Arc<BscChainSpec>> = Lazy::new(|| {
+    BscChainSpec {
         inner: ChainSpec {
-            chain: Chain::opbnb_mainnet(),
-            genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_mainnet.json"))
-                .expect("Can't deserialize opBNB mainent genesis json"),
+            chain: Chain::from_named(NamedChain::BNBSmartChain),
+            genesis: serde_json::from_str(include_str!("../res/genesis/bsc.json"))
+                .expect("Can't deserialize BSC Mainnet genesis json"),
             genesis_hash: Some(b256!(
-                "4dd61178c8b0f01670c231597e7bcb368e84545acd46d940a896d6a791dd6df4"
+                "0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
-            hardforks: OptimismHardfork::opbnb_mainnet(),
-            base_fee_params: BaseFeeParamsKind::Variable(
-                vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
-            ),
-            prune_delete_limit: 0,
+            hardforks: BscHardfork::bsc_mainnet(),
+            deposit_contract: None,
+            base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
+            prune_delete_limit: 3500,
             ..Default::default()
         },
     }

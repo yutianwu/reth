@@ -13,7 +13,7 @@ use reth_consensus::Consensus;
 use reth_db::{tables, DatabaseEnv};
 use reth_db_api::{cursor::DbCursorRO, transaction::DbTx};
 use reth_evm::execute::{BatchExecutor, BlockExecutorProvider};
-use reth_network::{BlockDownloaderProvider, NetworkHandle};
+use reth_network::NetworkHandle;
 use reth_network_api::NetworkInfo;
 use reth_network_p2p::full_block::FullBlockClient;
 use reth_primitives::BlockHashOrNumber;

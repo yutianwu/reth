@@ -3,12 +3,16 @@
 use std::{path::PathBuf, sync::Arc};
 
 use alloy_genesis::Genesis;
+#[cfg(feature = "bsc")]
+use reth_bsc_chainspec::{BSC_CHAPEL, BSC_DEV, BSC_MAINNET, BSC_RIALTO};
 use reth_chainspec::ChainSpec;
-#[cfg(not(feature = "optimism"))]
+#[cfg(all(not(feature = "optimism"), not(feature = "bsc")))]
 use reth_chainspec::{DEV, HOLESKY, MAINNET, SEPOLIA};
 use reth_fs_util as fs;
 #[cfg(feature = "optimism")]
 use reth_optimism_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_DEV, OP_MAINNET, OP_SEPOLIA};
+#[cfg(all(feature = "optimism", feature = "opbnb"))]
+use reth_optimism_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 
 #[cfg(feature = "bsc")]
 /// Chains supported by bsc. First value should be used as the default.
@@ -16,7 +20,7 @@ pub const SUPPORTED_CHAINS: &[&str] = &["bsc", "bsc-testnet"];
 #[cfg(feature = "optimism")]
 /// Chains supported by op-reth. First value should be used as the default.
 pub const SUPPORTED_CHAINS: &[&str] =
-    &["optimism", "optimism-sepolia", "base", "base-sepolia", "dev"];
+    &["optimism", "optimism-sepolia", "base", "base-sepolia", "opbnb-mainnet", "opbnb-testnet", "dev"];
 #[cfg(all(not(feature = "optimism"), not(feature = "bsc")))]
 /// Chains supported by reth. First value should be used as the default.
 pub const SUPPORTED_CHAINS: &[&str] = &["mainnet", "sepolia", "holesky", "dev"];
@@ -30,7 +34,7 @@ pub fn chain_help() -> String {
 ///
 /// The value parser matches either a known chain, the path
 /// to a json file, or a json formatted string in-memory. The json needs to be a Genesis struct.
-#[cfg(not(feature = "optimism"))]
+#[cfg(all(not(feature = "optimism"), not(feature = "bsc")))]
 pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> {
     Ok(match s {
         "mainnet" => MAINNET.clone(),
@@ -53,18 +57,27 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> 
         "base" => BASE_MAINNET.inner.clone(),
         "base_sepolia" | "base-sepolia" => BASE_SEPOLIA.inner.clone(),
         "dev" => OP_DEV.inner.clone(),
-        #[cfg(all(feature = "optimism", feature = "opbnb"))]
-        "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.clone(),
-        #[cfg(all(feature = "optimism", feature = "opbnb"))]
-        "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.clone(),
-        #[cfg(all(feature = "optimism", feature = "opbnb"))]
-        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.clone(),
-        #[cfg(feature = "bsc")]
-        "bsc" | "bsc-mainnet" => BSC_MAINNET.clone(),
-        #[cfg(feature = "bsc")]
-        "bsc-testnet" => BSC_TESTNET.clone(),
-        #[cfg(feature = "bsc")]
-        "bsc-rialto" => BSC_RIALTO.clone(),
+        #[cfg(feature = "opbnb")]
+        "opbnb_mainnet" | "opbnb-mainnet" => OPBNB_MAINNET.inner.clone(),
+        #[cfg(feature = "opbnb")]
+        "opbnb_testnet" | "opbnb-testnet" => OPBNB_TESTNET.inner.clone(),
+        #[cfg(feature = "opbnb")]
+        "opbnb_qa" | "opbnb-qa" => OPBNB_QA.inner.clone(),
+        _ => parse_custom_chain_spec(s)?,
+    }))
+}
+
+/// Clap value parser for [`BscChainSpec`](reth_bsc_chainspec::BscChainSpec)s.
+///
+/// The value parser matches either a known chain, the path
+/// to a json file, or a json formatted string in-memory. The json needs to be a Genesis struct.
+#[cfg(feature = "bsc")]
+pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<ChainSpec>, eyre::Error> {
+    Ok(Arc::new(match s {
+        "bsc" | "bsc-mainnet" | "bsc_mainnet" => BSC_MAINNET.inner.clone(),
+        "bsc-testnet" | "bsc-chapel" | "bsc_testnet" | "bsc_chapel" => BSC_CHAPEL.inner.clone(),
+        "bsc-rialto" | "bsc-qa" | "bsc_rialto" | "bsc_qa" => BSC_RIALTO.inner.clone(),
+        "dev" => BSC_DEV.inner.clone(),
         _ => parse_custom_chain_spec(s)?,
     }))
 }

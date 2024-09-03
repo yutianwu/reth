@@ -146,7 +146,7 @@ where
     EvmConfig: ConfigureEvm,
 {
     // Return immediately if beaconRoot equals the zero hash when using the Parlia engine.
-    if chain_spec.is_bohr_active_at_timestamp(block_timestamp) &&
+    if chain_spec.is_bohr_active_at_timestamp(initialized_block_env.timestamp.to()) &&
         parent_beacon_block_root == Some(B256::ZERO)
     {
         return Ok(())

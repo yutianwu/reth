@@ -15,7 +15,7 @@ use reth_consensus::Consensus;
 use reth_db::DatabaseEnv;
 use reth_engine_util::engine_store::{EngineMessageStore, StoredEngineApiMessage};
 use reth_fs_util as fs;
-use reth_network::{BlockDownloaderProvider, NetworkHandle};
+use reth_network::NetworkHandle;
 use reth_network_api::NetworkInfo;
 use reth_payload_builder::{PayloadBuilderHandle, PayloadBuilderService};
 use reth_provider::{

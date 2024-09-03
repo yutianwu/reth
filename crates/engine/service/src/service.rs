@@ -179,8 +179,15 @@ mod tests {
                 .unwrap();
 
         let (_tx, rx) = watch::channel(FinishedExExHeight::NoExExs);
-        let pruner =
-            Pruner::<_, ProviderFactory<_>>::new(provider_factory.clone(), vec![], 0, 0, None, rx);
+        let pruner = Pruner::<_, ProviderFactory<_>>::new(
+            provider_factory.clone(),
+            vec![],
+            0,
+            0,
+            None,
+            rx,
+            0,
+        );
 
         let (tx, _rx) = unbounded_channel();
         let _eth_service = EngineService::new(

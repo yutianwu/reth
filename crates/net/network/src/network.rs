@@ -11,8 +11,9 @@ use parking_lot::Mutex;
 use reth_discv4::Discv4;
 use reth_eth_wire::{DisconnectReason, NewBlock, NewPooledTransactionHashes, SharedTransactions};
 use reth_network_api::{
+    events::EngineMessage,
     test_utils::{PeersHandle, PeersHandleProvider},
-    BlockDownloaderProvider, DiscoveryEvent, NetworkError, NetworkEvent,
+    BlockDownloaderProvider, DiscoveryEvent, EngineRxProvider, NetworkError, NetworkEvent,
     NetworkEventListenerProvider, NetworkInfo, NetworkStatus, PeerInfo, PeerRequest, Peers,
     PeersInfo,
 };
@@ -90,13 +91,6 @@ impl NetworkHandle {
 
     fn manager(&self) -> &UnboundedSender<NetworkHandleMessage> {
         &self.inner.to_manager_tx
-    }
-
-    /// Returns a sharable [`UnboundedReceiver<EngineMessage>`] that can be cloned and shared.
-    ///
-    /// The Engine message is used to communicate between the network and the `EngineTask`.
-    pub fn get_to_engine_rx(&self) -> Arc<tokio::sync::Mutex<UnboundedReceiver<EngineMessage>>> {
-        self.inner.engine_rx.clone()
     }
 
     /// Returns a new [`FetchClient`] that can be cloned and shared.
@@ -411,6 +405,12 @@ impl BlockDownloaderProvider for NetworkHandle {
         let (tx, rx) = oneshot::channel();
         let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx));
         rx.await
+    }
+}
+
+impl EngineRxProvider for NetworkHandle {
+    fn get_to_engine_rx(&self) -> Arc<tokio::sync::Mutex<UnboundedReceiver<EngineMessage>>> {
+        self.inner.engine_rx.clone()
     }
 }
 

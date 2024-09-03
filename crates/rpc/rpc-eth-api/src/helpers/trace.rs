@@ -1,5 +1,6 @@
 //! Loads a pending block from database. Helper trait for `eth_` call and trace RPC methods.
 
+use super::{Call, LoadBlock, LoadPendingBlock, LoadState, LoadTransaction};
 use cfg_if::cfg_if;
 use futures::Future;
 use reth_evm::{ConfigureEvm, ConfigureEvmEnv};
@@ -16,9 +17,9 @@ use revm::{db::CacheDB, Database, DatabaseCommit, GetInspector, Inspector};
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use revm_primitives::{EnvWithHandlerCfg, EvmState, ExecutionResult, ResultAndState};
 
+#[cfg(feature = "bsc")]
+use crate::FromEthApiError;
 use crate::FromEvmError;
-
-use super::{Call, LoadBlock, LoadPendingBlock, LoadState, LoadTransaction};
 
 /// Executes CPU heavy tasks.
 pub trait Trace: LoadState {
@@ -196,7 +197,8 @@ pub trait Trace: LoadState {
 
             cfg_if! {
                 if #[cfg(feature = "bsc")] {
-                    let parent_timestamp = LoadState::cache(self).get_block(parent_block).await?
+                    let parent_timestamp = LoadState::cache(self).get_block(parent_block).await
+                        .map_err(Self::Error::from_eth_err)?
                         .map(|block| block.timestamp)
                         .ok_or_else(|| EthApiError::UnknownParentBlock)?;
                 } else {

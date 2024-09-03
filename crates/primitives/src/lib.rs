@@ -120,7 +120,7 @@ mod optimism {
     pub use crate::transaction::{TxDeposit, DEPOSIT_TX_TYPE_ID};
     pub use reth_optimism_chainspec::{BASE_MAINNET, BASE_SEPOLIA, OP_MAINNET, OP_SEPOLIA};
     #[cfg(feature = "opbnb")]
-    pub use reth_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
+    pub use reth_optimism_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 }
 
 #[cfg(feature = "optimism")]
@@ -129,7 +129,7 @@ pub use optimism::*;
 /// Bsc specific re-exports
 #[cfg(feature = "bsc")]
 mod bsc {
-    pub use reth_chainspec::{BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
+    pub use reth_bsc_chainspec::{BSC_CHAPEL, BSC_MAINNET, BSC_RIALTO};
 }
 
 #[cfg(feature = "bsc")]

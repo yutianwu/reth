@@ -172,7 +172,7 @@ impl ActiveSession {
         }
 
         match msg {
-            message @ EthMessage::Status(_) | message @ EthMessage::UpgradeStatus(_) => {
+            message @ (EthMessage::Status(_) | EthMessage::UpgradeStatus(_)) => {
                 OnIncomingMessageOutcome::BadMessage {
                     error: EthStreamError::EthHandshakeError(
                         EthHandshakeError::StatusNotInHandshake,

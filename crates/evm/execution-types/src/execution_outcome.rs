@@ -53,7 +53,6 @@ pub struct ExecutionOutcome {
     /// guaranteed to be the same as the number of transactions.
     pub requests: Vec<Requests>,
 
-    // TODO: feature?
     /// Parlia snapshots.
     pub snapshots: Vec<Snapshot>,
 }
@@ -381,6 +380,7 @@ impl From<(BlockExecutionOutput<Receipt>, BlockNumber)> for ExecutionOutcome {
             receipts: Receipts::from(value.0.receipts),
             first_block: value.1,
             requests: vec![Requests::from(value.0.requests)],
+            snapshots: vec![value.0.snapshot.unwrap_or_default()],
         }
     }
 }
@@ -915,6 +915,7 @@ mod tests {
             receipts: Receipts::default(),
             first_block: 0,
             requests: vec![],
+            snapshots: vec![],
         };
 
         // Get the changed accounts

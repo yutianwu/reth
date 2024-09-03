@@ -1,4 +1,4 @@
-//! Chain specification for the Base Mainnet network.
+//! Chain specification for the Opbnb Mainnet network.
 
 #[cfg(not(feature = "std"))]
 use alloc::sync::Arc;
@@ -13,27 +13,22 @@ use reth_ethereum_forks::{EthereumHardfork, OptimismHardfork};
 
 use crate::OpChainSpec;
 
-/// The Base mainnet spec
-pub static BASE_MAINNET: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
+/// The opbnb mainnet spec
+pub static OPBNB_MAINNET: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
     OpChainSpec {
         inner: ChainSpec {
-            chain: Chain::base_mainnet(),
-            genesis: serde_json::from_str(include_str!("../res/genesis/base.json"))
-                .expect("Can't deserialize Base genesis json"),
+            chain: Chain::opbnb_mainnet(),
+            genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_mainnet.json"))
+                .expect("Can't deserialize opBNB mainent genesis json"),
             genesis_hash: Some(b256!(
-                "f712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd"
+                "4dd61178c8b0f01670c231597e7bcb368e84545acd46d940a896d6a791dd6df4"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
-            hardforks: OptimismHardfork::base_mainnet(),
+            hardforks: OptimismHardfork::opbnb_mainnet(),
             base_fee_params: BaseFeeParamsKind::Variable(
-                vec![
-                    (EthereumHardfork::London.boxed(), BaseFeeParams::optimism()),
-                    (OptimismHardfork::Canyon.boxed(), BaseFeeParams::optimism_canyon()),
-                ]
-                .into(),
+                vec![(EthereumHardfork::London.boxed(), BaseFeeParams::ethereum())].into(),
             ),
-            max_gas_limit: crate::constants::BASE_MAINNET_MAX_GAS_LIMIT,
-            prune_delete_limit: 10000,
+            prune_delete_limit: 0,
             ..Default::default()
         },
     }

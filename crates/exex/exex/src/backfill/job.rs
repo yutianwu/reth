@@ -107,11 +107,12 @@ where
                 body: block.body,
                 ommers: block.ommers,
                 withdrawals: block.withdrawals,
+                sidecars: block.sidecars,
                 requests: block.requests,
             }
             .with_senders_unchecked(senders);
 
-            executor.execute_and_verify_one((&block, td).into())?;
+            executor.execute_and_verify_one((&block, td, None).into())?;
             execution_duration += execute_start.elapsed();
 
             // TODO(alexey): report gas metrics using `block.header.gas_used`

@@ -215,7 +215,7 @@ pub trait EthBlocks: LoadBlock {
     fn rpc_block_sidecars(
         &self,
         block_id: BlockId,
-    ) -> impl Future<Output = EthResult<Option<Vec<BlockSidecar>>>> + Send
+    ) -> impl Future<Output = Result<Option<Vec<BlockSidecar>>, Self::Error>> + Send
     where
         Self: LoadPendingBlock + SpawnBlocking,
     {
@@ -224,12 +224,14 @@ pub trait EthBlocks: LoadBlock {
                 return Ok(None);
             }
 
-            let sidecars =
-                if let Some(block_hash) = LoadBlock::provider(self).block_hash_for_id(block_id)? {
-                    self.cache().get_sidecars(block_hash).await?
-                } else {
-                    None
-                };
+            let sidecars = if let Some(block_hash) = LoadBlock::provider(self)
+                .block_hash_for_id(block_id)
+                .map_err(Self::Error::from_eth_err)?
+            {
+                self.cache().get_sidecars(block_hash).await.map_err(Self::Error::from_eth_err)?
+            } else {
+                None
+            };
 
             Ok(sidecars.map(|sidecars| {
                 sidecars

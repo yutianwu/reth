@@ -7,7 +7,7 @@ pub use reth_storage_errors::provider::ProviderError;
 
 use core::fmt::Display;
 
-use reth_primitives::{BlockNumber, BlockWithSenders, Receipt};
+use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt};
 use reth_prune_types::PruneModes;
 use revm_primitives::db::Database;
 
