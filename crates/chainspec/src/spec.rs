@@ -341,7 +341,7 @@ pub static OPBNB_TESTNET: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
 #[cfg(all(feature = "optimism", feature = "opbnb"))]
 pub static OPBNB_QA: Lazy<Arc<ChainSpec>> = Lazy::new(|| {
     ChainSpec {
-        chain: Chain::from_id(4530),
+        chain: Chain::from_id(3534),
         genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
             .expect("Can't deserialize opBNB qa genesis json"),
         genesis_hash: Some(b256!(
