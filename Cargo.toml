@@ -554,10 +554,10 @@ test-fuzz = "5"
 iai-callgrind = "0.11"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm", rev = "5647ca79aacb6c479030ba256ceec55095a0fc2f" }
-revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "5647ca79aacb6c479030ba256ceec55095a0fc2f" }
-revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "5647ca79aacb6c479030ba256ceec55095a0fc2f" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "5647ca79aacb6c479030ba256ceec55095a0fc2f" }
+revm = { git = "https://github.com/bnb-chain/revm", rev = "e4db8dab99387b6c21f18cedf0e14ab6a8c10774" }
+revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "e4db8dab99387b6c21f18cedf0e14ab6a8c10774" }
+revm-precompile = { git = "https://github.com/bnb-chain/revm", rev = "e4db8dab99387b6c21f18cedf0e14ab6a8c10774" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "e4db8dab99387b6c21f18cedf0e14ab6a8c10774" }
 alloy-chains = { git = "https://github.com/bnb-chain/alloy-chains-rs.git", tag = "v1.0.0" }
 alloy-rpc-types-eth = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
 alloy-consensus = { git = "https://github.com/bnb-chain/alloy", tag = "v1.0.0" }
