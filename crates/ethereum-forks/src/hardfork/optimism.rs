@@ -456,6 +456,7 @@ impl OptimismHardfork {
             (Self::Ecotone.boxed(), ForkCondition::Timestamp(1718871600)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718872200)),
             (Self::Wright.boxed(), ForkCondition::Timestamp(1724738400)),
+            (Self::Fjord.boxed(), ForkCondition::Timestamp(1727157600)),
         ])
     }
 
@@ -489,6 +490,7 @@ impl OptimismHardfork {
             (Self::Ecotone.boxed(), ForkCondition::Timestamp(1715754600)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1717048800)),
             (Self::Wright.boxed(), ForkCondition::Timestamp(1723701600)),
+            (Self::Fjord.boxed(), ForkCondition::Timestamp(1725948000)),
         ])
     }
 
@@ -519,7 +521,9 @@ impl OptimismHardfork {
             (Self::Canyon.boxed(), ForkCondition::Timestamp(0)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(0)),
             (Self::Ecotone.boxed(), ForkCondition::Timestamp(0)),
+            (Self::Haber.boxed(), ForkCondition::Timestamp(0)),
             (Self::Wright.boxed(), ForkCondition::Timestamp(0)),
+            (Self::Fjord.boxed(), ForkCondition::Timestamp(0)),
         ])
     }
 }
