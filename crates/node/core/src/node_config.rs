@@ -145,6 +145,9 @@ pub struct NodeConfig {
 
     /// All pruning related arguments
     pub pruning: PruningArgs,
+
+    /// Enable prefetch when executing blocks.
+    pub enable_prefetch: bool,
 }
 
 impl NodeConfig {
@@ -436,6 +439,7 @@ impl Default for NodeConfig {
             dev: DevArgs::default(),
             pruning: PruningArgs::default(),
             datadir: DatadirArgs::default(),
+            enable_prefetch: false,
         }
     }
 }

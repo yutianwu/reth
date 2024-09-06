@@ -1,5 +1,14 @@
 # Changelog
 
+## V1.0.4
+
+This release is for opBNB testnet and mainnet Fjord upgrade.
+
+### FEATURES
+
+* [\#56](https://github.com/bnb-chain/reth/pull/56) feat: add trie prefetch when executing blocks
+* [\#130](https://github.com/bnb-chain/reth/pull/130) feat: add Fjord upgrade time for opBNB
+
 ## V1.0.3
 This is a bugfix version.
 

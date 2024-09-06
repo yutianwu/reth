@@ -72,6 +72,8 @@ pub struct BlockchainTree<DB, E> {
     sync_metrics_tx: Option<MetricEventsSender>,
     /// Metrics for the blockchain tree.
     metrics: TreeMetrics,
+    /// Whether to enable prefetch when execute block
+    enable_prefetch: bool,
 }
 
 impl<DB, E> BlockchainTree<DB, E> {
@@ -90,7 +92,7 @@ impl<DB, E> BlockchainTree<DB, E> {
 
 impl<DB, E> BlockchainTree<DB, E>
 where
-    DB: Database + Clone,
+    DB: Database + Clone + 'static,
     E: BlockExecutorProvider,
 {
     /// Builds the blockchain tree for the node.
@@ -143,6 +145,7 @@ where
             canon_state_notification_sender,
             sync_metrics_tx: None,
             metrics: Default::default(),
+            enable_prefetch: false,
         })
     }
 
@@ -164,6 +167,12 @@ where
     /// synchronization process with the blockchain network.
     pub fn with_sync_metrics_tx(mut self, metrics_tx: MetricEventsSender) -> Self {
         self.sync_metrics_tx = Some(metrics_tx);
+        self
+    }
+
+    /// Enable prefetch.
+    pub const fn enable_prefetch(mut self) -> Self {
+        self.enable_prefetch = true;
         self
     }
 
@@ -434,6 +443,7 @@ where
             &self.externals,
             block_attachment,
             block_validation_kind,
+            self.enable_prefetch,
         )?;
 
         self.insert_chain(chain);
@@ -491,6 +501,7 @@ where
                 canonical_fork,
                 block_attachment,
                 block_validation_kind,
+                self.enable_prefetch,
             )?;
 
             self.state.block_indices.insert_non_fork_block(block_number, block_hash, chain_id);
@@ -505,6 +516,7 @@ where
                 canonical_fork,
                 &self.externals,
                 block_validation_kind,
+                self.enable_prefetch,
             )?;
             self.insert_chain(chain);
             BlockAttachment::HistoricalFork
