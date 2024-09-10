@@ -97,6 +97,7 @@ impl Command {
                     executor.clone(),
                     stage_conf.clone(),
                     prune_modes.clone(),
+                    self.env.performance_optimization.skip_state_root_validation,
                 )
                 .set(ExecutionStage::new(
                     executor,

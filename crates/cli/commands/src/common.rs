@@ -11,7 +11,7 @@ use reth_evm::noop::NoopBlockExecutorProvider;
 use reth_node_core::{
     args::{
         utils::{chain_help, chain_value_parser, SUPPORTED_CHAINS},
-        DatabaseArgs, DatadirArgs,
+        DatabaseArgs, DatadirArgs, PerformanceOptimizationArgs,
     },
     dirs::{ChainPath, DataDirPath},
 };
@@ -49,6 +49,10 @@ pub struct EnvironmentArgs {
     /// All database related arguments
     #[command(flatten)]
     pub db: DatabaseArgs,
+
+    /// All performance optimization related arguments
+    #[command(flatten)]
+    pub performance_optimization: PerformanceOptimizationArgs,
 }
 
 impl EnvironmentArgs {
@@ -145,6 +149,7 @@ impl EnvironmentArgs {
                     NoopBlockExecutorProvider::default(),
                     config.stages.clone(),
                     prune_modes.clone(),
+                    self.performance_optimization.skip_state_root_validation,
                 ))
                 .build(factory.clone(), StaticFileProducer::new(factory.clone(), prune_modes));
 

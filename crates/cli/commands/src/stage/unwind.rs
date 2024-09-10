@@ -125,9 +125,14 @@ impl Command {
 
         let builder = if self.offline {
             Pipeline::builder().add_stages(
-                OfflineStages::new(executor, config.stages, PruneModes::default())
-                    .builder()
-                    .disable(reth_stages::StageId::SenderRecovery),
+                OfflineStages::new(
+                    executor,
+                    config.stages,
+                    PruneModes::default(),
+                    self.env.performance_optimization.skip_state_root_validation,
+                )
+                .builder()
+                .disable(reth_stages::StageId::SenderRecovery),
             )
         } else {
             Pipeline::builder().with_tip_sender(tip_tx).add_stages(
@@ -140,6 +145,7 @@ impl Command {
                     executor.clone(),
                     stage_conf.clone(),
                     prune_modes.clone(),
+                    self.env.performance_optimization.skip_state_root_validation,
                 )
                 .set(ExecutionStage::new(
                     executor,
