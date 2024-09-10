@@ -17,11 +17,11 @@ use crate::OpChainSpec;
 pub static OPBNB_QA: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
     OpChainSpec {
         inner: ChainSpec {
-            chain: Chain::from_id(4530),
+            chain: Chain::from_id(3534),
             genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
                 .expect("Can't deserialize opBNB qa genesis json"),
             genesis_hash: Some(b256!(
-                "bb2282e70cc2aebb17342003ad1c0aeab6a8114f8a4718730c13711d787b5de9"
+                "1c2ad01526f22793643de4978dbf5cec5aeaedcb628470de8b950f8a46539ddf"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
             hardforks: OptimismHardfork::opbnb_qa(),

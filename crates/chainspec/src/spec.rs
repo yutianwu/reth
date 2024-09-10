@@ -1069,11 +1069,11 @@ pub fn test_fork_ids(spec: &ChainSpec, cases: &[(Head, ForkId)]) {
 #[cfg(test)]
 mod tests {
     use core::ops::Deref;
-    use std::{collections::HashMap, str::FromStr};
+    use std::collections::HashMap;
 
     use alloy_chains::Chain;
     use alloy_genesis::{ChainConfig, GenesisAccount};
-    use alloy_primitives::{b256, hex};
+    use alloy_primitives::hex;
     use reth_ethereum_forks::{ForkCondition, ForkHash, ForkId, Head};
     use reth_trie_common::TrieAccount;
 
@@ -2246,6 +2246,9 @@ Post-merge hard forks (timestamp based):
     #[test]
     #[cfg(not(feature = "bsc"))]
     fn test_default_cancun_header_forkhash() {
+        use alloy_primitives::b256;
+        use std::str::FromStr;
+
         // set the gas limit from the hive test genesis according to the hash
         let genesis = Genesis { gas_limit: 0x2fefd8u128, ..Default::default() };
         let default_chainspec = ChainSpecBuilder::default()
