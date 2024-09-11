@@ -255,9 +255,9 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                     // Write sidecars
                     let sidecars = block.sidecars.unwrap_or_default();
                     static_file_producer_sc.append_sidecars(
-                        sidecars,
+                        &sidecars,
                         block_number,
-                        block.header.hash(),
+                        &block.header.hash(),
                     )?;
 
                     // Write ommers if any
@@ -284,9 +284,9 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                 BlockResponse::Empty(header) => {
                     // Write empty sidecars
                     static_file_producer_sc.append_sidecars(
-                        Default::default(),
+                        &Default::default(),
                         block_number,
-                        header.hash(),
+                        &header.hash(),
                     )?;
                 }
             };
@@ -825,9 +825,12 @@ mod tests {
 
                         for block_number in 0..=progress.number {
                             static_file_producer_sc.append_sidecars(
-                                Default::default(),
+                                &Default::default(),
                                 block_number,
-                                blocks.get(block_number as usize).map(|b| b.header.hash()).unwrap(),
+                                &blocks
+                                    .get(block_number as usize)
+                                    .map(|b| b.header.hash())
+                                    .unwrap(),
                             )?;
                             tx.put::<tables::Sidecars>(block_number, Default::default())?;
                         }
