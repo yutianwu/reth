@@ -376,6 +376,7 @@ where
                     executor_factory.clone(),
                     StageConfig::default(),
                     PruneModes::default(),
+                    false,
                 ))
             }
         };

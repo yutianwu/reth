@@ -191,6 +191,7 @@ where
             static_file_producer,
             ctx.components().block_executor().clone(),
             pipeline_exex_handle,
+            ctx.node_config().skip_state_root_validation,
         )?;
 
         // The new engine writes directly to static files. This ensures that they're up to the tip.

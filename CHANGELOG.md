@@ -1,5 +1,22 @@
 # Changelog
 
+## V1.0.4
+
+This release is for opBNB testnet and mainnet Fjord upgrade.
+
+### FEATURES
+
+* [\#56](https://github.com/bnb-chain/reth/pull/56) feat: add trie prefetch when executing blocks
+* [\#130](https://github.com/bnb-chain/reth/pull/130) feat: add Fjord upgrade time for opBNB
+
+## V1.0.3
+This is a bugfix version.
+
+### BUGFIX
+* [\#119](https://github.com/bnb-chain/reth/pull/119) fix: sidecars missing issue and empty validators election info issue
+* [\#122](https://github.com/bnb-chain/reth/pull/122) fix: bsc snapshot issues
+* [\#125](https://github.com/bnb-chain/reth/pull/125) fix: bsc `BLS_SIGNATURE_VALIDATION` precompile contract error
+
 ## V1.0.2
 This release is for BSC mainnet HaberFix and Bohr upgrade and opBNB mainnet Wright upgrade.
 
