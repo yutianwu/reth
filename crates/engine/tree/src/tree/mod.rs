@@ -764,6 +764,7 @@ where
                         // to return an error
                         ProviderError::HeaderNotFound(state.head_block_hash.into())
                     })?;
+                info!(target: "engine", "on_forkchoice_updated: 1");
                 let updated = self.process_payload_attributes(attr, &tip, state);
                 return Ok(TreeOutcome::new(updated))
             }
@@ -784,6 +785,7 @@ where
             }
 
             if let Some(attr) = attrs {
+                info!(target: "engine", "on_forkchoice_updated: 2");
                 let updated = self.process_payload_attributes(attr, &tip, state);
                 return Ok(TreeOutcome::new(updated))
             }
@@ -2003,6 +2005,7 @@ where
             Ok(attributes) => {
                 // send the payload to the builder and return the receiver for the pending payload
                 // id, initiating payload job is handled asynchronously
+                info!(target: "engine", "process_payload_attributes");
                 let pending_payload_id = self.payload_builder.send_new_payload(attributes);
 
                 // Client software MUST respond to this method call in the following way:
