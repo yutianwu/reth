@@ -1727,10 +1727,10 @@ where
             BlockchainTreeAction::InsertDownloadedPayload { block } => {
                 let downloaded_num_hash = block.num_hash();
                 let start = Instant::now();
-                match self.blockchain.insert_block_without_senders(
-                    block.clone(),
-                    BlockValidationKind::SkipStateRootValidation,
-                ) {
+                match self
+                    .blockchain
+                    .insert_block_without_senders(block.clone(), BlockValidationKind::Exhaustive)
+                {
                     Ok(status) => {
                         match status {
                             InsertPayloadOk::Inserted(BlockStatus::Valid(_)) => {
