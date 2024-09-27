@@ -2,8 +2,8 @@ use crate::{
     providers::StaticFileProvider, AccountReader, BlockHashReader, BlockIdReader, BlockNumReader,
     BlockReader, BlockReaderIdExt, BlockSource, CanonChainTracker, CanonStateNotifications,
     CanonStateSubscriptions, ChainSpecProvider, ChangeSetReader, DatabaseProviderFactory,
-    DatabaseProviderRO, EvmEnvProvider, FinalizedBlockReader, HeaderProvider, ProviderError,
-    ProviderFactory, PruneCheckpointReader, ReceiptProvider, ReceiptProviderIdExt,
+    DatabaseProviderRO, EvmEnvProvider, FinalizedBlockReader, HeaderProvider, ParliaSnapshotReader,
+    ProviderError, ProviderFactory, PruneCheckpointReader, ReceiptProvider, ReceiptProviderIdExt,
     RequestsProvider, StageCheckpointReader, StateProviderBox, StateProviderFactory, StateReader,
     StaticFileProviderFactory, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
 };
@@ -20,12 +20,14 @@ use reth_evm::ConfigureEvmEnv;
 use reth_execution_types::ExecutionOutcome;
 use reth_node_types::NodeTypesWithDB;
 use reth_primitives::{
-    Account, Block, BlockHashOrNumber, BlockId, BlockNumHash, BlockNumberOrTag, BlockWithSenders,
-    EthereumHardforks, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader,
-    TransactionMeta, TransactionSigned, TransactionSignedNoHash, Withdrawal, Withdrawals,
+    parlia::Snapshot, Account, BlobSidecars, Block, BlockHashOrNumber, BlockId, BlockNumHash,
+    BlockNumberOrTag, BlockWithSenders, EthereumHardforks, Header, Receipt, SealedBlock,
+    SealedBlockWithSenders, SealedHeader, TransactionMeta, TransactionSigned,
+    TransactionSignedNoHash, Withdrawal, Withdrawals,
 };
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
+use reth_storage_api::SidecarsProvider;
 use reth_storage_errors::provider::ProviderResult;
 use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg};
 use std::{
@@ -959,6 +961,16 @@ impl<N: ProviderNodeTypes> WithdrawalsProvider for BlockchainProvider2<N> {
     }
 }
 
+impl<N: ProviderNodeTypes> SidecarsProvider for BlockchainProvider2<N> {
+    fn sidecars(&self, block_hash: &BlockHash) -> ProviderResult<Option<BlobSidecars>> {
+        self.database.sidecars(block_hash)
+    }
+
+    fn sidecars_by_number(&self, num: BlockNumber) -> ProviderResult<Option<BlobSidecars>> {
+        self.database.sidecars_by_number(num)
+    }
+}
+
 impl<N: ProviderNodeTypes> RequestsProvider for BlockchainProvider2<N> {
     fn requests_by_block(
         &self,
@@ -1367,6 +1379,12 @@ impl<N: ProviderNodeTypes> AccountReader for BlockchainProvider2<N> {
     }
 }
 
+impl<N: ProviderNodeTypes> ParliaSnapshotReader for BlockchainProvider2<N> {
+    fn get_parlia_snapshot(&self, block_hash: B256) -> ProviderResult<Option<Snapshot>> {
+        self.database.provider()?.get_parlia_snapshot(block_hash)
+    }
+}
+
 impl<N: ProviderNodeTypes> StateReader for BlockchainProvider2<N> {
     fn get_state(&self, block: BlockNumber) -> ProviderResult<Option<ExecutionOutcome>> {
         if let Some(state) = self.canonical_in_memory_state.state_by_number(block) {
@@ -1509,6 +1527,7 @@ mod tests {
             // The initial block number is required
             database_blocks.first().map(|b| b.number).unwrap_or_default(),
             receipts.iter().map(|vec| vec.clone().into_iter().map(Some).collect::<Vec<_>>()),
+            Vec::new(),
         )?;
 
         // Commit to both storages: database and static files

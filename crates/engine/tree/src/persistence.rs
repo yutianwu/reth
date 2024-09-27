@@ -277,8 +277,16 @@ mod tests {
         let (_finished_exex_height_tx, finished_exex_height_rx) =
             tokio::sync::watch::channel(FinishedExExHeight::NoExExs);
 
-        let pruner =
-            Pruner::new_with_factory(provider.clone(), vec![], 5, 0, None, finished_exex_height_rx);
+        let pruner = Pruner::new_with_factory(
+            provider.clone(),
+            vec![],
+            5,
+            0,
+            None,
+            finished_exex_height_rx,
+            0,
+            Some(provider.static_file_provider().path().to_path_buf()),
+        );
 
         let (sync_metrics_tx, _sync_metrics_rx) = unbounded_channel();
         PersistenceHandle::spawn_service(provider, pruner, sync_metrics_tx)

@@ -146,7 +146,9 @@ mod tests {
     use reth_exex_types::FinishedExExHeight;
     use reth_network_p2p::test_utils::TestFullBlockClient;
     use reth_primitives::SealedHeader;
-    use reth_provider::test_utils::create_test_provider_factory_with_chain_spec;
+    use reth_provider::{
+        test_utils::create_test_provider_factory_with_chain_spec, StaticFileProviderFactory,
+    };
     use reth_prune::Pruner;
     use reth_tasks::TokioTaskExecutor;
     use std::sync::Arc;
@@ -179,7 +181,16 @@ mod tests {
                 .unwrap();
 
         let (_tx, rx) = watch::channel(FinishedExExHeight::NoExExs);
-        let pruner = Pruner::new_with_factory(provider_factory.clone(), vec![], 0, 0, None, rx);
+        let pruner = Pruner::new_with_factory(
+            provider_factory.clone(),
+            vec![],
+            0,
+            0,
+            None,
+            rx,
+            0,
+            Some(provider_factory.static_file_provider().path().to_path_buf()),
+        );
 
         let (sync_metrics_tx, _sync_metrics_rx) = unbounded_channel();
         let (tx, _rx) = unbounded_channel();
