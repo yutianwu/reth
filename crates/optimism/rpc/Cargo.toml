@@ -32,6 +32,8 @@ reth-chainspec.workspace = true
 # ethereum
 alloy-primitives.workspace = true
 op-alloy-network.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-consensus.workspace = true
 revm.workspace = true
 
 # async
@@ -47,6 +49,9 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+reth-optimism-chainspec.workspace = true
+
 [features]
 optimism = [
     "reth-evm-optimism/optimism",
@@ -54,4 +59,10 @@ optimism = [
     "reth-provider/optimism",
     "reth-rpc-eth-api/optimism",
     "revm/optimism",
+]
+
+opbnb = [
+    "reth-evm-optimism/opbnb",
+    "reth-primitives/opbnb",
+    "revm/opbnb",
 ]

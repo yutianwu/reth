@@ -4,18 +4,22 @@ use crate::EthEngineTypes;
 use reth_basic_payload_builder::{BasicPayloadJobGenerator, BasicPayloadJobGeneratorConfig};
 use reth_bsc_consensus::Parlia;
 use reth_chainspec::ChainSpec;
+use reth_ethereum_engine_primitives::{
+    EthBuiltPayload, EthPayloadAttributes, EthPayloadBuilderAttributes,
+};
 use reth_evm_bsc::{BscEvmConfig, BscExecutorProvider};
 use reth_network::NetworkHandle;
-use reth_node_api::{FullNodeComponents, NodeAddOns};
+use reth_node_api::{ConfigureEvm, FullNodeComponents, NodeAddOns};
 use reth_node_builder::{
     components::{
         ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
         PayloadServiceBuilder, PoolBuilder,
     },
-    node::{FullNodeTypes, NodeTypes},
-    BuilderContext, Node, PayloadBuilderConfig,
+    node::{FullNodeTypes, NodeTypes, NodeTypesWithEngine},
+    BuilderContext, Node, PayloadBuilderConfig, PayloadTypes,
 };
 use reth_payload_builder::{PayloadBuilderHandle, PayloadBuilderService};
+use reth_primitives::Header;
 use reth_provider::CanonStateSubscriptions;
 use reth_rpc::EthApi;
 use reth_tracing::tracing::{debug, info};
@@ -40,7 +44,12 @@ impl BscNode {
         BscConsensusBuilder,
     >
     where
-        Node: FullNodeTypes<Engine = EthEngineTypes, ChainSpec = ChainSpec>,
+        Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec>>,
+        <Node::Types as NodeTypesWithEngine>::Engine: PayloadTypes<
+            BuiltPayload = EthBuiltPayload,
+            PayloadAttributes = EthPayloadAttributes,
+            PayloadBuilderAttributes = EthPayloadBuilderAttributes,
+        >,
     {
         ComponentsBuilder::default()
             .node_types::<Node>()
@@ -54,8 +63,11 @@ impl BscNode {
 
 impl NodeTypes for BscNode {
     type Primitives = ();
-    type Engine = EthEngineTypes;
     type ChainSpec = ChainSpec;
+}
+
+impl NodeTypesWithEngine for BscNode {
+    type Engine = EthEngineTypes;
 }
 
 /// Add-ons w.r.t. l1 bsc.
@@ -66,9 +78,10 @@ impl<N: FullNodeComponents> NodeAddOns<N> for BSCAddOns {
     type EthApi = EthApi<N::Provider, N::Pool, NetworkHandle, N::Evm>;
 }
 
-impl<N> Node<N> for BscNode
+impl<Types, N> Node<N> for BscNode
 where
-    N: FullNodeTypes<Engine = EthEngineTypes, ChainSpec = ChainSpec>,
+    Types: NodeTypesWithEngine<Engine = EthEngineTypes, ChainSpec = ChainSpec>,
+    N: FullNodeTypes<Types = Types>,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,
@@ -91,9 +104,10 @@ where
 #[non_exhaustive]
 pub struct BscExecutorBuilder;
 
-impl<Node> ExecutorBuilder<Node> for BscExecutorBuilder
+impl<Types, Node> ExecutorBuilder<Node> for BscExecutorBuilder
 where
-    Node: FullNodeTypes,
+    Types: NodeTypesWithEngine<ChainSpec = ChainSpec>,
+    Node: FullNodeTypes<Types = Types>,
 {
     type EVM = BscEvmConfig;
 
@@ -104,10 +118,10 @@ where
         ctx: &BuilderContext<Node>,
     ) -> eyre::Result<(Self::EVM, Self::Executor)> {
         let chain_spec = ctx.chain_spec();
-        let evm_config = BscEvmConfig::default();
+        let evm_config = BscEvmConfig::new(ctx.chain_spec());
         let executor = BscExecutorProvider::new(
             chain_spec,
-            evm_config,
+            evm_config.clone(),
             ctx.reth_config().parlia.clone(),
             ctx.provider().clone(),
         );
@@ -126,9 +140,10 @@ pub struct BscPoolBuilder {
     // TODO add options for txpool args
 }
 
-impl<Node> PoolBuilder<Node> for BscPoolBuilder
+impl<Types, Node> PoolBuilder<Node> for BscPoolBuilder
 where
-    Node: FullNodeTypes,
+    Types: NodeTypesWithEngine<ChainSpec = ChainSpec>,
+    Node: FullNodeTypes<Types = Types>,
 {
     type Pool = EthTransactionPool<Node::Provider, DiskFileBlobStore>;
 
@@ -193,17 +208,27 @@ where
 #[non_exhaustive]
 pub struct BscPayloadBuilder;
 
-impl<Node, Pool> PayloadServiceBuilder<Node, Pool> for BscPayloadBuilder
-where
-    Node: FullNodeTypes<Engine = EthEngineTypes>,
-    Pool: TransactionPool + Unpin + 'static,
-{
-    async fn spawn_payload_service(
+impl BscPayloadBuilder {
+    /// A helper method initializing [`PayloadBuilderService`] with the given EVM config.
+    pub fn spawn<Types, Node, Evm, Pool>(
         self,
+        evm_config: Evm,
         ctx: &BuilderContext<Node>,
         pool: Pool,
-    ) -> eyre::Result<PayloadBuilderHandle<Node::Engine>> {
-        let payload_builder = reth_ethereum_payload_builder::EthereumPayloadBuilder::default();
+    ) -> eyre::Result<PayloadBuilderHandle<Types::Engine>>
+    where
+        Types: NodeTypesWithEngine<ChainSpec = ChainSpec>,
+        Node: FullNodeTypes<Types = Types>,
+        Evm: ConfigureEvm<Header = Header>,
+        Pool: TransactionPool + Unpin + 'static,
+        Types::Engine: PayloadTypes<
+            BuiltPayload = EthBuiltPayload,
+            PayloadAttributes = EthPayloadAttributes,
+            PayloadBuilderAttributes = EthPayloadBuilderAttributes,
+        >,
+    {
+        let payload_builder =
+            reth_ethereum_payload_builder::EthereumPayloadBuilder::new(evm_config);
         let conf = ctx.payload_builder_config();
 
         let payload_job_config = BasicPayloadJobGeneratorConfig::default()
@@ -226,6 +251,26 @@ where
         ctx.task_executor().spawn_critical("payload builder service", Box::pin(payload_service));
 
         Ok(payload_builder)
+    }
+}
+
+impl<Types, Node, Pool> PayloadServiceBuilder<Node, Pool> for BscPayloadBuilder
+where
+    Types: NodeTypesWithEngine<ChainSpec = ChainSpec>,
+    Node: FullNodeTypes<Types = Types>,
+    Pool: TransactionPool + Unpin + 'static,
+    Types::Engine: PayloadTypes<
+        BuiltPayload = EthBuiltPayload,
+        PayloadAttributes = EthPayloadAttributes,
+        PayloadBuilderAttributes = EthPayloadBuilderAttributes,
+    >,
+{
+    async fn spawn_payload_service(
+        self,
+        ctx: &BuilderContext<Node>,
+        pool: Pool,
+    ) -> eyre::Result<PayloadBuilderHandle<Types::Engine>> {
+        self.spawn(BscEvmConfig::new(ctx.chain_spec()), ctx, pool)
     }
 }
 
@@ -259,7 +304,7 @@ pub struct BscConsensusBuilder;
 
 impl<Node> ConsensusBuilder<Node> for BscConsensusBuilder
 where
-    Node: FullNodeTypes,
+    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec>>,
 {
     type Consensus = Parlia;
 

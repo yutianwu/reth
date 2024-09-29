@@ -6,21 +6,22 @@ pub mod transaction;
 mod block;
 mod call;
 mod pending_block;
-pub mod rpc;
+
+pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 
 use std::{fmt, sync::Arc};
 
-use crate::eth::rpc::SequencerClient;
 use alloy_primitives::U256;
 use op_alloy_network::AnyNetwork;
 use reth_chainspec::ChainSpec;
 use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
-use reth_node_api::{BuilderProvider, FullNodeComponents, FullNodeTypes};
+use reth_node_api::{BuilderProvider, FullNodeComponents, FullNodeTypes, NodeTypes};
 use reth_node_builder::EthApiBuilderCtx;
+use reth_primitives::Header;
 use reth_provider::{
-    BlockIdReader, BlockNumReader, BlockReaderIdExt, ChainSpecProvider, HeaderProvider,
-    StageCheckpointReader, StateProviderFactory,
+    BlockIdReader, BlockNumReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider,
+    HeaderProvider, StageCheckpointReader, StateProviderFactory,
 };
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
@@ -36,8 +37,9 @@ use reth_tasks::{
     TaskSpawner,
 };
 use reth_transaction_pool::TransactionPool;
+use tokio::sync::OnceCell;
 
-use crate::OpEthApiError;
+use crate::{OpEthApiError, SequencerClient};
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N> = EthApiInner<
@@ -57,12 +59,21 @@ pub type EthApiNodeBackend<N> = EthApiInner<
 ///
 /// This type implements the [`FullEthApi`](reth_rpc_eth_api::helpers::FullEthApi) by implemented
 /// all the `Eth` helper traits and prerequisite traits.
+#[derive(Clone)]
 pub struct OpEthApi<N: FullNodeComponents> {
+    /// Gateway to node's core components.
     inner: Arc<EthApiNodeBackend<N>>,
-    sequencer_client: parking_lot::RwLock<Option<SequencerClient>>,
+    /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
+    /// network.
+    sequencer_client: OnceCell<SequencerClient>,
 }
 
-impl<N: FullNodeComponents> OpEthApi<N> {
+impl<N> OpEthApi<N>
+where
+    N: FullNodeComponents<
+        Provider: BlockReaderIdExt + ChainSpecProvider + CanonStateSubscriptions + Clone + 'static,
+    >,
+{
     /// Creates a new instance for given context.
     #[allow(clippy::type_complexity)]
     pub fn with_spawner(ctx: &EthApiBuilderCtx<N>) -> Self {
@@ -76,6 +87,7 @@ impl<N: FullNodeComponents> OpEthApi<N> {
             ctx.cache.clone(),
             ctx.new_gas_price_oracle(),
             ctx.config.rpc_gas_cap,
+            ctx.config.rpc_max_simulate_blocks,
             ctx.config.eth_proof_window,
             blocking_task_pool,
             ctx.new_fee_history_cache(),
@@ -84,20 +96,7 @@ impl<N: FullNodeComponents> OpEthApi<N> {
             ctx.config.proof_permits,
         );
 
-        Self { inner: Arc::new(inner), sequencer_client: parking_lot::RwLock::new(None) }
-    }
-}
-
-impl<N> Clone for OpEthApi<N>
-where
-    N: FullNodeComponents,
-    Self: Send + Sync,
-{
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            sequencer_client: parking_lot::RwLock::new(self.sequencer_client.read().clone()),
-        }
+        Self { inner: Arc::new(inner), sequencer_client: OnceCell::new() }
     }
 }
 
@@ -113,7 +112,7 @@ where
 impl<N> EthApiSpec for OpEthApi<N>
 where
     Self: Send + Sync,
-    N: FullNodeComponents,
+    N: FullNodeComponents<Types: NodeTypes<ChainSpec = ChainSpec>>,
 {
     #[inline]
     fn provider(
@@ -163,7 +162,7 @@ where
 impl<N> LoadFee for OpEthApi<N>
 where
     Self: LoadBlock,
-    N: FullNodeComponents,
+    N: FullNodeComponents<Types: NodeTypes<ChainSpec = ChainSpec>>,
 {
     #[inline]
     fn provider(
@@ -191,7 +190,7 @@ where
 impl<N> LoadState for OpEthApi<N>
 where
     Self: Send + Sync,
-    N: FullNodeComponents,
+    N: FullNodeComponents<Types: NodeTypes<ChainSpec = ChainSpec>>,
 {
     #[inline]
     fn provider(&self) -> impl StateProviderFactory + ChainSpecProvider<ChainSpec = ChainSpec> {
@@ -233,12 +232,12 @@ where
     N: FullNodeComponents,
 {
     #[inline]
-    fn evm_config(&self) -> &impl ConfigureEvm {
+    fn evm_config(&self) -> &impl ConfigureEvm<Header = Header> {
         self.inner.evm_config()
     }
 }
 
-impl<N: FullNodeComponents> AddDevSigners for OpEthApi<N> {
+impl<N: FullNodeComponents<Types: NodeTypes<ChainSpec = ChainSpec>>> AddDevSigners for OpEthApi<N> {
     fn with_dev_accounts(&self) {
         *self.signers().write() = DevSigner::random_signers(20)
     }

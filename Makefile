@@ -52,7 +52,7 @@ install: ## Build and install the reth binary under `~/.cargo/bin`.
 
 .PHONY: install-op
 install-op: ## Build and install the op-reth binary under `~/.cargo/bin`.
-	cargo install --path bin/reth --bin op-reth --force --locked \
+	cargo install --path crates/optimism/bin --bin op-reth --force --locked \
 		--features "optimism opbnb $(FEATURES)" \
 		--profile "$(PROFILE)" \
 		$(CARGO_INSTALL_EXTRA_FLAGS)
@@ -74,7 +74,7 @@ build-debug: ## Build the reth binary into `target/debug` directory.
 
 .PHONY: build-op
 build-op: ## Build the op-reth binary into `target` directory.
-	cargo build --bin op-reth --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)"
+	cargo build --bin op-reth --features "optimism,opbnb,$(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
 
 .PHONY: build-bsc
 build-bsc: ## Build the bsc-reth binary into `target` directory.
@@ -85,7 +85,7 @@ build-native-%:
 	cargo build --bin reth --target $* --features "$(FEATURES)" --profile "$(PROFILE)"
 
 op-build-native-%:
-	cargo build --bin op-reth --target $* --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)"
+	cargo build --bin op-reth --target $* --features "optimism,opbnb,$(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
 
 bsc-build-native-%:
 	cargo build --bin bsc-reth --target $* --features "bsc $(FEATURES)" --profile "$(PROFILE)"
@@ -124,7 +124,7 @@ build-%:
 
 op-build-%:
 	RUSTFLAGS="-C link-arg=-lgcc -Clink-arg=-static-libgcc" \
-		cross build --bin op-reth --target $* --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)"
+		cross build --bin op-reth --target $* --features "optimism,opbnb,$(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
 
 bsc-build-%:
 	RUSTFLAGS="-C link-arg=-lgcc -Clink-arg=-static-libgcc" \
@@ -385,7 +385,7 @@ maxperf: ## Builds `reth` with the most aggressive optimisations.
 
 .PHONY: maxperf-op
 maxperf-op: ## Builds `op-reth` with the most aggressive optimisations.
-	RUSTFLAGS="-C target-cpu=native" cargo build --profile maxperf --features jemalloc,asm-keccak,optimism --bin op-reth
+	RUSTFLAGS="-C target-cpu=native" cargo build --profile maxperf --features jemalloc,asm-keccak,optimism --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
 
 .PHONY: maxperf-no-asm
 maxperf-no-asm: ## Builds `reth` with the most aggressive optimisations, minus the "asm-keccak" feature.

@@ -9,7 +9,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(not(feature = "std"))]
 #[macro_use]
 extern crate alloc;
 
@@ -50,4 +49,4 @@ pub use blob_sidecar::{BlobSidecar, BlobSidecars};
 
 #[cfg(any(test, feature = "arbitrary", feature = "test-utils"))]
 pub use header::test_utils;
-pub use header::{Header, HeaderError, SealedHeader};
+pub use header::{BlockHeader, Header, HeaderError, SealedHeader};

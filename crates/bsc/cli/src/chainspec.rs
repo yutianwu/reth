@@ -23,7 +23,9 @@ fn chain_value_parser(s: &str) -> eyre::Result<Arc<BscChainSpec>, eyre::Error> {
 #[derive(Debug, Clone, Default)]
 pub struct BscChainSpecParser;
 
-impl ChainSpecParser<BscChainSpec> for BscChainSpecParser {
+impl ChainSpecParser for BscChainSpecParser {
+    type ChainSpec = BscChainSpec;
+
     const SUPPORTED_CHAINS: &'static [&'static str] = &[
         "bsc",
         "bsc-mainnet",
@@ -55,7 +57,7 @@ impl TypedValueParser for BscChainSpecParser {
     ) -> Result<Self::Value, clap::Error> {
         let val =
             value.to_str().ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidUtf8))?;
-        <Self as ChainSpecParser<BscChainSpec>>::parse(val).map_err(|err| {
+        <Self as ChainSpecParser>::parse(val).map_err(|err| {
             let arg = arg.map(|a| a.to_string()).unwrap_or_else(|| "...".to_owned());
             let possible_values = Self::SUPPORTED_CHAINS.join(",");
             let msg = format!(
@@ -80,7 +82,7 @@ mod tests {
     #[test]
     fn parse_known_chain_spec() {
         for &chain in BscChainSpecParser::SUPPORTED_CHAINS {
-            assert!(<BscChainSpecParser as ChainSpecParser<BscChainSpec>>::parse(chain).is_ok());
+            assert!(<BscChainSpecParser as ChainSpecParser>::parse(chain).is_ok());
         }
     }
 }

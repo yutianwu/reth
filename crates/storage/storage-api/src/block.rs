@@ -3,10 +3,11 @@ use crate::{
     RequestsProvider, SidecarsProvider, TransactionVariant, TransactionsProvider,
     WithdrawalsProvider,
 };
+use alloy_primitives::{BlockNumber, B256};
 use reth_db_models::StoredBlockBodyIndices;
 use reth_primitives::{
-    Block, BlockHashOrNumber, BlockId, BlockNumber, BlockNumberOrTag, BlockWithSenders, Header,
-    Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader, B256,
+    Block, BlockHashOrNumber, BlockId, BlockNumberOrTag, BlockWithSenders, Header, Receipt,
+    SealedBlock, SealedBlockWithSenders, SealedHeader,
 };
 use reth_storage_errors::provider::ProviderResult;
 use std::ops::RangeInclusive;

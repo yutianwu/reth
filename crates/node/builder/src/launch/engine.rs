@@ -9,6 +9,7 @@ use reth_blockchain_tree::BlockchainTreeConfig;
 #[cfg(feature = "bsc")]
 use reth_bsc_engine::ParliaEngineBuilder;
 use reth_chainspec::ChainSpec;
+use reth_consensus_debug_client::{DebugConsensusClient, EtherscanBlockProvider};
 use reth_engine_service::service::{ChainEvent, EngineService};
 use reth_engine_tree::{
     engine::{EngineApiRequest, EngineRequestHandler},
@@ -20,12 +21,17 @@ use reth_network::{NetworkSyncUpdater, SyncState};
 #[cfg(feature = "bsc")]
 use reth_network_api::EngineRxProvider;
 use reth_network_api::{BlockDownloaderProvider, NetworkEventListenerProvider};
-use reth_node_api::{BuiltPayload, FullNodeTypes, NodeAddOns};
+use reth_node_api::{
+    BuiltPayload, FullNodeTypes, NodeAddOns, NodeTypesWithDB, NodeTypesWithEngine,
+};
 use reth_node_core::{
     dirs::{ChainPath, DataDirPath},
     exit::NodeExitFuture,
     primitives::Head,
-    rpc::eth::{helpers::AddDevSigners, FullEthApiServer},
+    rpc::{
+        eth::{helpers::AddDevSigners, FullEthApiServer},
+        types::AnyTransactionReceipt,
+    },
     version::{CARGO_PKG_VERSION, CLIENT_CODE, NAME_CLIENT, VERGEN_GIT_SHA},
 };
 use reth_node_events::{cl::ConsensusLayerHealthEvents, node};
@@ -37,6 +43,7 @@ use reth_rpc_types::{engine::ClientVersionV1, WithOtherFields};
 use reth_tasks::TaskExecutor;
 use reth_tokio_util::EventSender;
 use reth_tracing::tracing::{debug, error, info};
+use std::sync::Arc;
 use tokio::sync::{mpsc::unbounded_channel, oneshot};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -53,21 +60,27 @@ use crate::{
 pub struct EngineNodeLauncher {
     /// The task executor for the node.
     pub ctx: LaunchContext,
+
+    /// Temporary configuration for engine tree.
+    /// After engine is stabilized, this should be configured through node builder.
+    pub engine_tree_config: TreeConfig,
 }
 
 impl EngineNodeLauncher {
     /// Create a new instance of the ethereum node launcher.
-    pub const fn new(task_executor: TaskExecutor, data_dir: ChainPath<DataDirPath>) -> Self {
-        Self { ctx: LaunchContext::new(task_executor, data_dir) }
+    pub const fn new(
+        task_executor: TaskExecutor,
+        data_dir: ChainPath<DataDirPath>,
+        engine_tree_config: TreeConfig,
+    ) -> Self {
+        Self { ctx: LaunchContext::new(task_executor, data_dir), engine_tree_config }
     }
 }
 
-impl<T, CB, AO> LaunchNode<NodeBuilderWithComponents<T, CB, AO>> for EngineNodeLauncher
+impl<Types, T, CB, AO> LaunchNode<NodeBuilderWithComponents<T, CB, AO>> for EngineNodeLauncher
 where
-    T: FullNodeTypes<
-        Provider = BlockchainProvider2<<T as FullNodeTypes>::DB>,
-        ChainSpec = ChainSpec,
-    >,
+    Types: NodeTypesWithDB<ChainSpec = ChainSpec> + NodeTypesWithEngine,
+    T: FullNodeTypes<Types = Types, Provider = BlockchainProvider2<Types>>,
     CB: NodeComponentsBuilder<T>,
     AO: NodeAddOns<
         NodeAdapter<T, CB::Components>,
@@ -75,6 +88,7 @@ where
                     + FullEthApiServer<
             NetworkTypes: alloy_network::Network<
                 TransactionResponse = WithOtherFields<reth_rpc_types::Transaction>,
+                ReceiptResponse = AnyTransactionReceipt,
             >,
         > + AddDevSigners,
     >,
@@ -85,7 +99,7 @@ where
         self,
         target: NodeBuilderWithComponents<T, CB, AO>,
     ) -> eyre::Result<Self::Node> {
-        let Self { ctx } = self;
+        let Self { ctx, engine_tree_config } = self;
         let NodeBuilderWithComponents {
             adapter: NodeTypesAdapter { database },
             components_builder,
@@ -225,7 +239,9 @@ where
                     ctx.blockchain_db().clone(),
                     pruner,
                     ctx.components().payload_builder().clone(),
-                    TreeConfig::default(),
+                    engine_tree_config,
+                    ctx.invalid_block_hook()?,
+                    ctx.sync_metrics_tx(),
                 );
                 eth_service
             }
@@ -254,7 +270,9 @@ where
                     ctx.blockchain_db().clone(),
                     pruner,
                     ctx.components().payload_builder().clone(),
-                    TreeConfig::default(),
+                    engine_tree_config,
+                    ctx.invalid_block_hook()?,
+                    ctx.sync_metrics_tx(),
                 );
                 eth_service
             }
@@ -302,6 +320,7 @@ where
             ctx.chain_spec(),
             beacon_engine_handle,
             ctx.components().payload_builder().clone().into(),
+            ctx.components().pool().clone(),
             Box::new(ctx.task_executor().clone()),
             client,
             EngineCapabilities::default(),
@@ -320,6 +339,36 @@ where
             rpc,
         )
         .await?;
+
+        // TODO: migrate to devmode with https://github.com/paradigmxyz/reth/issues/10104
+        if let Some(maybe_custom_etherscan_url) = ctx.node_config().debug.etherscan.clone() {
+            info!(target: "reth::cli", "Using etherscan as consensus client");
+
+            let chain = ctx.node_config().chain.chain;
+            let etherscan_url = maybe_custom_etherscan_url.map(Ok).unwrap_or_else(|| {
+                // If URL isn't provided, use default Etherscan URL for the chain if it is known
+                chain
+                    .etherscan_urls()
+                    .map(|urls| urls.0.to_string())
+                    .ok_or_else(|| eyre::eyre!("failed to get etherscan url for chain: {chain}"))
+            })?;
+
+            let block_provider = EtherscanBlockProvider::new(
+                etherscan_url,
+                chain.etherscan_api_key().ok_or_else(|| {
+                    eyre::eyre!(
+                        "etherscan api key not found for rpc consensus client for chain: {chain}"
+                    )
+                })?,
+            );
+            let rpc_consensus_client = DebugConsensusClient::new(
+                rpc_server_handles.auth.clone(),
+                Arc::new(block_provider),
+            );
+            ctx.task_executor().spawn_critical("etherscan consensus client", async move {
+                rpc_consensus_client.run::<<Types as NodeTypesWithEngine>::Engine>().await
+            });
+        }
 
         // Run consensus engine to completion
         let initial_target = ctx.initial_backfill_target()?;

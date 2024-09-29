@@ -8,8 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  TOOL_CHAIN: "1.80"
-  TOOL_CHAIN_NIGHTLY: "nightly-2024-09-01"
+  TOOL_CHAIN: "1.81"
+  TOOL_CHAIN_NIGHTLY: "nightly-2024-09-09"
 
 jobs:
   clippy-binaries:
@@ -40,21 +40,38 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
 
-  #  wasm:
-  #    runs-on: ubuntu-latest
-  #    timeout-minutes: 30
-  #    steps:
-  #      - uses: actions/checkout@v4
-  #      - uses: dtolnay/rust-toolchain@stable
-  #        with:
-  #          target: wasm32-wasip1
-  #          toolchain: ${{ env.TOOL_CHAIN }}
-  #      - uses: taiki-e/install-action@cargo-hack
-  #      - uses: Swatinem/rust-cache@v2
-  #        with:
-  #          cache-on-failure: true
-  #      - name: Run Wasm checks
-  #        run: .github/assets/check_wasm.sh ${{ env.TOOL_CHAIN }}
+  # clippy:
+  #   name: clippy
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@nightly
+  #       with:
+  #         toolchain: ${{ env.TOOL_CHAIN_NIGHTLY }}
+  #         components: clippy
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - run: cargo clippy --workspace --lib --examples --tests --benches --all-features --locked
+  #       env:
+  #         RUSTFLAGS: -D warnings
+
+  # wasm:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         target: wasm32-wasip1
+  #     - uses: taiki-e/install-action@cargo-hack
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - uses: dcarbone/install-jq-action@v2
+  #     - name: Run Wasm checks
+  #       run: .github/assets/check_wasm.sh
 
   crate-checks:
     runs-on: ubuntu-latest
@@ -68,7 +85,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - run: cargo hack check
+      - run: cargo hack check --workspace --exclude op-reth
+      - run: cargo check -p op-reth --features "optimism opbnb"
 
   msrv:
     name: MSRV / ${{ matrix.network }}
@@ -109,6 +127,39 @@ jobs:
           components: rustfmt
           toolchain: ${{ env.TOOL_CHAIN_NIGHTLY }} # fmt need the nightly flag, please update this if reallly needed
       - run: cargo fmt --all --check
+
+  # udeps:
+  #   name: udeps
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@nightly
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - uses: taiki-e/install-action@cargo-udeps
+  #     - run: cargo udeps --workspace --lib --examples --tests --benches --all-features --locked
+
+  # book:
+  #   name: book
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@nightly
+  #     - uses: dtolnay/rust-toolchain@master
+  #       with:
+  #         toolchain: ${{ env.TOOL_CHAIN }} # MSRV
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - run: cargo build --bin reth --workspace --features ethereum
+  #   env:
+  #     RUSTFLAGS: -D warnings
+  # - run: ./book/cli/update.sh target/debug/reth
+  # - name: Check book changes
+  #   run: git diff --exit-code
 
   codespell:
     runs-on: ubuntu-latest
@@ -163,6 +214,8 @@ jobs:
       - clippy-binaries
       - crate-checks
       - fmt
+      # - udeps
+      # - book
       - codespell
       - grafana
       - no-test-deps

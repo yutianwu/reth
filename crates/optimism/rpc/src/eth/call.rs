@@ -1,8 +1,10 @@
+use alloy_primitives::{Bytes, TxKind, U256};
+use reth_chainspec::ChainSpec;
 use reth_evm::ConfigureEvm;
-use reth_node_api::FullNodeComponents;
+use reth_node_api::{FullNodeComponents, NodeTypes};
 use reth_primitives::{
     revm_primitives::{BlockEnv, OptimismFields, TxEnv},
-    Bytes, TxKind, U256,
+    Header,
 };
 use reth_rpc_eth_api::{
     helpers::{Call, EthCall, LoadState, SpawnBlocking},
@@ -16,7 +18,7 @@ use crate::{OpEthApi, OpEthApiError};
 impl<N> EthCall for OpEthApi<N>
 where
     Self: Call,
-    N: FullNodeComponents,
+    N: FullNodeComponents<Types: NodeTypes<ChainSpec = ChainSpec>>,
 {
 }
 
@@ -32,7 +34,12 @@ where
     }
 
     #[inline]
-    fn evm_config(&self) -> &impl ConfigureEvm {
+    fn max_simulate_blocks(&self) -> u64 {
+        self.inner.max_simulate_blocks()
+    }
+
+    #[inline]
+    fn evm_config(&self) -> &impl ConfigureEvm<Header = Header> {
         self.inner.evm_config()
     }
 

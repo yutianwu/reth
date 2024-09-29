@@ -3,9 +3,11 @@
 //! Stage debugging tool
 
 use crate::common::{AccessRights, Environment, EnvironmentArgs};
+use alloy_eips::BlockHashOrNumber;
 use clap::Parser;
 use reth_beacon_consensus::EthBeaconConsensus;
 use reth_chainspec::ChainSpec;
+use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_runner::CliContext;
 use reth_cli_util::get_secret_key;
 use reth_config::config::{HashingConfig, SenderRecoveryConfig, TransactionLookupConfig};
@@ -16,15 +18,16 @@ use reth_downloaders::{
 use reth_evm::execute::BlockExecutorProvider;
 use reth_exex::ExExManagerHandle;
 use reth_network_p2p::HeadersClient;
+use reth_node_builder::NodeTypesWithEngine;
 use reth_node_core::{
     args::{NetworkArgs, StageEnum},
-    primitives::BlockHashOrNumber,
     version::{
         BUILD_PROFILE_NAME, CARGO_PKG_VERSION, VERGEN_BUILD_TIMESTAMP, VERGEN_CARGO_FEATURES,
         VERGEN_CARGO_TARGET_TRIPLE, VERGEN_GIT_SHA,
     },
 };
 use reth_node_metrics::{
+    chain::ChainSpecInfo,
     hooks::Hooks,
     server::{MetricServer, MetricServerConfig},
     version::VersionInfo,
@@ -48,9 +51,9 @@ use tracing::*;
 
 /// `reth stage` command
 #[derive(Debug, Parser)]
-pub struct Command {
+pub struct Command<C: ChainSpecParser> {
     #[command(flatten)]
-    env: EnvironmentArgs,
+    env: EnvironmentArgs<C>,
 
     /// Enable Prometheus metrics.
     ///
@@ -98,10 +101,11 @@ pub struct Command {
     network: NetworkArgs,
 }
 
-impl Command {
+impl<C: ChainSpecParser<ChainSpec = ChainSpec>> Command<C> {
     /// Execute `stage` command
-    pub async fn execute<E, F>(self, ctx: CliContext, executor: F) -> eyre::Result<()>
+    pub async fn execute<N, E, F>(self, ctx: CliContext, executor: F) -> eyre::Result<()>
     where
+        N: NodeTypesWithEngine<ChainSpec = C::ChainSpec>,
         E: BlockExecutorProvider,
         F: FnOnce(Arc<ChainSpec>) -> E,
     {
@@ -109,7 +113,8 @@ impl Command {
         // Does not do anything on windows.
         let _ = fdlimit::raise_fd_limit();
 
-        let Environment { provider_factory, config, data_dir } = self.env.init(AccessRights::RW)?;
+        let Environment { provider_factory, config, data_dir } =
+            self.env.init::<N>(AccessRights::RW)?;
 
         let mut provider_rw = provider_factory.provider_rw()?;
 
@@ -125,6 +130,7 @@ impl Command {
                     target_triple: VERGEN_CARGO_TARGET_TRIPLE,
                     build_profile: BUILD_PROFILE_NAME,
                 },
+                ChainSpecInfo { name: provider_factory.chain_spec().chain.to_string() },
                 ctx.task_executor,
                 Hooks::new(
                     provider_factory.db_ref().clone(),

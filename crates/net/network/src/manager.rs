@@ -233,6 +233,7 @@ impl NetworkManager {
         // need to retrieve the addr here since provided port could be `0`
         let local_peer_id = discovery.local_id();
         let discv4 = discovery.discv4();
+        let discv5 = discovery.discv5();
 
         let num_active_peers = Arc::new(AtomicUsize::new(0));
 
@@ -274,6 +275,7 @@ impl NetworkManager {
             Arc::new(AtomicU64::new(chain_spec.chain.id())),
             tx_gossip_disabled,
             discv4,
+            discv5,
             event_sender.clone(),
         );
 

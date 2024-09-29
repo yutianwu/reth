@@ -8,7 +8,7 @@ use std::sync::Arc;
 use alloy_chains::Chain;
 use alloy_primitives::{b256, U256};
 use once_cell::sync::Lazy;
-use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec};
+use reth_chainspec::{once_cell_set, BaseFeeParams, BaseFeeParamsKind, ChainSpec};
 use reth_ethereum_forks::{EthereumHardfork, OptimismHardfork};
 
 use crate::OpChainSpec;
@@ -20,7 +20,7 @@ pub static OPBNB_QA: Lazy<Arc<OpChainSpec>> = Lazy::new(|| {
             chain: Chain::from_id(3534),
             genesis: serde_json::from_str(include_str!("../res/genesis/opbnb_qa.json"))
                 .expect("Can't deserialize opBNB qa genesis json"),
-            genesis_hash: Some(b256!(
+            genesis_hash: once_cell_set(b256!(
                 "1c2ad01526f22793643de4978dbf5cec5aeaedcb628470de8b950f8a46539ddf"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),

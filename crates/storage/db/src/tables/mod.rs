@@ -19,19 +19,20 @@ pub use raw::{RawDupSort, RawKey, RawTable, RawValue, TableRawRow};
 #[cfg(feature = "mdbx")]
 pub(crate) mod utils;
 
+use alloy_primitives::{Address, BlockHash, BlockNumber, TxHash, TxNumber, B256};
 use reth_db_api::{
     models::{
         accounts::BlockNumberAddress,
         blocks::{HeaderHash, StoredBlockOmmers},
-        client_version::ClientVersion,
         storage_sharded_key::StorageShardedKey,
-        AccountBeforeTx, CompactU256, ShardedKey, StoredBlockBodyIndices, StoredBlockWithdrawals,
+        AccountBeforeTx, ClientVersion, CompactU256, ShardedKey, StoredBlockBodyIndices,
+        StoredBlockWithdrawals,
     },
     table::{Decode, DupSort, Encode, Table},
 };
 use reth_primitives::{
-    parlia::Snapshot, Account, Address, BlockHash, BlockNumber, Bytecode, Header, Receipt,
-    Requests, StorageEntry, TransactionSignedNoHash, TxHash, TxNumber, B256,
+    parlia::Snapshot, Account, Bytecode, Header, Receipt, Requests, StorageEntry,
+    TransactionSignedNoHash,
 };
 use reth_primitives_traits::{BlobSidecars, IntegerList};
 use reth_prune_types::{PruneCheckpoint, PruneSegment};

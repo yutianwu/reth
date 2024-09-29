@@ -18,11 +18,9 @@ use crate::{
     PoolConfig, PoolResult, PoolTransaction, PriceBumpConfig, TransactionOrdering,
     ValidPoolTransaction, U256,
 };
-use reth_primitives::{
-    constants::{
-        eip4844::BLOB_TX_MIN_BLOB_GASPRICE, ETHEREUM_BLOCK_GAS_LIMIT, MIN_PROTOCOL_BASE_FEE,
-    },
-    Address, TxHash, B256,
+use alloy_primitives::{Address, TxHash, B256};
+use reth_primitives::constants::{
+    eip4844::BLOB_TX_MIN_BLOB_GASPRICE, ETHEREUM_BLOCK_GAS_LIMIT, MIN_PROTOCOL_BASE_FEE,
 };
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
@@ -555,7 +553,10 @@ impl<T: TransactionOrdering> TxPool<T> {
                     )),
                     InsertErr::Overdraft { transaction } => Err(PoolError::new(
                         *transaction.hash(),
-                        PoolErrorKind::InvalidTransaction(InvalidPoolTransactionError::Overdraft),
+                        PoolErrorKind::InvalidTransaction(InvalidPoolTransactionError::Overdraft {
+                            cost: transaction.cost(),
+                            balance: on_chain_balance,
+                        }),
                     )),
                     InsertErr::TxTypeConflict { transaction } => Err(PoolError::new(
                         *transaction.hash(),
@@ -947,6 +948,8 @@ impl<T: PoolTransaction> AllTransactions<T> {
             max_account_slots: config.max_account_slots,
             price_bumps: config.price_bumps,
             local_transactions_config: config.local_transactions_config.clone(),
+            minimal_protocol_basefee: config.minimal_protocol_basefee,
+            block_gas_limit: config.gas_limit,
             ..Default::default()
         }
     }
@@ -1848,7 +1851,8 @@ impl SenderInfo {
 
 #[cfg(test)]
 mod tests {
-    use reth_primitives::{address, TxType};
+    use alloy_primitives::address;
+    use reth_primitives::TxType;
 
     use super::*;
     use crate::{

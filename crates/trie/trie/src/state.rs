@@ -1,12 +1,12 @@
+use alloy_primitives::{keccak256, Address, B256, U256};
+use itertools::Itertools;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use reth_primitives::Account;
+use revm::db::{states::CacheAccount, AccountStatus, BundleAccount};
 use std::{
     borrow::Cow,
     collections::{hash_map, HashMap, HashSet},
 };
-
-use itertools::Itertools;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use reth_primitives::{keccak256, Account, Address, B256, U256};
-use revm::db::{states::CacheAccount, AccountStatus, BundleAccount};
 
 use crate::{
     prefix_set::{PrefixSetMut, TriePrefixSetsMut},

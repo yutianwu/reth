@@ -1,8 +1,9 @@
 //! Optimism block executor.
 
-use std::{collections::HashMap, str::FromStr, sync::Arc};
-
-use crate::{l1::ensure_create2_deployer, OptimismBlockExecutionError, OptimismEvmConfig};
+use crate::{
+    l1::ensure_create2_deployer, OpChainSpec, OptimismBlockExecutionError, OptimismEvmConfig,
+};
+use alloy_primitives::{BlockNumber, U256};
 use reth_chainspec::{ChainSpec, EthereumHardforks, OptimismHardfork};
 use reth_evm::{
     execute::{
@@ -14,23 +15,31 @@ use reth_evm::{
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_consensus::validate_block_post_execution;
-use reth_primitives::{
-    Address, BlockNumber, BlockWithSenders, Header, Receipt, Receipts, TxType, U256,
-};
+use reth_primitives::{Address, BlockWithSenders, Header, Receipt, Receipts, TxType};
 use reth_prune_types::PruneModes;
 use reth_revm::{
-    batch::BlockBatchRecord, db::states::bundle_state::BundleRetention,
-    state_change::post_block_balance_increments, Evm, State,
+    batch::BlockBatchRecord,
+    db::{
+        states::{bundle_state::BundleRetention, StorageSlot},
+        BundleAccount,
+    },
+    state_change::post_block_balance_increments,
+    Evm, State,
 };
-use revm::db::states::StorageSlot;
 use revm_primitives::{
     db::{Database, DatabaseCommit},
-    BlockEnv, CfgEnvWithHandlerCfg, EVMError, EnvWithHandlerCfg, EvmState, ResultAndState,
+    BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, EvmState, ResultAndState,
+};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Display,
+    str::FromStr,
+    sync::Arc,
 };
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
-/// Provides executors to execute regular ethereum blocks
+/// Provides executors to execute regular optimism blocks
 #[derive(Debug, Clone)]
 pub struct OpExecutorProvider<EvmConfig = OptimismEvmConfig> {
     chain_spec: Arc<ChainSpec>,
@@ -40,7 +49,10 @@ pub struct OpExecutorProvider<EvmConfig = OptimismEvmConfig> {
 impl OpExecutorProvider {
     /// Creates a new default optimism executor provider.
     pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
-        Self::new(chain_spec, Default::default())
+        Self::new(
+            chain_spec.clone(),
+            OptimismEvmConfig::new(Arc::new(OpChainSpec { inner: (*chain_spec).clone() })),
+        )
     }
 }
 
@@ -53,7 +65,7 @@ impl<EvmConfig> OpExecutorProvider<EvmConfig> {
 
 impl<EvmConfig> OpExecutorProvider<EvmConfig>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
     fn op_executor<DB>(
         &self,
@@ -61,7 +73,7 @@ where
         prefetch_tx: Option<UnboundedSender<EvmState>>,
     ) -> OpBlockExecutor<EvmConfig, DB>
     where
-        DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+        DB: Database<Error: Into<ProviderError> + Display>,
     {
         if let Some(tx) = prefetch_tx {
             OpBlockExecutor::new_with_prefetch_tx(
@@ -90,12 +102,12 @@ where
 
 impl<EvmConfig> BlockExecutorProvider for OpExecutorProvider<EvmConfig>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
-    type Executor<DB: Database<Error: Into<ProviderError> + std::fmt::Display>> =
+    type Executor<DB: Database<Error: Into<ProviderError> + Display>> =
         OpBlockExecutor<EvmConfig, DB>;
 
-    type BatchExecutor<DB: Database<Error: Into<ProviderError> + std::fmt::Display>> =
+    type BatchExecutor<DB: Database<Error: Into<ProviderError> + Display>> =
         OpBatchExecutor<EvmConfig, DB>;
     fn executor<DB>(
         &self,
@@ -103,14 +115,14 @@ where
         prefetch_tx: Option<UnboundedSender<EvmState>>,
     ) -> Self::Executor<DB>
     where
-        DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+        DB: Database<Error: Into<ProviderError> + Display>,
     {
         self.op_executor(db, prefetch_tx)
     }
 
     fn batch_executor<DB>(&self, db: DB) -> Self::BatchExecutor<DB>
     where
-        DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+        DB: Database<Error: Into<ProviderError> + Display>,
     {
         let executor = self.op_executor(db, None);
         OpBatchExecutor { executor, batch_record: BlockBatchRecord::default() }
@@ -119,7 +131,7 @@ where
 
 /// Helper container type for EVM with chain spec.
 #[derive(Debug, Clone)]
-struct OpEvmExecutor<EvmConfig> {
+pub struct OpEvmExecutor<EvmConfig> {
     /// The chainspec
     chain_spec: Arc<ChainSpec>,
     /// How to create an EVM.
@@ -128,7 +140,7 @@ struct OpEvmExecutor<EvmConfig> {
 
 impl<EvmConfig> OpEvmExecutor<EvmConfig>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
     /// Executes the transactions in the block and returns the receipts.
     ///
@@ -144,7 +156,7 @@ where
         tx: Option<UnboundedSender<EvmState>>,
     ) -> Result<(Vec<Receipt>, u64), BlockExecutionError>
     where
-        DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+        DB: Database<Error: Into<ProviderError> + Display>,
     {
         // apply pre execution changes
         apply_beacon_root_contract_call(
@@ -206,13 +218,7 @@ where
 
             // Execute transaction.
             let ResultAndState { result, state } = evm.transact().map_err(move |err| {
-                let new_err = match err {
-                    EVMError::Transaction(e) => EVMError::Transaction(e),
-                    EVMError::Header(e) => EVMError::Header(e),
-                    EVMError::Database(e) => EVMError::Database(e.into()),
-                    EVMError::Custom(e) => EVMError::Custom(e),
-                    EVMError::Precompile(e) => EVMError::Precompile(e),
-                };
+                let new_err = err.map_db_err(|e| e.into());
                 // Ensure hash is calculated for error log, if not already done
                 BlockValidationError::EVM {
                     hash: transaction.recalculate_hash(),
@@ -261,7 +267,7 @@ where
     }
 }
 
-/// A basic Ethereum block executor.
+/// A basic Optimism block executor.
 ///
 /// Expected usage:
 /// - Create a new instance of the executor.
@@ -292,22 +298,22 @@ impl<EvmConfig, DB> OpBlockExecutor<EvmConfig, DB> {
         Self { executor: OpEvmExecutor { chain_spec, evm_config }, state, prefetch_tx: Some(tx) }
     }
 
+    /// Returns the chain spec.
     #[inline]
-    fn chain_spec(&self) -> &ChainSpec {
+    pub fn chain_spec(&self) -> &ChainSpec {
         &self.executor.chain_spec
     }
 
     /// Returns mutable reference to the state that wraps the underlying database.
-    #[allow(unused)]
-    fn state_mut(&mut self) -> &mut State<DB> {
+    pub fn state_mut(&mut self) -> &mut State<DB> {
         &mut self.state
     }
 }
 
 impl<EvmConfig, DB> OpBlockExecutor<EvmConfig, DB>
 where
-    EvmConfig: ConfigureEvm,
-    DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+    EvmConfig: ConfigureEvm<Header = Header>,
+    DB: Database<Error: Into<ProviderError> + Display>,
 {
     /// Configures a new evm configuration and block environment for the given block.
     ///
@@ -318,7 +324,6 @@ where
         self.executor.evm_config.fill_cfg_and_block_env(
             &mut cfg,
             &mut block_env,
-            self.chain_spec(),
             header,
             total_difficulty,
         );
@@ -424,8 +429,8 @@ where
 
 impl<EvmConfig, DB> Executor<DB> for OpBlockExecutor<EvmConfig, DB>
 where
-    EvmConfig: ConfigureEvm,
-    DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+    EvmConfig: ConfigureEvm<Header = Header>,
+    DB: Database<Error: Into<ProviderError> + Display>,
 {
     type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
     type Output = BlockExecutionOutput<Receipt>;
@@ -455,6 +460,94 @@ where
     }
 }
 
+/// An executor that retains all cache state from execution in its bundle state.
+#[derive(Debug)]
+pub struct OpBlockAccessListExecutor<EvmConfig, DB> {
+    /// The executor used to execute single blocks
+    ///
+    /// All state changes are committed to the [State].
+    executor: OpBlockExecutor<EvmConfig, DB>,
+}
+
+impl<EvmConfig, DB> Executor<DB> for OpBlockAccessListExecutor<EvmConfig, DB>
+where
+    EvmConfig: ConfigureEvm<Header = Header>,
+    DB: Database<Error: Into<ProviderError> + Display>,
+{
+    type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
+    type Output = BlockExecutionOutput<Receipt>;
+    type Error = BlockExecutionError;
+
+    /// Executes the block and commits the changes to the internal state.
+    ///
+    /// Returns the receipts of the transactions in the block.
+    ///
+    /// This also returns the accounts from the internal state cache in the bundle state, allowing
+    /// access to not only the state that changed during execution, but also the state accessed
+    /// during execution.
+    ///
+    /// Returns an error if the block could not be executed or failed verification.
+    fn execute(mut self, input: Self::Input<'_>) -> Result<Self::Output, Self::Error> {
+        let BlockExecutionInput { block, total_difficulty, .. } = input;
+        let (receipts, gas_used) =
+            self.executor.execute_without_verification(block, total_difficulty)?;
+
+        // NOTE: we need to merge keep the reverts for the bundle retention
+        self.executor.state.merge_transitions(BundleRetention::Reverts);
+
+        // now, ensure each account from the state is included in the bundle state
+        let mut bundle_state = self.executor.state.take_bundle();
+        for (address, account) in self.executor.state.cache.accounts {
+            // convert all slots, insert all slots
+            let account_info = account.account_info();
+            let account_storage = account.account.map(|a| a.storage).unwrap_or_default();
+
+            match bundle_state.state.entry(address) {
+                Entry::Vacant(entry) => {
+                    // we have to add the entire account here
+                    let extracted_storage = account_storage
+                        .into_iter()
+                        .map(|(k, v)| {
+                            (k, StorageSlot { previous_or_original_value: v, present_value: v })
+                        })
+                        .collect();
+
+                    let bundle_account = BundleAccount {
+                        info: account_info.clone(),
+                        original_info: account_info,
+                        storage: extracted_storage,
+                        status: account.status,
+                    };
+                    entry.insert(bundle_account);
+                }
+                Entry::Occupied(mut entry) => {
+                    // only add slots that are unchanged
+                    let current_account = entry.get_mut();
+
+                    // iterate over all storage slots, checking keys that are not in the bundle
+                    // state
+                    for (k, v) in account_storage {
+                        if let Entry::Vacant(storage_entry) = current_account.storage.entry(k) {
+                            storage_entry.insert(StorageSlot {
+                                previous_or_original_value: v,
+                                present_value: v,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(BlockExecutionOutput {
+            state: bundle_state,
+            receipts,
+            requests: vec![],
+            gas_used,
+            snapshot: None,
+        })
+    }
+}
+
 /// An executor for a batch of blocks.
 ///
 /// State changes are tracked until the executor is finalized.
@@ -473,16 +566,15 @@ impl<EvmConfig, DB> OpBatchExecutor<EvmConfig, DB> {
     }
 
     /// Returns mutable reference to the state that wraps the underlying database.
-    #[allow(unused)]
-    fn state_mut(&mut self) -> &mut State<DB> {
+    pub fn state_mut(&mut self) -> &mut State<DB> {
         self.executor.state_mut()
     }
 }
 
 impl<EvmConfig, DB> BatchExecutor<DB> for OpBatchExecutor<EvmConfig, DB>
 where
-    EvmConfig: ConfigureEvm,
-    DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+    EvmConfig: ConfigureEvm<Header = Header>,
+    DB: Database<Error: Into<ProviderError> + Display>,
 {
     type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
     type Output = ExecutionOutcome;
@@ -534,10 +626,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reth_chainspec::ChainSpecBuilder;
+    use crate::OpChainSpec;
+    use alloy_primitives::{b256, Address, StorageKey, StorageValue};
+    use reth_chainspec::{ChainSpecBuilder, MIN_TRANSACTION_GAS};
     use reth_primitives::{
-        b256, Account, Address, Block, Signature, StorageKey, StorageValue, Transaction,
-        TransactionSigned, TxEip1559, BASE_MAINNET,
+        Account, Block, Signature, Transaction, TransactionSigned, TxEip1559, BASE_MAINNET,
     };
     use reth_revm::{
         database::StateProviderDatabase, test_utils::StateProviderTest, L1_BLOCK_CONTRACT,
@@ -572,7 +665,12 @@ mod tests {
     }
 
     fn executor_provider(chain_spec: Arc<ChainSpec>) -> OpExecutorProvider<OptimismEvmConfig> {
-        OpExecutorProvider { chain_spec, evm_config: Default::default() }
+        OpExecutorProvider {
+            evm_config: OptimismEvmConfig::new(Arc::new(OpChainSpec {
+                inner: (*chain_spec).clone(),
+            })),
+            chain_spec,
+        }
     }
 
     #[test]
@@ -604,7 +702,7 @@ mod tests {
             Transaction::Eip1559(TxEip1559 {
                 chain_id: chain_spec.chain.id(),
                 nonce: 0,
-                gas_limit: 21_000,
+                gas_limit: MIN_TRANSACTION_GAS as u128,
                 to: addr.into(),
                 ..Default::default()
             }),
@@ -615,7 +713,7 @@ mod tests {
             Transaction::Deposit(reth_primitives::TxDeposit {
                 from: addr,
                 to: addr.into(),
-                gas_limit: 21_000,
+                gas_limit: MIN_TRANSACTION_GAS as u128,
                 ..Default::default()
             }),
             Signature::default(),
@@ -690,7 +788,7 @@ mod tests {
             Transaction::Eip1559(TxEip1559 {
                 chain_id: chain_spec.chain.id(),
                 nonce: 0,
-                gas_limit: 21_000,
+                gas_limit: MIN_TRANSACTION_GAS as u128,
                 to: addr.into(),
                 ..Default::default()
             }),
@@ -701,7 +799,7 @@ mod tests {
             Transaction::Deposit(reth_primitives::TxDeposit {
                 from: addr,
                 to: addr.into(),
-                gas_limit: 21_000,
+                gas_limit: MIN_TRANSACTION_GAS as u128,
                 ..Default::default()
             }),
             Signature::optimism_deposit_tx_signature(),

@@ -1,6 +1,7 @@
 //! Bsc block executor.
 
 use crate::{post_execution::PostExecutionInput, BscBlockExecutionError, BscEvmConfig};
+use core::fmt::Display;
 use lazy_static::lazy_static;
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -52,7 +53,7 @@ pub struct BscExecutorProvider<P, EvmConfig = BscEvmConfig> {
 impl<P> BscExecutorProvider<P> {
     /// Creates a new default bsc executor provider.
     pub fn bsc(chain_spec: Arc<ChainSpec>, provider: P) -> Self {
-        Self::new(chain_spec, Default::default(), Default::default(), provider)
+        Self::new(chain_spec.clone(), BscEvmConfig::new(chain_spec), Default::default(), provider)
     }
 }
 
@@ -71,7 +72,7 @@ impl<P, EvmConfig> BscExecutorProvider<P, EvmConfig> {
 impl<P, EvmConfig> BscExecutorProvider<P, EvmConfig>
 where
     P: Clone,
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
     fn bsc_executor<DB>(
         &self,
@@ -113,7 +114,7 @@ where
 impl<P, EvmConfig> BlockExecutorProvider for BscExecutorProvider<P, EvmConfig>
 where
     P: ParliaProvider + Clone + Unpin + 'static,
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
     type Executor<DB: Database<Error: Into<ProviderError> + std::fmt::Display>> =
         BscBlockExecutor<EvmConfig, DB, P>;
@@ -164,7 +165,7 @@ pub(crate) struct BscEvmExecutor<EvmConfig> {
 
 impl<EvmConfig> BscEvmExecutor<EvmConfig>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
 {
     /// Executes the transactions in the block and returns the receipts.
     ///
@@ -341,8 +342,8 @@ impl<EvmConfig, DB, P> BscBlockExecutor<EvmConfig, DB, P> {
 
 impl<EvmConfig, DB, P> BscBlockExecutor<EvmConfig, DB, P>
 where
-    EvmConfig: ConfigureEvm,
-    DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
+    EvmConfig: ConfigureEvm<Header = Header>,
+    DB: Database<Error: Into<ProviderError> + Display>,
     P: ParliaProvider,
 {
     /// Configures a new evm configuration and block environment for the given block.
@@ -354,7 +355,6 @@ where
         self.executor.evm_config.fill_cfg_and_block_env(
             &mut cfg,
             &mut block_env,
-            self.chain_spec(),
             header,
             total_difficulty,
         );
@@ -726,7 +726,7 @@ where
 
 impl<EvmConfig, DB, P> Executor<DB> for BscBlockExecutor<EvmConfig, DB, P>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
     DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
     P: ParliaProvider,
 {
@@ -781,7 +781,7 @@ impl<EvmConfig, DB, P> BscBatchExecutor<EvmConfig, DB, P> {
 
 impl<EvmConfig, DB, P> BatchExecutor<DB> for BscBatchExecutor<EvmConfig, DB, P>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvm<Header = Header>,
     DB: Database<Error: Into<ProviderError> + std::fmt::Display>,
     P: ParliaProvider,
 {

@@ -4,9 +4,12 @@ use crate::{
     table::{Compress, Decode, Decompress, Encode},
     DatabaseError,
 };
-
+use alloy_primitives::{Address, Log, B256, U256};
 use reth_codecs::{add_arbitrary_tests, Compact};
-use reth_primitives::{parlia::Snapshot, Address, B256, *};
+use reth_primitives::{
+    parlia::Snapshot, Account, BlobSidecar, BlobSidecars, BufMut, Bytecode, GenesisAccount, Header,
+    Receipt, Requests, SealedHeader, StorageEntry, TransactionSignedNoHash, TxType,
+};
 use reth_prune_types::{PruneCheckpoint, PruneSegment};
 use reth_stages_types::StageCheckpoint;
 use reth_trie_common::{StoredNibbles, StoredNibblesSubKey, *};
@@ -14,15 +17,15 @@ use serde::{Deserialize, Serialize};
 
 pub mod accounts;
 pub mod blocks;
-pub mod client_version;
 pub mod integer_list;
 pub mod sharded_key;
 pub mod storage_sharded_key;
 
 pub use accounts::*;
 pub use blocks::*;
-pub use client_version::ClientVersion;
-pub use reth_db_models::{AccountBeforeTx, StoredBlockBodyIndices};
+pub use reth_db_models::{
+    AccountBeforeTx, ClientVersion, StoredBlockBodyIndices, StoredBlockWithdrawals,
+};
 pub use sharded_key::ShardedKey;
 
 /// Macro that implements [`Encode`] and [`Decode`] for uint types.
@@ -326,8 +329,7 @@ mod tests {
     use rand::Rng;
     use reth_primitives::{
         parlia::{ValidatorInfo, VoteAddress, VoteData, DEFAULT_TURN_LENGTH},
-        Account, Header, Receipt, ReceiptWithBloom, SealedHeader, TxEip1559, TxEip2930, TxEip4844,
-        TxLegacy, Withdrawals,
+        Account, Header, Receipt, ReceiptWithBloom, SealedHeader, Withdrawals,
     };
     use reth_prune_types::{PruneCheckpoint, PruneMode, PruneSegment};
     use reth_stages_types::{
@@ -368,10 +370,6 @@ mod tests {
         assert_eq!(StoredBlockOmmers::bitflag_encoded_bytes(), 0);
         assert_eq!(StoredBlockWithdrawals::bitflag_encoded_bytes(), 0);
         assert_eq!(StorageHashingCheckpoint::bitflag_encoded_bytes(), 1);
-        assert_eq!(TxEip1559::bitflag_encoded_bytes(), 4);
-        assert_eq!(TxEip2930::bitflag_encoded_bytes(), 3);
-        assert_eq!(TxEip4844::bitflag_encoded_bytes(), 5);
-        assert_eq!(TxLegacy::bitflag_encoded_bytes(), 3);
         assert_eq!(Withdrawals::bitflag_encoded_bytes(), 0);
     }
 
@@ -401,10 +399,6 @@ mod tests {
         assert_eq!(StoredBlockOmmers::bitflag_encoded_bytes(), 0);
         assert_eq!(StoredBlockWithdrawals::bitflag_encoded_bytes(), 0);
         assert_eq!(StorageHashingCheckpoint::bitflag_encoded_bytes(), 1);
-        assert_eq!(TxEip1559::bitflag_encoded_bytes(), 4);
-        assert_eq!(TxEip2930::bitflag_encoded_bytes(), 3);
-        assert_eq!(TxEip4844::bitflag_encoded_bytes(), 5);
-        assert_eq!(TxLegacy::bitflag_encoded_bytes(), 3);
         assert_eq!(Withdrawals::bitflag_encoded_bytes(), 0);
     }
 

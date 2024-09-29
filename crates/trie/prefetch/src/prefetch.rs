@@ -1,8 +1,9 @@
 use rayon::prelude::*;
-use reth_db::database::Database;
 use reth_execution_errors::StorageRootError;
 use reth_primitives::{revm_primitives::EvmState, B256};
-use reth_provider::{providers::ConsistentDbView, ProviderError, ProviderFactory};
+use reth_provider::{
+    providers::ConsistentDbView, BlockReader, DBProvider, DatabaseProviderFactory, ProviderError,
+};
 use reth_trie::{
     hashed_cursor::{HashedCursorFactory, HashedPostStateCursorFactory},
     metrics::TrieRootMetrics,
@@ -52,13 +53,13 @@ impl TriePrefetch {
     }
 
     /// Run the prefetching task.
-    pub async fn run<DB>(
+    pub async fn run<Factory>(
         &mut self,
-        consistent_view: Arc<ConsistentDbView<DB, ProviderFactory<DB>>>,
+        consistent_view: Arc<ConsistentDbView<Factory>>,
         mut prefetch_rx: UnboundedReceiver<EvmState>,
         mut interrupt_rx: Receiver<()>,
     ) where
-        DB: Database + 'static,
+        Factory: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + 'static,
     {
         let mut join_set = JoinSet::new();
 
@@ -71,7 +72,7 @@ impl TriePrefetch {
 
                         let self_clone = Arc::new(self.clone());
                         join_set.spawn(async move {
-                            if let Err(e) = self_clone.prefetch_once::<DB>(consistent_view, hashed_state).await {
+                            if let Err(e) = self_clone.prefetch_once(consistent_view, hashed_state).await {
                                 debug!(target: "trie::trie_prefetch", ?e, "Error while prefetching trie storage");
                             };
                         });
@@ -137,13 +138,13 @@ impl TriePrefetch {
     }
 
     /// Prefetch trie storage for the given hashed state.
-    pub async fn prefetch_once<DB>(
+    pub async fn prefetch_once<Factory>(
         self: Arc<Self>,
-        consistent_view: Arc<ConsistentDbView<DB, ProviderFactory<DB>>>,
+        consistent_view: Arc<ConsistentDbView<Factory>>,
         hashed_state: HashedPostState,
     ) -> Result<(), TriePrefetchError>
     where
-        DB: Database,
+        Factory: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + 'static,
     {
         let mut tracker = TrieTracker::default();
 

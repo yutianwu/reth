@@ -8,7 +8,7 @@ use std::sync::Arc;
 use alloy_chains::{Chain, NamedChain};
 use alloy_primitives::{b256, U256};
 use once_cell::sync::Lazy;
-use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec};
+use reth_chainspec::{once_cell_set, BaseFeeParams, BaseFeeParamsKind, ChainSpec};
 use reth_ethereum_forks::BscHardfork;
 
 use crate::BscChainSpec;
@@ -20,7 +20,7 @@ pub static BSC_MAINNET: Lazy<Arc<BscChainSpec>> = Lazy::new(|| {
             chain: Chain::from_named(NamedChain::BNBSmartChain),
             genesis: serde_json::from_str(include_str!("../res/genesis/bsc.json"))
                 .expect("Can't deserialize BSC Mainnet genesis json"),
-            genesis_hash: Some(b256!(
+            genesis_hash: once_cell_set(b256!(
                 "0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"
             )),
             paris_block_and_final_difficulty: Some((0, U256::from(0))),

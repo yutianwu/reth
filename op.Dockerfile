@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.80 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.81 AS chef
 WORKDIR /app
 
 LABEL org.opencontainers.image.source=https://github.com/bnb-chain/reth
@@ -28,11 +28,11 @@ ENV FEATURES $FEATURES
 RUN apt-get update && apt-get -y upgrade && apt-get install -y libclang-dev pkg-config
 
 # Builds dependencies
-RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json
+RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path crates/optimism/bin/Cargo.toml
 
 # Build application
 COPY . .
-RUN cargo build --profile $BUILD_PROFILE --features "$FEATURES" --locked --bin op-reth
+RUN cargo build --profile $BUILD_PROFILE --features "$FEATURES" --locked --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
 
 # ARG is not resolved in COPY so we have to hack around it by copying the
 # binary to a temporary location
