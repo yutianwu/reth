@@ -1,5 +1,5 @@
 use crate::{
-    bundle_state::{BundleStateInit, ExecutionOutcome, HashedStateChanges, RevertsInit},
+    bundle_state::{BundleStateInit, HashedStateChanges, RevertsInit},
     providers::{database::metrics, static_file::StaticFileWriter, StaticFileProvider},
     to_range,
     traits::{
@@ -29,6 +29,7 @@ use reth_db_api::{
     DatabaseError,
 };
 use reth_evm::ConfigureEvmEnv;
+use reth_execution_types::ExecutionOutcome;
 use reth_network_p2p::headers::downloader::SyncTarget;
 use reth_primitives::{
     keccak256,
