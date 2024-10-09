@@ -1,21 +1,16 @@
 //! Traits for execution.
 
-use reth_execution_types::ExecutionOutcome;
-use reth_primitives::{
-    parlia::Snapshot, BlockNumber, BlockWithSenders, Header, Receipt, Request, B256, U256,
-};
-use reth_prune_types::PruneModes;
-use revm::db::BundleState;
-use revm_primitives::db::Database;
-use std::fmt::Display;
-use tokio::sync::mpsc::UnboundedSender;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+// Re-export execution types
 pub use reth_execution_errors::{BlockExecutionError, BlockValidationError};
+pub use reth_execution_types::{BlockExecutionInput, BlockExecutionOutput, ExecutionOutcome};
 pub use reth_storage_errors::provider::ProviderError;
-use revm_primitives::EvmState;
-use std::collections::HashMap;
+
+use core::fmt::Display;
+
+use reth_primitives::{BlockNumber, BlockWithSenders, Header, Receipt};
+use reth_prune_types::PruneModes;
+use revm_primitives::{db::Database, EvmState};
+use tokio::sync::mpsc::UnboundedSender;
 
 /// A general purpose executor trait that executes an input (e.g. block) and produces an output
 /// (e.g. state changes and receipts).
@@ -100,63 +95,6 @@ pub trait BatchExecutor<DB> {
     fn size_hint(&self) -> Option<usize>;
 }
 
-/// The output of an ethereum block.
-///
-/// Contains the state changes, transaction receipts, and total gas used in the block.
-///
-/// TODO(mattsse): combine with `ExecutionOutcome`
-#[derive(Debug, PartialEq, Eq)]
-pub struct BlockExecutionOutput<T> {
-    /// The changed state of the block after execution.
-    pub state: BundleState,
-    /// All the receipts of the transactions in the block.
-    pub receipts: Vec<T>,
-    /// All the EIP-7685 requests of the transactions in the block.
-    pub requests: Vec<Request>,
-    /// The total gas used by the block.
-    pub gas_used: u64,
-
-    // TODO: feature?
-    /// Parlia snapshot.
-    pub snapshot: Option<Snapshot>,
-}
-
-/// A helper type for ethereum block inputs that consists of a block and the total difficulty.
-#[derive(Debug)]
-pub struct BlockExecutionInput<'a, Block, Header> {
-    /// The block to execute.
-    pub block: &'a Block,
-    /// The total difficulty of the block.
-    pub total_difficulty: U256,
-    /// The headers of the block's ancestor
-    pub ancestor_headers: Option<&'a HashMap<B256, Header>>,
-}
-
-impl<'a, Block, Header> BlockExecutionInput<'a, Block, Header> {
-    /// Creates a new input.
-    pub const fn new(
-        block: &'a Block,
-        total_difficulty: U256,
-        ancestor_headers: Option<&'a HashMap<B256, Header>>,
-    ) -> Self {
-        Self { block, total_difficulty, ancestor_headers }
-    }
-}
-
-impl<'a, Block, Header> From<(&'a Block, U256, Option<&'a HashMap<B256, Header>>)>
-    for BlockExecutionInput<'a, Block, Header>
-{
-    fn from(
-        (block, total_difficulty, ancestor_headers): (
-            &'a Block,
-            U256,
-            Option<&'a HashMap<B256, Header>>,
-        ),
-    ) -> Self {
-        Self::new(block, total_difficulty, ancestor_headers)
-    }
-}
-
 /// A type that can create a new executor for block execution.
 pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     /// An executor that can execute a single block given a database.
@@ -210,6 +148,7 @@ mod tests {
     use super::*;
     use reth_primitives::Block;
     use revm::db::{CacheDB, EmptyDBTyped};
+    use revm_primitives::U256;
     use std::marker::PhantomData;
 
     #[derive(Clone, Default)]

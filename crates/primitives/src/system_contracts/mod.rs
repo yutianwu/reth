@@ -1,14 +1,16 @@
 #![cfg(feature = "bsc")]
 #![allow(missing_docs)]
 
+use std::collections::HashMap;
+
 use crate::{hex, Address, BlockNumber, TransactionSigned};
 use alloy_chains::Chain;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use reth_chainspec::{ChainSpec, BSC_MAINNET, BSC_RIALTO, BSC_TESTNET};
+use reth_bsc_chainspec::{BSC_CHAPEL, BSC_MAINNET, BSC_RIALTO};
+use reth_chainspec::ChainSpec;
 use reth_ethereum_forks::BscHardfork;
 use revm_primitives::Bytecode;
-use std::collections::HashMap;
 use thiserror::Error;
 
 pub const VALIDATOR_CONTRACT: &str = "0x0000000000000000000000000000000000001000";
@@ -56,7 +58,7 @@ lazy_static! {
 
     /// testnet system contracts: hardfork -> address -> Bytecode
     pub(crate) static ref BSC_TESTNET_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
-        read_all_system_contracts(BSC_TESTNET.as_ref());
+        read_all_system_contracts(BSC_CHAPEL.as_ref());
 
     /// qa system contracts: hardfork -> address -> Bytecode
     pub(crate) static ref BSC_QA_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
@@ -268,10 +270,10 @@ pub fn get_upgrade_system_contracts(
             condition.transitions_at_timestamp(block_time, parent_block_time)
         {
             if let Ok(contracts) = get_system_contract_codes(spec, fork.name()) {
-                contracts.iter().for_each(|(k, v)| {
+                for (k, v) in &contracts {
                     let address = Address::parse_checksummed(k.clone(), None).unwrap();
                     m.insert(address, v.clone());
-                });
+                }
             } else {
                 return Err(SystemContractError::FailToUpdate);
             }

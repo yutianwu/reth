@@ -1,16 +1,20 @@
 #![allow(missing_docs, unreachable_pub)]
+use alloy_primitives::{B256, U256};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use proptest::{prelude::*, strategy::ValueTree, test_runner::TestRunner};
 use proptest_arbitrary_interop::arb;
 use rayon::ThreadPoolBuilder;
-use reth_primitives::{Account, B256, U256};
+use reth_primitives::Account;
 use reth_provider::{
-    providers::ConsistentDbView, test_utils::create_test_provider_factory, writer::StorageWriter,
+    providers::ConsistentDbView, test_utils::create_test_provider_factory, StateChangeWriter,
+    TrieWriter,
 };
 use reth_tasks::pool::BlockingTaskPool;
 use reth_trie::{
     hashed_cursor::HashedPostStateCursorFactory, HashedPostState, HashedStorage, StateRoot,
+    TrieInput,
 };
+use reth_trie_db::{DatabaseHashedCursorFactory, DatabaseStateRoot};
 use reth_trie_parallel::{async_root::AsyncStateRoot, parallel_root::ParallelStateRoot};
 use std::collections::HashMap;
 
@@ -26,11 +30,10 @@ pub fn calculate_state_root(c: &mut Criterion) {
         let provider_factory = create_test_provider_factory();
         {
             let provider_rw = provider_factory.provider_rw().unwrap();
-            let storage_writer = StorageWriter::new(Some(&provider_rw), None);
-            storage_writer.write_hashed_state(&db_state.into_sorted()).unwrap();
+            provider_rw.write_hashed_state(&db_state.into_sorted()).unwrap();
             let (_, updates) =
                 StateRoot::from_tx(provider_rw.tx_ref()).root_with_updates().unwrap();
-            updates.write_to_database(provider_rw.tx_ref()).unwrap();
+            provider_rw.write_trie_updates(&updates).unwrap();
             provider_rw.commit().unwrap();
         }
 
@@ -46,11 +49,12 @@ pub fn calculate_state_root(c: &mut Criterion) {
                     (provider, sorted_state, prefix_sets)
                 },
                 |(provider, sorted_state, prefix_sets)| async move {
+                    let hashed_cursor_factory = HashedPostStateCursorFactory::new(
+                        DatabaseHashedCursorFactory::new(provider.tx_ref()),
+                        &sorted_state,
+                    );
                     StateRoot::from_tx(provider.tx_ref())
-                        .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                            provider.tx_ref(),
-                            &sorted_state,
-                        ))
+                        .with_hashed_cursor_factory(hashed_cursor_factory)
                         .with_prefix_sets(prefix_sets)
                         .root()
                 },
@@ -60,7 +64,12 @@ pub fn calculate_state_root(c: &mut Criterion) {
         // parallel root
         group.bench_function(BenchmarkId::new("parallel root", size), |b| {
             b.to_async(&runtime).iter_with_setup(
-                || ParallelStateRoot::new(view.clone(), updated_state.clone()),
+                || {
+                    ParallelStateRoot::new(
+                        view.clone(),
+                        TrieInput::from_state(updated_state.clone()),
+                    )
+                },
                 |calculator| async { calculator.incremental_root() },
             );
         });
@@ -68,7 +77,13 @@ pub fn calculate_state_root(c: &mut Criterion) {
         // async root
         group.bench_function(BenchmarkId::new("async root", size), |b| {
             b.to_async(&runtime).iter_with_setup(
-                || AsyncStateRoot::new(view.clone(), blocking_pool.clone(), updated_state.clone()),
+                || {
+                    AsyncStateRoot::new(
+                        view.clone(),
+                        blocking_pool.clone(),
+                        TrieInput::from_state(updated_state.clone()),
+                    )
+                },
                 |calculator| calculator.incremental_root(),
             );
         });
@@ -96,14 +111,14 @@ fn generate_test_data(size: usize) -> (HashedPostState, HashedPostState) {
     .unwrap()
     .current();
 
-    let keys = db_state.keys().cloned().collect::<Vec<_>>();
+    let keys = db_state.keys().copied().collect::<Vec<_>>();
     let keys_to_update = subsequence(keys, size / 2).new_tree(&mut runner).unwrap().current();
 
     let updated_storages = keys_to_update
         .into_iter()
         .map(|address| {
             let (_, storage) = db_state.get(&address).unwrap();
-            let slots = storage.keys().cloned().collect::<Vec<_>>();
+            let slots = storage.keys().copied().collect::<Vec<_>>();
             let slots_to_update =
                 subsequence(slots, storage_size / 2).new_tree(&mut runner).unwrap().current();
             (

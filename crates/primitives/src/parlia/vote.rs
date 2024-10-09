@@ -1,7 +1,7 @@
 use crate::{alloy_primitives::wrap_fixed_bytes, keccak256, BlockNumber, B256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use bytes::Bytes;
-#[cfg(feature = "reth-codec")]
+#[cfg(any(test, feature = "reth-codec"))]
 use reth_codecs::{impl_compact_for_wrapped_bytes, Compact};
 use serde::{Deserialize, Serialize};
 
@@ -24,10 +24,12 @@ wrap_fixed_bytes!(
 impl_compact_for_wrapped_bytes!(VoteAddress, VoteSignature);
 
 /// `VoteData` represents the vote range that validator voted for fast finality.
-#[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::reth_codec)]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize,
 )]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
+#[cfg_attr(any(test, feature = "reth-codec"), derive(Compact))]
+#[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct VoteData {
     /// The source block number should be the latest justified block number.
     pub source_number: BlockNumber,

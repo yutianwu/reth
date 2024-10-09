@@ -3,23 +3,25 @@
 
 use std::sync::Arc;
 
+use alloy_network::AnyNetwork;
+use alloy_primitives::U256;
 use derive_more::Deref;
-use futures::Future;
 use reth_node_api::{BuilderProvider, FullNodeComponents};
-use reth_primitives::{BlockNumberOrTag, U256};
+use reth_primitives::BlockNumberOrTag;
 use reth_provider::{BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider};
 use reth_rpc_eth_api::{
-    helpers::{transaction::UpdateRawTxForwarder, EthSigner, SpawnBlocking},
-    RawTransactionForwarder,
+    helpers::{EthSigner, SpawnBlocking},
+    EthApiTypes,
 };
 use reth_rpc_eth_types::{
-    EthApiBuilderCtx, EthStateCache, FeeHistoryCache, GasCap, GasPriceOracle, PendingBlock,
+    EthApiBuilderCtx, EthApiError, EthStateCache, FeeHistoryCache, GasCap, GasPriceOracle,
+    PendingBlock,
 };
 use reth_tasks::{
     pool::{BlockingTaskGuard, BlockingTaskPool},
     TaskExecutor, TaskSpawner, TokioTaskExecutor,
 };
-use tokio::sync::{AcquireError, Mutex, OwnedSemaphorePermit};
+use tokio::sync::Mutex;
 
 /// `Eth` API implementation.
 ///
@@ -36,6 +38,12 @@ pub struct EthApi<Provider, Pool, Network, EvmConfig> {
     pub(super) inner: Arc<EthApiInner<Provider, Pool, Network, EvmConfig>>,
 }
 
+impl<Provider, Pool, Network, EvmConfig> Clone for EthApi<Provider, Pool, Network, EvmConfig> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
 impl<Provider, Pool, Network, EvmConfig> EthApi<Provider, Pool, Network, EvmConfig>
 where
     Provider: BlockReaderIdExt,
@@ -49,11 +57,11 @@ where
         eth_cache: EthStateCache,
         gas_oracle: GasPriceOracle<Provider>,
         gas_cap: impl Into<GasCap>,
+        max_simulate_blocks: u64,
         eth_proof_window: u64,
         blocking_task_pool: BlockingTaskPool,
         fee_history_cache: FeeHistoryCache,
         evm_config: EvmConfig,
-        raw_transaction_forwarder: Option<Arc<dyn RawTransactionForwarder>>,
         proof_permits: usize,
     ) -> Self {
         let inner = EthApiInner::new(
@@ -63,12 +71,12 @@ where
             eth_cache,
             gas_oracle,
             gas_cap,
+            max_simulate_blocks,
             eth_proof_window,
             blocking_task_pool,
             fee_history_cache,
             evm_config,
             TokioTaskExecutor::default(),
-            raw_transaction_forwarder,
             proof_permits,
         );
 
@@ -101,17 +109,25 @@ where
             ctx.cache.clone(),
             ctx.new_gas_price_oracle(),
             ctx.config.rpc_gas_cap,
+            ctx.config.rpc_max_simulate_blocks,
             ctx.config.eth_proof_window,
             blocking_task_pool,
             ctx.new_fee_history_cache(),
             ctx.evm_config.clone(),
             ctx.executor.clone(),
-            None,
             ctx.config.proof_permits,
         );
 
         Self { inner: Arc::new(inner) }
     }
+}
+
+impl<Provider, Pool, Network, EvmConfig> EthApiTypes for EthApi<Provider, Pool, Network, EvmConfig>
+where
+    Self: Send + Sync,
+{
+    type Error = EthApiError;
+    type NetworkTypes = AnyNetwork;
 }
 
 impl<Provider, Pool, Network, EvmConfig> std::fmt::Debug
@@ -122,38 +138,24 @@ impl<Provider, Pool, Network, EvmConfig> std::fmt::Debug
     }
 }
 
-impl<Provider, Pool, Network, EvmConfig> Clone for EthApi<Provider, Pool, Network, EvmConfig> {
-    fn clone(&self) -> Self {
-        Self { inner: Arc::clone(&self.inner) }
-    }
-}
-
 impl<Provider, Pool, Network, EvmConfig> SpawnBlocking
     for EthApi<Provider, Pool, Network, EvmConfig>
 where
     Self: Clone + Send + Sync + 'static,
 {
     #[inline]
-    fn io_task_spawner(&self) -> impl reth_tasks::TaskSpawner {
+    fn io_task_spawner(&self) -> impl TaskSpawner {
         self.inner.task_spawner()
     }
 
     #[inline]
-    fn tracing_task_pool(&self) -> &reth_tasks::pool::BlockingTaskPool {
+    fn tracing_task_pool(&self) -> &BlockingTaskPool {
         self.inner.blocking_task_pool()
     }
 
-    fn acquire_owned(
-        &self,
-    ) -> impl Future<Output = Result<OwnedSemaphorePermit, AcquireError>> + Send {
-        self.blocking_task_guard.clone().acquire_owned()
-    }
-
-    fn acquire_many_owned(
-        &self,
-        n: u32,
-    ) -> impl Future<Output = Result<OwnedSemaphorePermit, AcquireError>> + Send {
-        self.blocking_task_guard.clone().acquire_many_owned(n)
+    #[inline]
+    fn tracing_task_guard(&self) -> &BlockingTaskGuard {
+        self.inner.blocking_task_guard()
     }
 }
 
@@ -187,6 +189,8 @@ pub struct EthApiInner<Provider, Pool, Network, EvmConfig> {
     gas_oracle: GasPriceOracle<Provider>,
     /// Maximum gas limit for `eth_call` and call tracing RPC methods.
     gas_cap: u64,
+    /// Maximum number of blocks for `eth_simulateV1`.
+    max_simulate_blocks: u64,
     /// The maximum number of blocks into the past for generating state proofs.
     eth_proof_window: u64,
     /// The block number at which the node started
@@ -201,8 +205,7 @@ pub struct EthApiInner<Provider, Pool, Network, EvmConfig> {
     fee_history_cache: FeeHistoryCache,
     /// The type that defines how to configure the EVM
     evm_config: EvmConfig,
-    /// Allows forwarding received raw transactions
-    raw_transaction_forwarder: parking_lot::RwLock<Option<Arc<dyn RawTransactionForwarder>>>,
+
     /// Guard for getproof calls
     blocking_task_guard: BlockingTaskGuard,
 }
@@ -220,12 +223,12 @@ where
         eth_cache: EthStateCache,
         gas_oracle: GasPriceOracle<Provider>,
         gas_cap: impl Into<GasCap>,
+        max_simulate_blocks: u64,
         eth_proof_window: u64,
         blocking_task_pool: BlockingTaskPool,
         fee_history_cache: FeeHistoryCache,
         evm_config: EvmConfig,
         task_spawner: impl TaskSpawner + 'static,
-        raw_transaction_forwarder: Option<Arc<dyn RawTransactionForwarder>>,
         proof_permits: usize,
     ) -> Self {
         let signers = parking_lot::RwLock::new(Default::default());
@@ -247,6 +250,7 @@ where
             eth_cache,
             gas_oracle,
             gas_cap: gas_cap.into().into(),
+            max_simulate_blocks,
             eth_proof_window,
             starting_block,
             task_spawner: Box::new(task_spawner),
@@ -254,7 +258,6 @@ where
             blocking_task_pool,
             fee_history_cache,
             evm_config,
-            raw_transaction_forwarder: parking_lot::RwLock::new(raw_transaction_forwarder),
             blocking_task_guard: BlockingTaskGuard::new(proof_permits),
         }
     }
@@ -303,16 +306,16 @@ impl<Provider, Pool, Network, EvmConfig> EthApiInner<Provider, Pool, Network, Ev
         &self.pool
     }
 
-    /// Returns a handle to the transaction forwarder.
-    #[inline]
-    pub fn raw_tx_forwarder(&self) -> Option<Arc<dyn RawTransactionForwarder>> {
-        self.raw_transaction_forwarder.read().clone()
-    }
-
     /// Returns the gas cap.
     #[inline]
     pub const fn gas_cap(&self) -> u64 {
         self.gas_cap
+    }
+
+    /// Returns the `max_simulate_blocks`.
+    #[inline]
+    pub const fn max_simulate_blocks(&self) -> u64 {
+        self.max_simulate_blocks
     }
 
     /// Returns a handle to the gas oracle.
@@ -350,23 +353,22 @@ impl<Provider, Pool, Network, EvmConfig> EthApiInner<Provider, Pool, Network, Ev
     pub const fn eth_proof_window(&self) -> u64 {
         self.eth_proof_window
     }
-}
 
-impl<Provider, Pool, Network, EvmConfig> UpdateRawTxForwarder
-    for EthApiInner<Provider, Pool, Network, EvmConfig>
-{
-    fn set_eth_raw_transaction_forwarder(&self, forwarder: Arc<dyn RawTransactionForwarder>) {
-        self.raw_transaction_forwarder.write().replace(forwarder);
+    /// Returns reference to [`BlockingTaskGuard`].
+    #[inline]
+    pub const fn blocking_task_guard(&self) -> &BlockingTaskGuard {
+        &self.blocking_task_guard
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::{B256, U64};
     use jsonrpsee_types::error::INVALID_PARAMS_CODE;
-    use reth_chainspec::BaseFeeParams;
+    use reth_chainspec::{BaseFeeParams, ChainSpec};
     use reth_evm_ethereum::EthEvmConfig;
     use reth_network_api::noop::NoopNetwork;
-    use reth_primitives::{Block, BlockNumberOrTag, Header, TransactionSigned, B256, U64};
+    use reth_primitives::{Block, BlockNumberOrTag, Header, TransactionSigned};
     use reth_provider::{
         test_utils::{MockEthProvider, NoopProvider},
         BlockReader, BlockReaderIdExt, ChainSpecProvider, EvmEnvProvider, StateProviderFactory,
@@ -375,7 +377,9 @@ mod tests {
     use reth_rpc_eth_types::{
         EthStateCache, FeeHistoryCache, FeeHistoryCacheConfig, GasPriceOracle,
     };
-    use reth_rpc_server_types::constants::{DEFAULT_ETH_PROOF_WINDOW, DEFAULT_PROOF_PERMITS};
+    use reth_rpc_server_types::constants::{
+        DEFAULT_ETH_PROOF_WINDOW, DEFAULT_MAX_SIMULATE_BLOCKS, DEFAULT_PROOF_PERMITS,
+    };
     use reth_rpc_types::FeeHistory;
     use reth_tasks::pool::BlockingTaskPool;
     use reth_testing_utils::{generators, generators::Rng};
@@ -386,7 +390,7 @@ mod tests {
     fn build_test_eth_api<
         P: BlockReaderIdExt
             + BlockReader
-            + ChainSpecProvider
+            + ChainSpecProvider<ChainSpec = ChainSpec>
             + EvmEnvProvider
             + StateProviderFactory
             + Unpin
@@ -395,8 +399,8 @@ mod tests {
     >(
         provider: P,
     ) -> EthApi<P, TestPool, NoopNetwork, EthEvmConfig> {
-        let evm_config = EthEvmConfig::default();
-        let cache = EthStateCache::spawn(provider.clone(), Default::default(), evm_config);
+        let evm_config = EthEvmConfig::new(provider.chain_spec());
+        let cache = EthStateCache::spawn(provider.clone(), Default::default(), evm_config.clone());
         let fee_history_cache =
             FeeHistoryCache::new(cache.clone(), FeeHistoryCacheConfig::default());
 
@@ -408,11 +412,11 @@ mod tests {
             cache.clone(),
             GasPriceOracle::new(provider, Default::default(), cache),
             gas_cap,
+            DEFAULT_MAX_SIMULATE_BLOCKS,
             DEFAULT_ETH_PROOF_WINDOW,
             BlockingTaskPool::build().expect("failed to build tracing pool"),
             fee_history_cache,
             evm_config,
-            None,
             DEFAULT_PROOF_PERMITS,
         )
     }
@@ -504,7 +508,7 @@ mod tests {
     /// Invalid block range
     #[tokio::test]
     async fn test_fee_history_empty() {
-        let response = <EthApi<_, _, _, _> as EthApiServer>::fee_history(
+        let response = <EthApi<_, _, _, _> as EthApiServer<_, _, _>>::fee_history(
             &build_test_eth_api(NoopProvider::default()),
             U64::from(1),
             BlockNumberOrTag::Latest,
@@ -526,7 +530,7 @@ mod tests {
         let (eth_api, _, _) =
             prepare_eth_api(newest_block, oldest_block, block_count, MockEthProvider::default());
 
-        let response = <EthApi<_, _, _, _> as EthApiServer>::fee_history(
+        let response = <EthApi<_, _, _, _> as EthApiServer<_, _, _>>::fee_history(
             &eth_api,
             U64::from(newest_block + 1),
             newest_block.into(),
@@ -549,7 +553,7 @@ mod tests {
         let (eth_api, _, _) =
             prepare_eth_api(newest_block, oldest_block, block_count, MockEthProvider::default());
 
-        let response = <EthApi<_, _, _, _> as EthApiServer>::fee_history(
+        let response = <EthApi<_, _, _, _> as EthApiServer<_, _, _>>::fee_history(
             &eth_api,
             U64::from(1),
             (newest_block + 1000).into(),
@@ -572,7 +576,7 @@ mod tests {
         let (eth_api, _, _) =
             prepare_eth_api(newest_block, oldest_block, block_count, MockEthProvider::default());
 
-        let response = <EthApi<_, _, _, _> as EthApiServer>::fee_history(
+        let response = <EthApi<_, _, _, _> as EthApiServer<_, _, _>>::fee_history(
             &eth_api,
             U64::from(0),
             newest_block.into(),

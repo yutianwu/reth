@@ -1,10 +1,9 @@
 //! Some payload tests
 
+use alloy_primitives::{Bytes, U256};
 use alloy_rlp::{Decodable, Error as RlpError};
 use assert_matches::assert_matches;
-use reth_primitives::{
-    proofs, Block, Bytes, SealedBlock, TransactionSigned, Withdrawals, B256, U256,
-};
+use reth_primitives::{proofs, Block, SealedBlock, TransactionSigned, Withdrawals};
 use reth_rpc_types::engine::{
     ExecutionPayload, ExecutionPayloadBodyV1, ExecutionPayloadV1, PayloadError,
 };
@@ -12,7 +11,9 @@ use reth_rpc_types_compat::engine::payload::{
     block_to_payload, block_to_payload_v1, convert_to_payload_body_v1, try_into_sealed_block,
     try_payload_v1_to_block,
 };
-use reth_testing_utils::generators::{self, random_block, random_block_range, random_header, Rng};
+use reth_testing_utils::generators::{
+    self, random_block, random_block_range, random_header, BlockParams, BlockRangeParams, Rng,
+};
 
 fn transform_block<F: FnOnce(Block) -> Block>(src: SealedBlock, f: F) -> ExecutionPayload {
     let unsealed = src.unseal();
@@ -28,13 +29,16 @@ fn transform_block<F: FnOnce(Block) -> Block>(src: SealedBlock, f: F) -> Executi
         sidecars: transformed.sidecars,
         requests: transformed.requests,
     })
-    .0
 }
 
 #[test]
 fn payload_body_roundtrip() {
     let mut rng = generators::rng();
-    for block in random_block_range(&mut rng, 0..=99, B256::default(), 0..2) {
+    for block in random_block_range(
+        &mut rng,
+        0..=99,
+        BlockRangeParams { tx_count: 0..2, ..Default::default() },
+    ) {
         let unsealed = block.clone().unseal();
         let payload_body: ExecutionPayloadBodyV1 = convert_to_payload_body_v1(unsealed);
 
@@ -55,7 +59,16 @@ fn payload_body_roundtrip() {
 fn payload_validation() {
     let mut rng = generators::rng();
     let parent = rng.gen();
-    let block = random_block(&mut rng, 100, Some(parent), Some(3), Some(0));
+    let block = random_block(
+        &mut rng,
+        100,
+        BlockParams {
+            parent: Some(parent),
+            tx_count: Some(3),
+            ommers_count: Some(0),
+            ..Default::default()
+        },
+    );
 
     // Valid extra data
     let block_with_valid_extra_data = transform_block(block.clone(), |mut b| {
@@ -72,20 +85,22 @@ fn payload_validation() {
         b
     });
     assert_matches!(
-        try_into_sealed_block(invalid_extra_data_block,None),
+        try_into_sealed_block(invalid_extra_data_block, None),
         Err(PayloadError::ExtraData(data)) if data == block_with_invalid_extra_data
     );
 
     // Zero base fee
-    let block_with_zero_base_fee = transform_block(block.clone(), |mut b| {
-        b.header.base_fee_per_gas = Some(0);
-        b
-    });
-    assert_matches!(
-
-        try_into_sealed_block(block_with_zero_base_fee,None),
-        Err(PayloadError::BaseFee(val)) if val.is_zero()
-    );
+    #[cfg(not(feature = "optimism"))]
+    {
+        let block_with_zero_base_fee = transform_block(block.clone(), |mut b| {
+            b.header.base_fee_per_gas = Some(0);
+            b
+        });
+        assert_matches!(
+            try_into_sealed_block(block_with_zero_base_fee, None),
+            Err(PayloadError::BaseFee(val)) if val.is_zero()
+        );
+    }
 
     // Invalid encoded transactions
     let mut payload_with_invalid_txs: ExecutionPayloadV1 = block_to_payload_v1(block.clone());

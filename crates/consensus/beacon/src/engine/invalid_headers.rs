@@ -1,8 +1,9 @@
+use alloy_primitives::B256;
 use reth_metrics::{
     metrics::{Counter, Gauge},
     Metrics,
 };
-use reth_primitives::{Header, SealedHeader, B256};
+use reth_primitives::{Header, SealedHeader};
 use schnellru::{ByLength, LruMap};
 use std::sync::Arc;
 use tracing::warn;
@@ -67,7 +68,7 @@ impl InvalidHeaderCache {
     }
 
     /// Inserts an invalid ancestor into the map.
-    pub(crate) fn insert(&mut self, invalid_ancestor: SealedHeader) {
+    pub fn insert(&mut self, invalid_ancestor: SealedHeader) {
         if self.get(&invalid_ancestor.hash()).is_none() {
             let hash = invalid_ancestor.hash();
             let header = invalid_ancestor.unseal();

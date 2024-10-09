@@ -1,9 +1,7 @@
 use crate::{ChainHardforks, EthereumHardfork, ForkCondition};
+use alloc::vec;
 use alloy_primitives::U256;
 use once_cell::sync::Lazy;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec;
 
 /// Dev hardforks
 pub static DEV_HARDFORKS: Lazy<ChainHardforks> = Lazy::new(|| {
@@ -31,5 +29,7 @@ pub static DEV_HARDFORKS: Lazy<ChainHardforks> = Lazy::new(|| {
         (crate::OptimismHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
         #[cfg(feature = "optimism")]
         (crate::OptimismHardfork::Ecotone.boxed(), ForkCondition::Timestamp(0)),
+        #[cfg(feature = "optimism")]
+        (crate::OptimismHardfork::Canyon.boxed(), ForkCondition::Timestamp(0)),
     ])
 });

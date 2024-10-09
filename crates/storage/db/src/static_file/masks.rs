@@ -4,8 +4,9 @@ use crate::{
     static_file::mask::{ColumnSelectorOne, ColumnSelectorTwo, HeaderMask},
     HeaderTerminalDifficulties, RawValue, Receipts, Transactions,
 };
+use alloy_primitives::BlockHash;
 use reth_db_api::table::Table;
-use reth_primitives::{BlockHash, Header};
+use reth_primitives::Header;
 use reth_primitives_traits::BlobSidecars;
 
 // HEADER MASKS

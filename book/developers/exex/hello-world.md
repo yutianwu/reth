@@ -24,7 +24,9 @@ reth = { git = "https://github.com/paradigmxyz/reth.git" } # Reth
 reth-exex = { git = "https://github.com/paradigmxyz/reth.git" } # Execution Extensions
 reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git" } # Ethereum Node implementation
 reth-tracing = { git = "https://github.com/paradigmxyz/reth.git" } # Logging
+
 eyre = "0.6" # Easy error handling
+futures-util = "0.3" # Stream utilities for consuming notifications
 ```
 
 ### Default Reth node
@@ -66,7 +68,7 @@ use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_ethereum::EthereumNode;
 use reth_tracing::tracing::info;
 
-async fn my_exex<Node: FullNodeComponents>(mut ctx: ExExContext<Node>) -> eyre::Result<()> {
+async fn my_exex<Node: FullNodeComponents>(mut _ctx: ExExContext<Node>) -> eyre::Result<()> {
     loop {}
 }
 
@@ -101,13 +103,14 @@ If you try running a node with an ExEx that exits, the node will exit as well.
 Now, let's extend our simplest ExEx and start actually listening to new notifications, log them, and send events back to the main node
 
 ```rust,norun,noplayground,ignore
+use futures_util::StreamExt;
 use reth::api::FullNodeComponents;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_ethereum::EthereumNode;
 use reth_tracing::tracing::info;
 
 async fn my_exex<Node: FullNodeComponents>(mut ctx: ExExContext<Node>) -> eyre::Result<()> {
-    while let Some(notification) = ctx.notifications.recv().await {
+    while let Some(notification) = ctx.notifications.next().await {
         match &notification {
             ExExNotification::ChainCommitted { new } => {
                 info!(committed_chain = ?new.range(), "Received commit");
@@ -159,7 +162,7 @@ and it's safe to prune the associated data.
 
 </div>
 
-What we've arrived at is the [minimal ExEx example](https://github.com/paradigmxyz/reth/blob/b8cd7be6c92a71aea5341cdeba685f124c6de540/examples/exex/minimal/src/main.rs) that we provide in the Reth repository.
+What we've arrived at is the [minimal ExEx example](https://github.com/paradigmxyz/reth-exex-examples/blob/4f3498f0cc00e038d6d8c32cd94fe82788862f49/minimal/src/main.rs) that we provide in the [reth-exex-examples](https://github.com/paradigmxyz/reth-exex-examples) repository.
 
 ## What's next?
 

@@ -13,7 +13,7 @@ use reth_db_api::{
     cursor::{DbCursorRO, DbCursorRW},
     database::Database,
     database_metrics::{DatabaseMetadata, DatabaseMetadataValue, DatabaseMetrics},
-    models::client_version::ClientVersion,
+    models::ClientVersion,
     transaction::{DbTx, DbTxMut},
 };
 use reth_libmdbx::{
@@ -147,7 +147,7 @@ impl Database for DatabaseEnv {
     fn tx(&self) -> Result<Self::TX, DatabaseError> {
         Tx::new_with_metrics(
             self.inner.begin_ro_txn().map_err(|e| DatabaseError::InitTx(e.into()))?,
-            self.metrics.as_ref().cloned(),
+            self.metrics.clone(),
         )
         .map_err(|e| DatabaseError::InitTx(e.into()))
     }
@@ -155,7 +155,7 @@ impl Database for DatabaseEnv {
     fn tx_mut(&self) -> Result<Self::TXMut, DatabaseError> {
         Tx::new_with_metrics(
             self.inner.begin_rw_txn().map_err(|e| DatabaseError::InitTx(e.into()))?,
-            self.metrics.as_ref().cloned(),
+            self.metrics.clone(),
         )
         .map_err(|e| DatabaseError::InitTx(e.into()))
     }
@@ -476,13 +476,14 @@ mod tests {
         test_utils::*,
         AccountChangeSets,
     };
+    use alloy_primitives::{Address, B256, U256};
     use reth_db_api::{
         cursor::{DbDupCursorRO, DbDupCursorRW, ReverseWalker, Walker},
         models::{AccountBeforeTx, ShardedKey},
         table::{Encode, Table},
     };
     use reth_libmdbx::Error;
-    use reth_primitives::{Account, Address, Header, StorageEntry, B256, U256};
+    use reth_primitives::{Account, Header, StorageEntry};
     use reth_primitives_traits::IntegerList;
     use reth_storage_errors::db::{DatabaseWriteError, DatabaseWriteOperation};
     use std::str::FromStr;

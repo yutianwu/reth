@@ -24,7 +24,6 @@ use reth_stages_api::{
 use reth_storage_errors::provider::ProviderResult;
 use tracing::*;
 
-// TODO(onbjerg): Metrics and events (gradual status for e.g. CLI)
 /// The body stage downloads block bodies.
 ///
 /// The body stage downloads block bodies for all block headers stored locally in storage.
@@ -213,8 +212,8 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
 
             // Increment block on static file header.
             if block_number > 0 {
-                let appended_block_number = static_file_producer_tx
-                    .increment_block(StaticFileSegment::Transactions, block_number)?;
+                let appended_block_number =
+                    static_file_producer_tx.increment_block(block_number)?;
 
                 if appended_block_number != block_number {
                     // This scenario indicates a critical error in the logic of adding new
@@ -237,7 +236,7 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                     // Write transactions
                     for transaction in block.body {
                         let appended_tx_number = static_file_producer_tx
-                            .append_transaction(next_tx_num, transaction.into())?;
+                            .append_transaction(next_tx_num, &transaction.into())?;
 
                         if appended_tx_number != next_tx_num {
                             // This scenario indicates a critical error in the logic of adding new
@@ -256,9 +255,9 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                     // Write sidecars
                     let sidecars = block.sidecars.unwrap_or_default();
                     static_file_producer_sc.append_sidecars(
-                        sidecars,
+                        &sidecars,
                         block_number,
-                        block.header.hash(),
+                        &block.header.hash(),
                     )?;
 
                     // Write ommers if any
@@ -285,9 +284,9 @@ impl<DB: Database, D: BodyDownloader> Stage<DB> for BodyStage<D> {
                 BlockResponse::Empty(header) => {
                     // Write empty sidecars
                     static_file_producer_sc.append_sidecars(
-                        Default::default(),
+                        &Default::default(),
                         block_number,
-                        header.hash(),
+                        &header.hash(),
                     )?;
                 }
             };
@@ -690,7 +689,7 @@ mod tests {
             },
         };
         use futures_util::Stream;
-        use reth_db::{static_file::HeaderMask, tables, test_utils::TempDatabase, DatabaseEnv};
+        use reth_db::{static_file::HeaderMask, tables};
         use reth_db_api::{
             cursor::DbCursorRO,
             models::{StoredBlockBodyIndices, StoredBlockOmmers},
@@ -708,19 +707,17 @@ mod tests {
             StaticFileSegment, TxNumber, B256,
         };
         use reth_provider::{
-            providers::StaticFileWriter, HeaderProvider, ProviderFactory,
-            StaticFileProviderFactory, TransactionsProvider,
+            providers::StaticFileWriter, test_utils::MockNodeTypesWithDB, HeaderProvider,
+            ProviderFactory, StaticFileProviderFactory, TransactionsProvider,
         };
         use reth_stages_api::{ExecInput, ExecOutput, UnwindInput};
-        use reth_testing_utils::{
-            generators,
-            generators::{random_block_range, random_signed_tx},
+        use reth_testing_utils::generators::{
+            self, random_block_range, random_signed_tx, BlockRangeParams,
         };
         use std::{
             collections::{HashMap, VecDeque},
             ops::RangeInclusive,
             pin::Pin,
-            sync::Arc,
             task::{Context, Poll},
         };
 
@@ -792,7 +789,15 @@ mod tests {
                 let mut rng = generators::rng();
 
                 // Static files do not support gaps in headers, so we need to generate 0 to end
-                let blocks = random_block_range(&mut rng, 0..=end, GENESIS_HASH, 0..2);
+                let blocks = random_block_range(
+                    &mut rng,
+                    0..=end,
+                    BlockRangeParams {
+                        parent: Some(GENESIS_HASH),
+                        tx_count: 0..2,
+                        ..Default::default()
+                    },
+                );
                 self.db.insert_headers_with_td(blocks.iter().map(|block| &block.header))?;
                 if let Some(progress) = blocks.get(start as usize) {
                     // Insert last progress data
@@ -813,15 +818,18 @@ mod tests {
                         body.tx_num_range().try_for_each(|tx_num| {
                             let transaction = random_signed_tx(&mut rng);
                             static_file_producer_tx
-                                .append_transaction(tx_num, transaction.into())
+                                .append_transaction(tx_num, &transaction.into())
                                 .map(drop)
                         })?;
 
                         for block_number in 0..=progress.number {
                             static_file_producer_sc.append_sidecars(
-                                Default::default(),
+                                &Default::default(),
                                 block_number,
-                                blocks.get(block_number as usize).map(|b| b.header.hash()).unwrap(),
+                                &blocks
+                                    .get(block_number as usize)
+                                    .map(|b| b.header.hash())
+                                    .unwrap(),
                             )?;
                             tx.put::<tables::Sidecars>(block_number, Default::default())?;
                         }
@@ -970,7 +978,7 @@ mod tests {
         /// A [`BodyDownloader`] that is backed by an internal [`HashMap`] for testing.
         #[derive(Debug)]
         pub(crate) struct TestBodyDownloader {
-            provider_factory: ProviderFactory<Arc<TempDatabase<DatabaseEnv>>>,
+            provider_factory: ProviderFactory<MockNodeTypesWithDB>,
             responses: HashMap<B256, BlockBody>,
             headers: VecDeque<SealedHeader>,
             batch_size: u64,
@@ -978,7 +986,7 @@ mod tests {
 
         impl TestBodyDownloader {
             pub(crate) fn new(
-                provider_factory: ProviderFactory<Arc<TempDatabase<DatabaseEnv>>>,
+                provider_factory: ProviderFactory<MockNodeTypesWithDB>,
                 responses: HashMap<B256, BlockBody>,
                 batch_size: u64,
             ) -> Self {
