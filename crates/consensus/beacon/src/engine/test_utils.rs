@@ -3,6 +3,7 @@ use crate::{
     BeaconConsensusEngineError, BeaconConsensusEngineHandle, BeaconForkChoiceUpdateError,
     BeaconOnNewPayloadError, EthBeaconConsensus, MIN_BLOCKS_FOR_PIPELINE_RUN,
 };
+use alloy_primitives::{BlockNumber, B256};
 use reth_blockchain_tree::{
     config::BlockchainTreeConfig, externals::TreeExternals, BlockchainTree, ShareableBlockchainTree,
 };
@@ -18,15 +19,12 @@ use reth_ethereum_engine_primitives::EthEngineTypes;
 use reth_evm::{either::Either, test_utils::MockExecutorProvider};
 use reth_evm_ethereum::execute::EthExecutorProvider;
 use reth_exex_types::FinishedExExHeight;
-use reth_network_p2p::{
-    bodies::client::BodiesClient, headers::client::HeadersClient, sync::NoopSyncStateUpdater,
-    test_utils::NoopFullBlockClient,
-};
+use reth_network_p2p::{sync::NoopSyncStateUpdater, test_utils::NoopFullBlockClient, BlockClient};
 use reth_payload_builder::test_utils::spawn_test_payload_service;
-use reth_primitives::{BlockNumber, B256};
 use reth_provider::{
-    providers::BlockchainProvider, test_utils::create_test_provider_factory_with_chain_spec,
-    ExecutionOutcome, ProviderFactory,
+    providers::BlockchainProvider,
+    test_utils::{create_test_provider_factory_with_chain_spec, MockNodeTypesWithDB},
+    ExecutionOutcome,
 };
 use reth_prune::Pruner;
 use reth_prune_types::PruneModes;
@@ -42,10 +40,9 @@ use tokio::sync::{oneshot, watch};
 type DatabaseEnv = TempDatabase<DE>;
 
 type TestBeaconConsensusEngine<Client> = BeaconConsensusEngine<
-    Arc<DatabaseEnv>,
-    BlockchainProvider<Arc<DatabaseEnv>>,
+    MockNodeTypesWithDB,
+    BlockchainProvider<MockNodeTypesWithDB>,
     Arc<Either<Client, NoopFullBlockClient>>,
-    EthEngineTypes,
 >;
 
 #[derive(Debug)]
@@ -232,7 +229,7 @@ impl TestConsensusEngineBuilder {
         client: Client,
     ) -> NetworkedTestConsensusEngineBuilder<Client>
     where
-        Client: HeadersClient + BodiesClient + 'static,
+        Client: BlockClient + 'static,
     {
         NetworkedTestConsensusEngineBuilder { base_config: self, client: Some(client) }
     }
@@ -259,7 +256,7 @@ pub struct NetworkedTestConsensusEngineBuilder<Client> {
 
 impl<Client> NetworkedTestConsensusEngineBuilder<Client>
 where
-    Client: HeadersClient + BodiesClient + 'static,
+    Client: BlockClient + 'static,
 {
     /// Set the pipeline execution outputs to use for the test consensus engine.
     #[allow(dead_code)]
@@ -314,7 +311,7 @@ where
         client: ClientType,
     ) -> NetworkedTestConsensusEngineBuilder<ClientType>
     where
-        ClientType: HeadersClient + BodiesClient + 'static,
+        ClientType: BlockClient + 'static,
     {
         NetworkedTestConsensusEngineBuilder { base_config: self.base_config, client: Some(client) }
     }
@@ -358,7 +355,7 @@ where
         // Setup pipeline
         let (tip_tx, tip_rx) = watch::channel(B256::default());
         let mut pipeline = match self.base_config.pipeline_config {
-            TestPipelineConfig::Test(outputs) => Pipeline::builder()
+            TestPipelineConfig::Test(outputs) => Pipeline::<MockNodeTypesWithDB>::builder()
                 .add_stages(TestStages::new(outputs, Default::default()))
                 .with_tip_sender(tip_tx),
             TestPipelineConfig::Real => {
@@ -370,7 +367,7 @@ where
                     .build(client.clone(), consensus.clone(), provider_factory.clone())
                     .into_task();
 
-                Pipeline::builder().add_stages(DefaultStages::new(
+                Pipeline::<MockNodeTypesWithDB>::builder().add_stages(DefaultStages::new(
                     provider_factory.clone(),
                     tip_rx.clone(),
                     Arc::clone(&consensus),
@@ -393,18 +390,15 @@ where
         // Setup blockchain tree
         let externals = TreeExternals::new(provider_factory.clone(), consensus, executor_factory);
         let tree = Arc::new(ShareableBlockchainTree::new(
-            BlockchainTree::new(
-                externals,
-                BlockchainTreeConfig::new(1, 2, 3, 2),
-                PruneModes::default(),
-            )
-            .expect("failed to create tree"),
+            BlockchainTree::new(externals, BlockchainTreeConfig::new(1, 2, 3, 2))
+                .expect("failed to create tree"),
         ));
-        let latest = self.base_config.chain_spec.genesis_header().seal_slow();
-        let blockchain_provider =
-            BlockchainProvider::with_latest(provider_factory.clone(), tree, latest);
+        let genesis_block = self.base_config.chain_spec.genesis_header().clone().seal_slow();
 
-        let pruner = Pruner::<_, ProviderFactory<_>>::new(
+        let blockchain_provider =
+            BlockchainProvider::with_blocks(provider_factory.clone(), tree, genesis_block, None);
+
+        let pruner = Pruner::new_with_factory(
             provider_factory.clone(),
             vec![],
             5,
@@ -412,6 +406,7 @@ where
             None,
             watch::channel(FinishedExExHeight::NoExExs).1,
             0,
+            None,
         );
 
         let mut hooks = EngineHooks::new();
@@ -443,7 +438,7 @@ pub fn spawn_consensus_engine<Client>(
     engine: TestBeaconConsensusEngine<Client>,
 ) -> oneshot::Receiver<Result<(), BeaconConsensusEngineError>>
 where
-    Client: HeadersClient + BodiesClient + 'static,
+    Client: BlockClient + 'static,
 {
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {

@@ -258,17 +258,7 @@ impl Parlia {
         let is_luban_active = self.chain_spec.is_luban_active_at_block(header.number);
         let is_epoch = header.number % self.epoch == 0;
 
-        if !is_luban_active {
-            if is_epoch &&
-                (extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN) %
-                    EXTRA_VALIDATOR_LEN_BEFORE_LUBAN !=
-                    0
-            {
-                return None;
-            }
-
-            Some(header.extra_data[EXTRA_VANITY_LEN..extra_len - EXTRA_SEAL_LEN].to_vec())
-        } else {
+        if is_luban_active {
             if !is_epoch {
                 return None;
             }
@@ -286,6 +276,16 @@ impl Parlia {
                 return None
             }
             Some(header.extra_data[start..end].to_vec())
+        } else {
+            if is_epoch &&
+                (extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN) %
+                    EXTRA_VALIDATOR_LEN_BEFORE_LUBAN !=
+                    0
+            {
+                return None;
+            }
+
+            Some(header.extra_data[EXTRA_VANITY_LEN..extra_len - EXTRA_SEAL_LEN].to_vec())
         }
     }
 
@@ -397,20 +397,20 @@ impl Parlia {
             return Ok(());
         }
 
-        if !self.chain_spec.is_luban_active_at_block(header.number) {
-            let validator_bytes_len = extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN;
-            if validator_bytes_len / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN == 0 ||
-                validator_bytes_len % EXTRA_VALIDATOR_LEN_BEFORE_LUBAN != 0
-            {
+        if self.chain_spec.is_luban_active_at_block(header.number) {
+            let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
+            let expect =
+                EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
+            if count == 0 || extra_len < expect {
                 return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                     header_extra_len: extra_len as u64,
                 });
             }
         } else {
-            let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
-            let expect =
-                EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
-            if count == 0 || extra_len < expect {
+            let validator_bytes_len = extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN;
+            if validator_bytes_len / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN == 0 ||
+                validator_bytes_len % EXTRA_VALIDATOR_LEN_BEFORE_LUBAN != 0
+            {
                 return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                     header_extra_len: extra_len as u64,
                 });

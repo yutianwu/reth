@@ -1,15 +1,13 @@
-use reth_chainspec::ChainSpec;
-use reth_primitives::{
-    revm_primitives::{BlockEnv, CfgEnvWithHandlerCfg},
-    Address, Header, SealedBlock, Withdrawals, B256, U256,
-};
-use reth_rpc_types::{
-    engine::{OptimismPayloadAttributes, PayloadAttributes as EthPayloadAttributes, PayloadId},
-    Withdrawal,
-};
-
 use crate::{
     validate_version_specific_fields, EngineApiMessageVersion, EngineObjectValidationError,
+};
+use reth_chain_state::ExecutedBlock;
+use reth_chainspec::ChainSpec;
+use reth_primitives::{Address, SealedBlock, Withdrawals, B256, U256};
+use reth_rpc_types::{
+    engine::{PayloadAttributes as EthPayloadAttributes, PayloadId},
+    optimism::OptimismPayloadAttributes,
+    Withdrawal,
 };
 
 /// Represents a built payload type that contains a built [`SealedBlock`] and can be converted into
@@ -20,6 +18,11 @@ pub trait BuiltPayload: Send + Sync + std::fmt::Debug {
 
     /// Returns the fees collected for the built block
     fn fees(&self) -> U256;
+
+    /// Returns the entire execution data for the built block, if available.
+    fn executed_block(&self) -> Option<ExecutedBlock> {
+        None
+    }
 }
 
 /// This can be implemented by types that describe a currently running payload job.
@@ -63,21 +66,6 @@ pub trait PayloadBuilderAttributes: Send + Sync + std::fmt::Debug {
 
     /// Returns the withdrawals for the running payload job.
     fn withdrawals(&self) -> &Withdrawals;
-
-    /// Returns the configured [`CfgEnvWithHandlerCfg`] and [`BlockEnv`] for the targeted payload
-    /// (that has the `parent` as its parent).
-    ///
-    /// The `chain_spec` is used to determine the correct chain id and hardfork for the payload
-    /// based on its timestamp.
-    ///
-    /// Block related settings are derived from the `parent` block and the configured attributes.
-    ///
-    /// NOTE: This is only intended for beacon consensus (after merge).
-    fn cfg_and_block_env(
-        &self,
-        chain_spec: &ChainSpec,
-        parent: &Header,
-    ) -> (CfgEnvWithHandlerCfg, BlockEnv);
 }
 
 /// The execution payload attribute type the CL node emits via the engine API.

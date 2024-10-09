@@ -3,10 +3,11 @@ use crate::{
     RequestsProvider, SidecarsProvider, TransactionVariant, TransactionsProvider,
     WithdrawalsProvider,
 };
-use reth_db_api::models::StoredBlockBodyIndices;
+use alloy_primitives::{BlockNumber, B256};
+use reth_db_models::StoredBlockBodyIndices;
 use reth_primitives::{
-    Block, BlockHashOrNumber, BlockId, BlockNumber, BlockNumberOrTag, BlockWithSenders, Header,
-    Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader, B256,
+    Block, BlockHashOrNumber, BlockId, BlockNumberOrTag, BlockWithSenders, Header, Receipt,
+    SealedBlock, SealedBlockWithSenders, SealedHeader,
 };
 use reth_storage_errors::provider::ProviderResult;
 use std::ops::RangeInclusive;
@@ -24,10 +25,10 @@ pub enum BlockSource {
     #[default]
     Any,
     /// The block was fetched from the pending block source, the blockchain tree that buffers
-    /// blocks that are not yet finalized.
+    /// blocks that are not yet part of the canonical chain.
     Pending,
-    /// The block was fetched from the database.
-    Database,
+    /// The block must be part of the canonical chain.
+    Canonical,
 }
 
 impl BlockSource {
@@ -36,9 +37,9 @@ impl BlockSource {
         matches!(self, Self::Pending | Self::Any)
     }
 
-    /// Returns `true` if the block source is `Database` or `Any`.
-    pub const fn is_database(&self) -> bool {
-        matches!(self, Self::Database | Self::Any)
+    /// Returns `true` if the block source is `Canonical` or `Any`.
+    pub const fn is_canonical(&self) -> bool {
+        matches!(self, Self::Canonical | Self::Any)
     }
 }
 
@@ -202,12 +203,12 @@ pub trait BlockReaderIdExt: BlockReader + BlockIdReader + ReceiptProviderIdExt {
         self.sealed_header_by_id(BlockNumberOrTag::Finalized.into())
     }
 
-    /// Returns the block with the matching [BlockId] from the database.
+    /// Returns the block with the matching [`BlockId`] from the database.
     ///
     /// Returns `None` if block is not found.
     fn block_by_id(&self, id: BlockId) -> ProviderResult<Option<Block>>;
 
-    /// Returns the block with senders with matching [BlockId].
+    /// Returns the block with senders with matching [`BlockId`].
     ///
     /// Returns the block's transactions in the requested variant.
     ///

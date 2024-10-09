@@ -18,20 +18,17 @@
 //!   calls to the logging component is made.
 //! - `min-debug-logs`: Disables all logs below `debug` level.
 //! - `min-trace-logs`: Disables all logs below `trace` level.
-//! - `optimism`: Enables [OP-Stack](https://stack.optimism.io/) support for the node. Note that
-//!   this breaks compatibility with the Ethereum mainnet as a new deposit transaction type is
-//!   introduced as well as gas cost changes.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
     issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
 )]
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 pub mod cli;
 pub mod commands;
-mod macros;
 
 /// Re-exported utils.
 pub mod utils {
@@ -59,9 +56,9 @@ pub mod core {
     pub use reth_node_core::*;
 }
 
-/// Re-exported from `reth_node_core`.
+/// Re-exported from `reth_node_metrics`.
 pub mod prometheus_exporter {
-    pub use reth_node_core::prometheus_exporter::*;
+    pub use reth_node_metrics::recorder::*;
 }
 
 /// Re-export of the `reth_node_core` types specifically in the `args` module.
@@ -90,6 +87,11 @@ pub mod dirs {
     pub use reth_node_core::dirs::*;
 }
 
+/// Re-exported from `reth_chainspec`
+pub mod chainspec {
+    pub use reth_chainspec::*;
+}
+
 /// Re-exported from `reth_provider`.
 pub mod providers {
     pub use reth_provider::*;
@@ -107,6 +109,11 @@ pub mod beacon_consensus {
 /// Re-exported from `reth_blockchain_tree`.
 pub mod blockchain_tree {
     pub use reth_blockchain_tree::*;
+}
+
+/// Re-exported from `reth_consensus`.
+pub mod consensus {
+    pub use reth_consensus::*;
 }
 
 /// Re-exported from `reth_consensus_common`.
@@ -127,7 +134,9 @@ pub mod tasks {
 /// Re-exported from `reth_network`.
 pub mod network {
     pub use reth_network::*;
-    pub use reth_network_api::{noop, reputation, NetworkInfo, PeerKind, Peers, PeersInfo};
+    pub use reth_network_api::{
+        noop, test_utils::PeersHandleProvider, NetworkInfo, Peers, PeersInfo,
+    };
 }
 
 /// Re-exported from `reth_transaction_pool`.
@@ -137,7 +146,6 @@ pub mod transaction_pool {
 
 /// Re-export of `reth_rpc_*` crates.
 pub mod rpc {
-
     /// Re-exported from `reth_rpc_builder`.
     pub mod builder {
         pub use reth_rpc_builder::*;
@@ -181,8 +189,9 @@ pub mod rpc {
 #[doc(inline)]
 pub use reth_cli_runner::{tokio_runtime, CliContext, CliRunner};
 
-#[cfg(all(feature = "jemalloc", unix))]
-use tikv_jemallocator as _;
-
 // for rendering diagrams
 use aquamarine as _;
+#[cfg(feature = "bsc")]
+use reth_evm_bsc as _;
+#[cfg(feature = "bsc")]
+use reth_node_bsc as _;

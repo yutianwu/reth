@@ -2,23 +2,30 @@
 //! methods.
 
 use super::{LoadBlock, LoadPendingBlock, LoadState, LoadTransaction, SpawnBlocking, Trace};
+use crate::{AsEthApiError, FromEthApiError, FromEvmError, IntoEthApiError};
+use alloy_primitives::{Bytes, TxKind, B256, U256};
 use cfg_if::cfg_if;
 use futures::Future;
 #[cfg(feature = "bsc")]
 use reth_chainspec::BscHardforks;
+use reth_chainspec::MIN_TRANSACTION_GAS;
+#[cfg(feature = "bsc")]
+use reth_errors::RethError;
 use reth_evm::{ConfigureEvm, ConfigureEvmEnv};
 #[cfg(feature = "bsc")]
 use reth_primitives::system_contracts::get_upgrade_system_contracts;
 #[cfg(feature = "bsc")]
 use reth_primitives::system_contracts::is_system_transaction;
 use reth_primitives::{
+    basefee::calc_next_block_base_fee,
     revm_primitives::{
         BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ExecutionResult, HaltReason,
         ResultAndState, TransactTo, TxEnv,
     },
-    Bytes, TransactionSignedEcRecovered, TxKind, B256, U256,
+    transaction::AccessListResult,
+    Header, TransactionSignedEcRecovered,
 };
-use reth_provider::{ChainSpecProvider, StateProvider};
+use reth_provider::{ChainSpecProvider, HeaderProvider, StateProvider};
 use reth_revm::{database::StateProviderDatabase, db::CacheDB, DatabaseRef};
 use reth_rpc_eth_types::{
     cache::db::{StateCacheDbRefMutWrapper, StateProviderTraitObjWrapper},
@@ -27,20 +34,22 @@ use reth_rpc_eth_types::{
         apply_block_overrides, apply_state_overrides, caller_gas_allowance,
         cap_tx_gas_limit_with_caller_allowance, get_precompiles, CallFees,
     },
-    EthApiError, EthResult, RevertError, RpcInvalidTransactionError, StateCacheDb,
+    simulate::{self, EthSimulateError},
+    EthApiError, RevertError, RpcInvalidTransactionError, StateCacheDb,
 };
-use reth_rpc_server_types::constants::gas_oracle::{ESTIMATE_GAS_ERROR_RATIO, MIN_TRANSACTION_GAS};
+use reth_rpc_server_types::constants::gas_oracle::{CALL_STIPEND_GAS, ESTIMATE_GAS_ERROR_RATIO};
 use reth_rpc_types::{
+    simulate::{SimBlock, SimulatePayload, SimulatedBlock},
     state::{EvmOverrides, StateOverride},
-    AccessListWithGasUsed, BlockId, Bundle, EthCallResponse, StateContext, TransactionInfo,
-    TransactionRequest,
+    Block, BlockId, Bundle, EthCallResponse, StateContext, TransactionInfo, TransactionRequest,
+    WithOtherFields,
 };
 #[cfg(feature = "bsc")]
 use revm::bsc::SYSTEM_ADDRESS;
 #[cfg(feature = "bsc")]
 use revm::db::AccountState::{NotExisting, Touched};
-use revm::{Database, DatabaseCommit};
-use revm_inspectors::access_list::AccessListInspector;
+use revm::{Database, DatabaseCommit, GetInspector};
+use revm_inspectors::{access_list::AccessListInspector, transfer::TransferInspector};
 use tracing::trace;
 
 /// Execution related functions for the [`EthApiServer`](crate::EthApiServer) trait in
@@ -52,8 +61,168 @@ pub trait EthCall: Call + LoadPendingBlock {
         request: TransactionRequest,
         at: BlockId,
         state_override: Option<StateOverride>,
-    ) -> impl Future<Output = EthResult<U256>> + Send {
+    ) -> impl Future<Output = Result<U256, Self::Error>> + Send {
         Call::estimate_gas_at(self, request, at, state_override)
+    }
+
+    /// `eth_simulateV1` executes an arbitrary number of transactions on top of the requested state.
+    /// The transactions are packed into individual blocks. Overrides can be provided.
+    ///
+    /// See also: <https://github.com/ethereum/go-ethereum/pull/27720>
+    fn simulate_v1(
+        &self,
+        payload: SimulatePayload,
+        block: Option<BlockId>,
+    ) -> impl Future<
+        Output = Result<
+            Vec<SimulatedBlock<Block<WithOtherFields<reth_rpc_types::Transaction>>>>,
+            Self::Error,
+        >,
+    > + Send
+    where
+        Self: LoadBlock,
+    {
+        async move {
+            if payload.block_state_calls.len() > self.max_simulate_blocks() as usize {
+                return Err(EthApiError::InvalidParams("too many blocks.".to_string()).into())
+            }
+
+            let SimulatePayload {
+                block_state_calls,
+                trace_transfers,
+                validation,
+                return_full_transactions,
+            } = payload;
+
+            if block_state_calls.is_empty() {
+                return Err(EthApiError::InvalidParams(String::from("calls are empty.")).into())
+            }
+
+            // Build cfg and block env, we'll reuse those.
+            let (mut cfg, mut block_env, block) =
+                self.evm_env_at(block.unwrap_or_default()).await?;
+
+            // Gas cap for entire operation
+            let total_gas_limit = self.call_gas_limit() as u128;
+
+            let base_block = self.block(block).await?.ok_or(EthApiError::HeaderNotFound(block))?;
+            let mut parent_hash = base_block.header.hash();
+            let total_difficulty = LoadPendingBlock::provider(self)
+                .header_td_by_number(block_env.number.to())
+                .map_err(Self::Error::from_eth_err)?
+                .ok_or(EthApiError::HeaderNotFound(block))?;
+
+            // Only enforce base fee if validation is enabled
+            cfg.disable_base_fee = !validation;
+            // Always disable EIP-3607
+            cfg.disable_eip3607 = true;
+
+            let this = self.clone();
+            self.spawn_with_state_at_block(block, move |state| {
+                let mut db = CacheDB::new(StateProviderDatabase::new(state));
+                let mut blocks: Vec<
+                    SimulatedBlock<Block<WithOtherFields<reth_rpc_types::Transaction>>>,
+                > = Vec::with_capacity(block_state_calls.len());
+                let mut gas_used = 0;
+                for block in block_state_calls {
+                    // Increase number and timestamp for every new block
+                    block_env.number += U256::from(1);
+                    block_env.timestamp += U256::from(1);
+
+                    if validation {
+                        let chain_spec = LoadPendingBlock::provider(&this).chain_spec();
+                        let base_fee_params =
+                            chain_spec.base_fee_params_at_timestamp(block_env.timestamp.to());
+                        let base_fee = if let Some(latest) = blocks.last() {
+                            let header = &latest.inner.header;
+                            calc_next_block_base_fee(
+                                header.gas_used,
+                                header.gas_limit,
+                                header.base_fee_per_gas.unwrap_or_default(),
+                                base_fee_params,
+                            )
+                        } else {
+                            base_block
+                                .header
+                                .next_block_base_fee(base_fee_params)
+                                .unwrap_or_default() as u128
+                        };
+                        block_env.basefee = U256::from(base_fee);
+                    } else {
+                        block_env.basefee = U256::ZERO;
+                    }
+
+                    let SimBlock { block_overrides, state_overrides, mut calls } = block;
+
+                    if let Some(block_overrides) = block_overrides {
+                        apply_block_overrides(block_overrides, &mut db, &mut block_env);
+                    }
+                    if let Some(state_overrides) = state_overrides {
+                        apply_state_overrides(state_overrides, &mut db)?;
+                    }
+
+                    if (total_gas_limit - gas_used) < block_env.gas_limit.to() {
+                        return Err(
+                            EthApiError::Other(Box::new(EthSimulateError::GasLimitReached)).into()
+                        )
+                    }
+
+                    // Resolve transactions, populate missing fields and enforce calls correctness.
+                    let transactions = simulate::resolve_transactions(
+                        &mut calls,
+                        validation,
+                        block_env.gas_limit.to(),
+                        cfg.chain_id,
+                        &mut db,
+                    )?;
+
+                    let mut calls = calls.into_iter().peekable();
+                    let mut results = Vec::with_capacity(calls.len());
+
+                    while let Some(tx) = calls.next() {
+                        let env = this.build_call_evm_env(cfg.clone(), block_env.clone(), tx)?;
+
+                        let (res, env) = {
+                            if trace_transfers {
+                                this.transact_with_inspector(
+                                    &mut db,
+                                    env,
+                                    TransferInspector::new(false).with_logs(true),
+                                )?
+                            } else {
+                                this.transact(&mut db, env)?
+                            }
+                        };
+
+                        if calls.peek().is_some() {
+                            // need to apply the state changes of this call before executing the
+                            // next call
+                            db.commit(res.state);
+                        }
+
+                        results.push((env.tx.caller, res.result));
+                    }
+
+                    let block = simulate::build_block(
+                        results,
+                        transactions,
+                        &block_env,
+                        parent_hash,
+                        total_difficulty,
+                        return_full_transactions,
+                        &db,
+                    )?;
+
+                    parent_hash = block.inner.header.hash;
+                    gas_used += block.inner.header.gas_used;
+
+                    blocks.push(block);
+                }
+
+                Ok(blocks)
+            })
+            .await
+        }
     }
 
     /// Executes the call request (`eth_call`) and returns the output
@@ -62,12 +231,12 @@ pub trait EthCall: Call + LoadPendingBlock {
         request: TransactionRequest,
         block_number: Option<BlockId>,
         overrides: EvmOverrides,
-    ) -> impl Future<Output = EthResult<Bytes>> + Send {
+    ) -> impl Future<Output = Result<Bytes, Self::Error>> + Send {
         async move {
             let (res, _env) =
                 self.transact_call_at(request, block_number.unwrap_or_default(), overrides).await?;
 
-            ensure_success(res.result)
+            ensure_success(res.result).map_err(Self::Error::from_eth_err)
         }
     }
 
@@ -78,14 +247,16 @@ pub trait EthCall: Call + LoadPendingBlock {
         bundle: Bundle,
         state_context: Option<StateContext>,
         mut state_override: Option<StateOverride>,
-    ) -> impl Future<Output = EthResult<Vec<EthCallResponse>>> + Send
+    ) -> impl Future<Output = Result<Vec<EthCallResponse>, Self::Error>> + Send
     where
         Self: LoadBlock,
     {
         async move {
             let Bundle { transactions, block_override } = bundle;
             if transactions.is_empty() {
-                return Err(EthApiError::InvalidParams(String::from("transactions are empty.")))
+                return Err(
+                    EthApiError::InvalidParams(String::from("transactions are empty.")).into()
+                )
             }
 
             let StateContext { transaction_index, block_number } =
@@ -100,7 +271,7 @@ pub trait EthCall: Call + LoadPendingBlock {
                 self.block_with_senders(target_block)
             )?;
 
-            let Some(block) = block else { return Err(EthApiError::UnknownBlockNumber) };
+            let block = block.ok_or(EthApiError::HeaderNotFound(target_block))?;
             let gas_limit = self.call_gas_limit();
 
             // we're essentially replaying the transactions in the block here, hence we need the
@@ -146,14 +317,16 @@ pub trait EthCall: Call + LoadPendingBlock {
                     let state_overrides = state_override.take();
                     let overrides = EvmOverrides::new(state_overrides, block_overrides.clone());
 
-                    let env = this.prepare_call_env(
-                        cfg.clone(),
-                        block_env.clone(),
-                        tx,
-                        gas_limit,
-                        &mut db,
-                        overrides,
-                    )?;
+                    let env = this
+                        .prepare_call_env(
+                            cfg.clone(),
+                            block_env.clone(),
+                            tx,
+                            gas_limit,
+                            &mut db,
+                            overrides,
+                        )
+                        .map(Into::into)?;
                     let (res, _) = this.transact(&mut db, env)?;
 
                     match ensure_success(res.result) {
@@ -181,13 +354,13 @@ pub trait EthCall: Call + LoadPendingBlock {
         }
     }
 
-    /// Creates [`AccessListWithGasUsed`] for the [`TransactionRequest`] at the given
+    /// Creates [`AccessListResult`] for the [`TransactionRequest`] at the given
     /// [`BlockId`], or latest block.
     fn create_access_list_at(
         &self,
         request: TransactionRequest,
         block_number: Option<BlockId>,
-    ) -> impl Future<Output = EthResult<AccessListWithGasUsed>> + Send
+    ) -> impl Future<Output = Result<AccessListResult, Self::Error>> + Send
     where
         Self: Trace,
     {
@@ -202,7 +375,7 @@ pub trait EthCall: Call + LoadPendingBlock {
         }
     }
 
-    /// Creates [`AccessListWithGasUsed`] for the [`TransactionRequest`] at the given
+    /// Creates [`AccessListResult`] for the [`TransactionRequest`] at the given
     /// [`BlockId`].
     fn create_access_list_with(
         &self,
@@ -210,7 +383,7 @@ pub trait EthCall: Call + LoadPendingBlock {
         block: BlockEnv,
         at: BlockId,
         mut request: TransactionRequest,
-    ) -> EthResult<AccessListWithGasUsed>
+    ) -> Result<AccessListResult, Self::Error>
     where
         Self: Trace,
     {
@@ -238,7 +411,8 @@ pub trait EthCall: Call + LoadPendingBlock {
         let to = if let Some(TxKind::Call(to)) = request.to {
             to
         } else {
-            let nonce = db.basic_ref(from)?.unwrap_or_default().nonce;
+            let nonce =
+                db.basic_ref(from).map_err(Self::Error::from_eth_err)?.unwrap_or_default().nonce;
             from.create(nonce)
         };
 
@@ -247,30 +421,41 @@ pub trait EthCall: Call + LoadPendingBlock {
 
         let precompiles = get_precompiles(env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
-        let (result, env) = self.inspect(&mut db, env, &mut inspector)?;
 
-        match result.result {
-            ExecutionResult::Halt { reason, .. } => Err(match reason {
-                HaltReason::NonceOverflow => RpcInvalidTransactionError::NonceMaxValue,
-                halt => RpcInvalidTransactionError::EvmHalt(halt),
-            }),
-            ExecutionResult::Revert { output, .. } => {
-                Err(RpcInvalidTransactionError::Revert(RevertError::new(output)))
-            }
-            ExecutionResult::Success { .. } => Ok(()),
-        }?;
-
+        let (result, mut env) = self.inspect(&mut db, env, &mut inspector)?;
         let access_list = inspector.into_access_list();
+        env.tx.access_list = access_list.to_vec();
+        match result.result {
+            ExecutionResult::Halt { reason, gas_used } => {
+                let error =
+                    Some(RpcInvalidTransactionError::halt(reason, env.tx.gas_limit).to_string());
+                return Ok(AccessListResult { access_list, gas_used: U256::from(gas_used), error })
+            }
+            ExecutionResult::Revert { output, gas_used } => {
+                let error = Some(RevertError::new(output).to_string());
+                return Ok(AccessListResult { access_list, gas_used: U256::from(gas_used), error })
+            }
+            ExecutionResult::Success { .. } => {}
+        };
 
-        let cfg_with_spec_id =
-            CfgEnvWithHandlerCfg { cfg_env: env.cfg.clone(), handler_cfg: env.handler_cfg };
+        // transact again to get the exact gas used
+        let (result, env) = self.transact(&mut db, env)?;
+        let res = match result.result {
+            ExecutionResult::Halt { reason, gas_used } => {
+                let error =
+                    Some(RpcInvalidTransactionError::halt(reason, env.tx.gas_limit).to_string());
+                AccessListResult { access_list, gas_used: U256::from(gas_used), error }
+            }
+            ExecutionResult::Revert { output, gas_used } => {
+                let error = Some(RevertError::new(output).to_string());
+                AccessListResult { access_list, gas_used: U256::from(gas_used), error }
+            }
+            ExecutionResult::Success { gas_used, .. } => {
+                AccessListResult { access_list, gas_used: U256::from(gas_used), error: None }
+            }
+        };
 
-        // calculate the gas used using the access list
-        request.access_list = Some(access_list.clone());
-        let gas_used =
-            self.estimate_gas_with(cfg_with_spec_id, env.block.clone(), request, &*db.db, None)?;
-
-        Ok(AccessListWithGasUsed { access_list, gas_used })
+        Ok(res)
     }
 }
 
@@ -281,15 +466,18 @@ pub trait Call: LoadState + SpawnBlocking {
     /// Data access in default trait method implementations.
     fn call_gas_limit(&self) -> u64;
 
+    /// Returns the maximum number of blocks accepted for `eth_simulateV1`.
+    fn max_simulate_blocks(&self) -> u64;
+
     /// Returns a handle for reading evm config.
     ///
     /// Data access in default (L1) trait method implementations.
-    fn evm_config(&self) -> &impl ConfigureEvm;
+    fn evm_config(&self) -> &impl ConfigureEvm<Header = Header>;
 
     /// Executes the closure with the state that corresponds to the given [`BlockId`].
-    fn with_state_at_block<F, T>(&self, at: BlockId, f: F) -> EthResult<T>
+    fn with_state_at_block<F, R>(&self, at: BlockId, f: F) -> Result<R, Self::Error>
     where
-        F: FnOnce(StateProviderTraitObjWrapper<'_>) -> EthResult<T>,
+        F: FnOnce(StateProviderTraitObjWrapper<'_>) -> Result<R, Self::Error>,
     {
         let state = self.state_at_block_id(at)?;
         f(StateProviderTraitObjWrapper(&state))
@@ -301,13 +489,31 @@ pub trait Call: LoadState + SpawnBlocking {
         &self,
         db: DB,
         env: EnvWithHandlerCfg,
-    ) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
+    ) -> Result<(ResultAndState, EnvWithHandlerCfg), Self::Error>
     where
         DB: Database,
-        <DB as Database>::Error: Into<EthApiError>,
+        EthApiError: From<DB::Error>,
     {
         let mut evm = self.evm_config().evm_with_env(db, env);
-        let res = evm.transact()?;
+        let res = evm.transact().map_err(Self::Error::from_evm_err)?;
+        let (_, env) = evm.into_db_and_env_with_handler_cfg();
+        Ok((res, env))
+    }
+
+    /// Executes the [`EnvWithHandlerCfg`] against the given [Database] without committing state
+    /// changes.
+    fn transact_with_inspector<DB>(
+        &self,
+        db: DB,
+        env: EnvWithHandlerCfg,
+        inspector: impl GetInspector<DB>,
+    ) -> Result<(ResultAndState, EnvWithHandlerCfg), Self::Error>
+    where
+        DB: Database,
+        EthApiError: From<DB::Error>,
+    {
+        let mut evm = self.evm_config().evm_with_env_and_inspector(db, env, inspector);
+        let res = evm.transact().map_err(Self::Error::from_evm_err)?;
         let (_, env) = evm.into_db_and_env_with_handler_cfg();
         Ok((res, env))
     }
@@ -318,7 +524,7 @@ pub trait Call: LoadState + SpawnBlocking {
         request: TransactionRequest,
         at: BlockId,
         overrides: EvmOverrides,
-    ) -> impl Future<Output = EthResult<(ResultAndState, EnvWithHandlerCfg)>> + Send
+    ) -> impl Future<Output = Result<(ResultAndState, EnvWithHandlerCfg), Self::Error>> + Send
     where
         Self: LoadPendingBlock,
     {
@@ -327,14 +533,14 @@ pub trait Call: LoadState + SpawnBlocking {
     }
 
     /// Executes the closure with the state that corresponds to the given [`BlockId`] on a new task
-    fn spawn_with_state_at_block<F, T>(
+    fn spawn_with_state_at_block<F, R>(
         &self,
         at: BlockId,
         f: F,
-    ) -> impl Future<Output = EthResult<T>> + Send
+    ) -> impl Future<Output = Result<R, Self::Error>> + Send
     where
-        F: FnOnce(StateProviderTraitObjWrapper<'_>) -> EthResult<T> + Send + 'static,
-        T: Send + 'static,
+        F: FnOnce(StateProviderTraitObjWrapper<'_>) -> Result<R, Self::Error> + Send + 'static,
+        R: Send + 'static,
     {
         self.spawn_tracing(move |this| {
             let state = this.state_at_block_id(at)?;
@@ -353,10 +559,10 @@ pub trait Call: LoadState + SpawnBlocking {
         at: BlockId,
         overrides: EvmOverrides,
         f: F,
-    ) -> impl Future<Output = EthResult<R>> + Send
+    ) -> impl Future<Output = Result<R, Self::Error>> + Send
     where
         Self: LoadPendingBlock,
-        F: FnOnce(StateCacheDbRefMutWrapper<'_, '_>, EnvWithHandlerCfg) -> EthResult<R>
+        F: FnOnce(StateCacheDbRefMutWrapper<'_, '_>, EnvWithHandlerCfg) -> Result<R, Self::Error>
             + Send
             + 'static,
         R: Send + 'static,
@@ -381,7 +587,6 @@ pub trait Call: LoadState + SpawnBlocking {
                 f(StateCacheDbRefMutWrapper(&mut db), env)
             })
             .await
-            .map_err(|_| EthApiError::InternalBlockingTaskError)
         }
     }
 
@@ -398,10 +603,10 @@ pub trait Call: LoadState + SpawnBlocking {
         &self,
         hash: B256,
         f: F,
-    ) -> impl Future<Output = EthResult<Option<R>>> + Send
+    ) -> impl Future<Output = Result<Option<R>, Self::Error>> + Send
     where
         Self: LoadBlock + LoadPendingBlock + LoadTransaction,
-        F: FnOnce(TransactionInfo, ResultAndState, StateCacheDb<'_>) -> EthResult<R>
+        F: FnOnce(TransactionInfo, ResultAndState, StateCacheDb<'_>) -> Result<R, Self::Error>
             + Send
             + 'static,
         R: Send + 'static,
@@ -481,10 +686,10 @@ pub trait Call: LoadState + SpawnBlocking {
         transactions: impl IntoIterator<Item = TransactionSignedEcRecovered>,
         target_tx_hash: B256,
         parent_timestamp: u64,
-    ) -> Result<usize, EthApiError>
+    ) -> Result<usize, Self::Error>
     where
         DB: DatabaseRef,
-        EthApiError: From<<DB as DatabaseRef>::Error>,
+        EthApiError: From<DB::Error>,
     {
         #[allow(clippy::redundant_clone)]
         let env = EnvWithHandlerCfg::new_with_cfg_env(cfg, block_env.clone(), Default::default());
@@ -506,7 +711,9 @@ pub trait Call: LoadState + SpawnBlocking {
             .expect("get upgrade system contracts failed");
 
             for (k, v) in contracts {
-                let account = evm.db_mut().load_account(k)?;
+                let account = evm.db_mut().load_account(k).map_err(|error| {
+                    EthApiError::Internal(RethError::Other("load account failed".into()))
+                })?;
                 if account.account_state == NotExisting {
                     account.account_state = Touched;
                 }
@@ -520,12 +727,17 @@ pub trait Call: LoadState + SpawnBlocking {
             // this should be done before return
             #[cfg(feature = "bsc")]
             if before_system_tx && is_system_transaction(&tx, tx.signer(), block_env.coinbase) {
-                let sys_acc = evm.db_mut().load_account(SYSTEM_ADDRESS)?;
+                let sys_acc = evm.db_mut().load_account(SYSTEM_ADDRESS).map_err(|error| {
+                    EthApiError::Internal(RethError::Other("load account failed".into()))
+                })?;
                 let balance = sys_acc.info.balance;
                 if balance > U256::ZERO {
                     sys_acc.info.balance = U256::ZERO;
 
-                    let val_acc = evm.db_mut().load_account(block_env.coinbase)?;
+                    let val_acc =
+                        evm.db_mut().load_account(block_env.coinbase).map_err(|error| {
+                            EthApiError::Internal(RethError::Other("load account failed".into()))
+                        })?;
                     if val_acc.account_state == NotExisting {
                         val_acc.account_state = Touched;
                     }
@@ -548,7 +760,9 @@ pub trait Call: LoadState + SpawnBlocking {
                     .expect("get upgrade system contracts failed");
 
                     for (k, v) in contracts {
-                        let account = evm.db_mut().load_account(k)?;
+                        let account = evm.db_mut().load_account(k).map_err(|error| {
+                            EthApiError::Internal(RethError::Other("load account failed".into()))
+                        })?;
                         if account.account_state == NotExisting {
                             account.account_state = Touched;
                         }
@@ -573,7 +787,7 @@ pub trait Call: LoadState + SpawnBlocking {
                 evm.tx_mut().bsc.is_system_transaction = Some(true);
             };
 
-            evm.transact_commit()?;
+            evm.transact_commit().map_err(Self::Error::from_evm_err)?;
             index += 1;
         }
         Ok(index)
@@ -585,7 +799,7 @@ pub trait Call: LoadState + SpawnBlocking {
         request: TransactionRequest,
         at: BlockId,
         state_override: Option<StateOverride>,
-    ) -> impl Future<Output = EthResult<U256>> + Send
+    ) -> impl Future<Output = Result<U256, Self::Error>> + Send
     where
         Self: LoadPendingBlock,
     {
@@ -602,15 +816,23 @@ pub trait Call: LoadState + SpawnBlocking {
 
     /// Estimates the gas usage of the `request` with the state.
     ///
-    /// This will execute the [`TransactionRequest`] and find the best gas limit via binary search
+    /// This will execute the [`TransactionRequest`] and find the best gas limit via binary search.
+    ///
+    /// ## EVM settings
+    ///
+    /// This modifies certain EVM settings to mirror geth's `SkipAccountChecks` when transacting requests, see also: <https://github.com/ethereum/go-ethereum/blob/380688c636a654becc8f114438c2a5d93d2db032/core/state_transition.go#L145-L148>:
+    ///
+    ///  - `disable_eip3607` is set to `true`
+    ///  - `disable_base_fee` is set to `true`
+    ///  - `nonce` is set to `None`
     fn estimate_gas_with<S>(
         &self,
         mut cfg: CfgEnvWithHandlerCfg,
         block: BlockEnv,
-        request: TransactionRequest,
+        mut request: TransactionRequest,
         state: S,
         state_override: Option<StateOverride>,
-    ) -> EthResult<U256>
+    ) -> Result<U256, Self::Error>
     where
         S: StateProvider,
     {
@@ -618,10 +840,13 @@ pub trait Call: LoadState + SpawnBlocking {
         // See <https://github.com/paradigmxyz/reth/issues/1959>
         cfg.disable_eip3607 = true;
 
-        // The basefee should be ignored for eth_createAccessList
+        // The basefee should be ignored for eth_estimateGas and similar
         // See:
         // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
         cfg.disable_base_fee = true;
+
+        // set nonce to None so that the correct nonce is chosen by the EVM
+        request.nonce = None;
 
         // Keep a copy of gas related request values
         let tx_request_gas_limit = request.gas;
@@ -640,7 +865,7 @@ pub trait Call: LoadState + SpawnBlocking {
 
         // Apply any state overrides if specified.
         if let Some(state_override) = state_override {
-            apply_state_overrides(state_override, &mut db)?;
+            apply_state_overrides(state_override, &mut db).map_err(Self::Error::from_eth_err)?;
         }
 
         // Optimize for simple transfer transactions, potentially reducing the gas estimate.
@@ -671,7 +896,8 @@ pub trait Call: LoadState + SpawnBlocking {
         // The caller allowance is check by doing `(account.balance - tx.value) / tx.gas_price`
         if env.tx.gas_price > U256::ZERO {
             // cap the highest gas limit by max gas caller can afford with given gas price
-            highest_gas_limit = highest_gas_limit.min(caller_gas_allowance(&mut db, &env.tx)?);
+            highest_gas_limit = highest_gas_limit
+                .min(caller_gas_allowance(&mut db, &env.tx).map_err(Self::Error::from_eth_err)?);
         }
 
         // We can now normalize the highest gas limit to a u64
@@ -689,8 +915,9 @@ pub trait Call: LoadState + SpawnBlocking {
             // If the gas price or gas limit was specified in the request, retry the transaction
             // with the block's gas limit to determine if the failure was due to
             // insufficient gas.
-            Err(EthApiError::InvalidTransaction(RpcInvalidTransactionError::GasTooHigh))
-                if tx_request_gas_limit.is_some() || tx_request_gas_price.is_some() =>
+            Err(err)
+                if err.is_gas_too_high() &&
+                    (tx_request_gas_limit.is_some() || tx_request_gas_price.is_some()) =>
             {
                 return Err(self.map_out_of_gas_err(block_env_gas_limit, env, &mut db))
             }
@@ -703,7 +930,7 @@ pub trait Call: LoadState + SpawnBlocking {
             ExecutionResult::Halt { reason, gas_used } => {
                 // here we don't check for invalid opcode because already executed with highest gas
                 // limit
-                return Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
+                return Err(RpcInvalidTransactionError::halt(reason, gas_used).into_eth_err())
             }
             ExecutionResult::Revert { output, .. } => {
                 // if price or limit was included in the request then we can execute the request
@@ -712,14 +939,18 @@ pub trait Call: LoadState + SpawnBlocking {
                     Err(self.map_out_of_gas_err(block_env_gas_limit, env, &mut db))
                 } else {
                     // the transaction did revert
-                    Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
+                    Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into_eth_err())
                 }
             }
         };
 
         // At this point we know the call succeeded but want to find the _best_ (lowest) gas the
         // transaction succeeds with. We find this by doing a binary search over the possible range.
-        //
+
+        // we know the tx succeeded with the configured gas limit, so we can use that as the
+        // highest, in case we applied a gas cap due to caller allowance above
+        highest_gas_limit = env.tx.gas_limit;
+
         // NOTE: this is the gas the transaction used, which is less than the
         // transaction requires to succeed.
         let mut gas_used = res.result.gas_used();
@@ -732,7 +963,7 @@ pub trait Call: LoadState + SpawnBlocking {
         //
         // Calculate the optimistic gas limit by adding gas used and gas refund,
         // then applying a 64/63 multiplier to account for gas forwarding rules.
-        let optimistic_gas_limit = (gas_used + gas_refund) * 64 / 63;
+        let optimistic_gas_limit = (gas_used + gas_refund + CALL_STIPEND_GAS) * 64 / 63;
         if optimistic_gas_limit < highest_gas_limit {
             // Set the transaction's gas limit to the calculated optimistic gas limit.
             env.tx.gas_limit = optimistic_gas_limit;
@@ -774,8 +1005,7 @@ pub trait Call: LoadState + SpawnBlocking {
 
             // Execute transaction and handle potential gas errors, adjusting limits accordingly.
             match self.transact(&mut db, env.clone()) {
-                // Check if the error is due to gas being too high.
-                Err(EthApiError::InvalidTransaction(RpcInvalidTransactionError::GasTooHigh)) => {
+                Err(err) if err.is_gas_too_high() => {
                     // Increase the lowest gas limit if gas is too high
                     lowest_gas_limit = mid_gas_limit;
                 }
@@ -812,7 +1042,7 @@ pub trait Call: LoadState + SpawnBlocking {
         tx_gas_limit: u64,
         highest_gas_limit: &mut u64,
         lowest_gas_limit: &mut u64,
-    ) -> EthResult<()> {
+    ) -> Result<(), Self::Error> {
         match result {
             ExecutionResult::Success { .. } => {
                 // Cap the highest gas limit with the succeeding gas limit.
@@ -840,7 +1070,7 @@ pub trait Call: LoadState + SpawnBlocking {
                         // These cases should be unreachable because we know the transaction
                         // succeeds, but if they occur, treat them as an
                         // error.
-                        return Err(RpcInvalidTransactionError::EvmHalt(err).into())
+                        return Err(RpcInvalidTransactionError::EvmHalt(err).into_eth_err())
                     }
                 }
             }
@@ -857,7 +1087,7 @@ pub trait Call: LoadState + SpawnBlocking {
         env_gas_limit: U256,
         mut env: EnvWithHandlerCfg,
         db: &mut CacheDB<StateProviderDatabase<S>>,
-    ) -> EthApiError
+    ) -> Self::Error
     where
         S: StateProvider,
     {
@@ -871,14 +1101,14 @@ pub trait Call: LoadState + SpawnBlocking {
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
                 // highest, which means the caller lacks funds to pay for the tx
-                RpcInvalidTransactionError::BasicOutOfGas(req_gas_limit).into()
+                RpcInvalidTransactionError::BasicOutOfGas(req_gas_limit).into_eth_err()
             }
             ExecutionResult::Revert { output, .. } => {
                 // reverted again after bumping the limit
-                RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
+                RpcInvalidTransactionError::Revert(RevertError::new(output)).into_eth_err()
             }
             ExecutionResult::Halt { reason, .. } => {
-                RpcInvalidTransactionError::EvmHalt(reason).into()
+                RpcInvalidTransactionError::EvmHalt(reason).into_eth_err()
             }
         }
     }
@@ -891,10 +1121,10 @@ pub trait Call: LoadState + SpawnBlocking {
         &self,
         block_env: &BlockEnv,
         request: TransactionRequest,
-    ) -> EthResult<TxEnv> {
+    ) -> Result<TxEnv, Self::Error> {
         // Ensure that if versioned hashes are set, they're not empty
         if request.blob_versioned_hashes.as_ref().map_or(false, |hashes| hashes.is_empty()) {
-            return Err(RpcInvalidTransactionError::BlobTransactionMissingBlobHashes.into())
+            return Err(RpcInvalidTransactionError::BlobTransactionMissingBlobHashes.into_eth_err())
         }
 
         let TransactionRequest {
@@ -911,8 +1141,9 @@ pub trait Call: LoadState + SpawnBlocking {
             chain_id,
             blob_versioned_hashes,
             max_fee_per_blob_gas,
-            // authorization_list,
-            ..
+            authorization_list,
+            transaction_type: _,
+            sidecar: _,
         } = request;
 
         let CallFees { max_priority_fee_per_gas, gas_price, max_fee_per_blob_gas } =
@@ -932,21 +1163,25 @@ pub trait Call: LoadState + SpawnBlocking {
         let env = TxEnv {
             gas_limit: gas_limit
                 .try_into()
-                .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
+                .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)
+                .map_err(Self::Error::from_eth_err)?,
             nonce,
             caller: from.unwrap_or_default(),
             gas_price,
             gas_priority_fee: max_priority_fee_per_gas,
             transact_to: to.unwrap_or(TxKind::Create),
             value: value.unwrap_or_default(),
-            data: input.try_into_unique_input()?.unwrap_or_default(),
+            data: input
+                .try_into_unique_input()
+                .map_err(Self::Error::from_eth_err)?
+                .unwrap_or_default(),
             chain_id,
             access_list: access_list.unwrap_or_default().into(),
             // EIP-4844 fields
             blob_hashes: blob_versioned_hashes.unwrap_or_default(),
             max_fee_per_blob_gas,
             // EIP-7702 fields
-            // authorization_list: TODO
+            authorization_list: authorization_list.map(Into::into),
             ..Default::default()
         };
 
@@ -962,7 +1197,7 @@ pub trait Call: LoadState + SpawnBlocking {
         cfg: CfgEnvWithHandlerCfg,
         block: BlockEnv,
         request: TransactionRequest,
-    ) -> EthResult<EnvWithHandlerCfg> {
+    ) -> Result<EnvWithHandlerCfg, Self::Error> {
         let tx = self.create_txn_env(&block, request)?;
         Ok(EnvWithHandlerCfg::new_with_cfg_env(cfg, block, tx))
     }
@@ -971,20 +1206,25 @@ pub trait Call: LoadState + SpawnBlocking {
     ///
     /// Does not commit any changes to the underlying database.
     ///
-    /// EVM settings:
-    ///  - `disable_block_gas_limit` is set to `true`
+    /// ## EVM settings
+    ///
+    /// This modifies certain EVM settings to mirror geth's `SkipAccountChecks` when transacting requests, see also: <https://github.com/ethereum/go-ethereum/blob/380688c636a654becc8f114438c2a5d93d2db032/core/state_transition.go#L145-L148>:
+    ///
     ///  - `disable_eip3607` is set to `true`
     ///  - `disable_base_fee` is set to `true`
     ///  - `nonce` is set to `None`
+    ///
+    /// Additionally, the block gas limit so that higher tx gas limits can be used in `eth_call`.
+    ///  - `disable_block_gas_limit` is set to `true`
     fn prepare_call_env<DB>(
         &self,
         mut cfg: CfgEnvWithHandlerCfg,
         mut block: BlockEnv,
-        request: TransactionRequest,
+        mut request: TransactionRequest,
         gas_limit: u64,
         db: &mut CacheDB<DB>,
         overrides: EvmOverrides,
-    ) -> EthResult<EnvWithHandlerCfg>
+    ) -> Result<EnvWithHandlerCfg, Self::Error>
     where
         DB: DatabaseRef,
         EthApiError: From<<DB as DatabaseRef>::Error>,
@@ -1002,26 +1242,18 @@ pub trait Call: LoadState + SpawnBlocking {
         // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
         cfg.disable_base_fee = true;
 
-        // apply block overrides, we need to apply them first so that they take effect when we we
-        // create the evm env via `build_call_evm_env`, e.g. basefee
-        if let Some(mut block_overrides) = overrides.block {
-            if let Some(block_hashes) = block_overrides.block_hash.take() {
-                // override block hashes
-                db.block_hashes
-                    .extend(block_hashes.into_iter().map(|(num, hash)| (U256::from(num), hash)))
-            }
-            apply_block_overrides(*block_overrides, &mut block);
+        // set nonce to None so that the correct nonce is chosen by the EVM
+        request.nonce = None;
+
+        if let Some(block_overrides) = overrides.block {
+            apply_block_overrides(*block_overrides, db, &mut block);
+        }
+        if let Some(state_overrides) = overrides.state {
+            apply_state_overrides(state_overrides, db)?;
         }
 
         let request_gas = request.gas;
         let mut env = self.build_call_evm_env(cfg, block, request)?;
-        // set nonce to None so that the next nonce is used when transacting the call
-        env.tx.nonce = None;
-
-        // apply state overrides
-        if let Some(state_overrides) = overrides.state {
-            apply_state_overrides(state_overrides, db)?;
-        }
 
         if request_gas.is_none() {
             // No gas limit was provided in the request, so we need to cap the transaction gas limit

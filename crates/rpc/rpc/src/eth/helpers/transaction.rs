@@ -1,10 +1,7 @@
 //! Contains RPC handler implementations specific to transactions
 
 use reth_provider::{BlockReaderIdExt, TransactionsProvider};
-use reth_rpc_eth_api::{
-    helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
-    RawTransactionForwarder,
-};
+use reth_rpc_eth_api::helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking};
 use reth_rpc_eth_types::EthStateCache;
 use reth_transaction_pool::TransactionPool;
 
@@ -23,11 +20,6 @@ where
     }
 
     #[inline]
-    fn raw_tx_forwarder(&self) -> Option<std::sync::Arc<dyn RawTransactionForwarder>> {
-        self.inner.raw_tx_forwarder()
-    }
-
-    #[inline]
     fn signers(&self) -> &parking_lot::RwLock<Vec<Box<dyn EthSigner>>> {
         self.inner.signers()
     }
@@ -43,7 +35,7 @@ where
     type Pool = Pool;
 
     #[inline]
-    fn provider(&self) -> impl reth_provider::TransactionsProvider {
+    fn provider(&self) -> impl TransactionsProvider {
         self.inner.provider()
     }
 
@@ -60,15 +52,19 @@ where
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::{hex_literal::hex, Bytes};
+    use reth_chainspec::ChainSpecProvider;
     use reth_evm_ethereum::EthEvmConfig;
     use reth_network_api::noop::NoopNetwork;
-    use reth_primitives::{constants::ETHEREUM_BLOCK_GAS_LIMIT, hex_literal::hex, Bytes};
+    use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
     use reth_provider::test_utils::NoopProvider;
     use reth_rpc_eth_api::helpers::EthTransactions;
     use reth_rpc_eth_types::{
         EthStateCache, FeeHistoryCache, FeeHistoryCacheConfig, GasPriceOracle,
     };
-    use reth_rpc_server_types::constants::{DEFAULT_ETH_PROOF_WINDOW, DEFAULT_PROOF_PERMITS};
+    use reth_rpc_server_types::constants::{
+        DEFAULT_ETH_PROOF_WINDOW, DEFAULT_MAX_SIMULATE_BLOCKS, DEFAULT_PROOF_PERMITS,
+    };
     use reth_tasks::pool::BlockingTaskPool;
     use reth_transaction_pool::{test_utils::testing_pool, TransactionPool};
 
@@ -81,8 +77,8 @@ mod tests {
 
         let pool = testing_pool();
 
-        let evm_config = EthEvmConfig::default();
-        let cache = EthStateCache::spawn(noop_provider, Default::default(), evm_config);
+        let evm_config = EthEvmConfig::new(noop_provider.chain_spec());
+        let cache = EthStateCache::spawn(noop_provider, Default::default(), evm_config.clone());
         let fee_history_cache =
             FeeHistoryCache::new(cache.clone(), FeeHistoryCacheConfig::default());
         let eth_api = EthApi::new(
@@ -92,11 +88,11 @@ mod tests {
             cache.clone(),
             GasPriceOracle::new(noop_provider, Default::default(), cache.clone()),
             ETHEREUM_BLOCK_GAS_LIMIT,
+            DEFAULT_MAX_SIMULATE_BLOCKS,
             DEFAULT_ETH_PROOF_WINDOW,
             BlockingTaskPool::build().expect("failed to build tracing pool"),
             fee_history_cache,
             evm_config,
-            None,
             DEFAULT_PROOF_PERMITS,
         );
 

@@ -2,13 +2,14 @@
 //! geth.
 
 use alloy_rlp::{RlpDecodable, RlpEncodable};
-use reth_codecs_derive::derive_arbitrary;
+use reth_codecs_derive::add_arbitrary_tests;
 
 /// UpdateStatus packet introduced in BSC to notify peers whether to broadcast transaction or not.
 /// It is used during the p2p handshake.
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
+#[add_arbitrary_tests(rlp)]
 pub struct UpgradeStatus {
     /// Extension for support customized features for BSC.
     pub extension: UpgradeStatusExtension,
@@ -16,9 +17,10 @@ pub struct UpgradeStatus {
 
 /// The extension to define whether to enable or disable the flag.
 /// This flag currently is ignored, and will be supported later.
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
+#[add_arbitrary_tests(rlp)]
 pub struct UpgradeStatusExtension {
     // TODO: support disable_peer_tx_broadcast flag
     /// To notify a peer to disable the broadcast of transactions or not.

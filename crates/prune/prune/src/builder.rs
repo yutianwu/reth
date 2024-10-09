@@ -1,9 +1,12 @@
 use crate::{segments::SegmentSet, Pruner};
 use reth_chainspec::MAINNET;
 use reth_config::PruneConfig;
-use reth_db_api::database::Database;
+use reth_db::transaction::DbTxMut;
 use reth_exex_types::FinishedExExHeight;
-use reth_provider::{providers::StaticFileProvider, ProviderFactory, StaticFileProviderFactory};
+use reth_provider::{
+    providers::StaticFileProvider, BlockReader, DBProvider, DatabaseProviderFactory,
+    PruneCheckpointWriter, StaticFileProviderFactory, TransactionsProvider,
+};
 use reth_prune_types::PruneModes;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -80,16 +83,15 @@ impl PrunerBuilder {
     }
 
     /// Builds a [Pruner] from the current configuration with the given provider factory.
-    pub fn build_with_provider_factory<DB: Database>(
-        self,
-        provider_factory: ProviderFactory<DB>,
-    ) -> Pruner<DB, ProviderFactory<DB>> {
-        let segments = SegmentSet::<DB>::from_components(
-            provider_factory.static_file_provider(),
-            self.segments,
-        );
-
-        Pruner::<_, ProviderFactory<DB>>::new(
+    pub fn build_with_provider_factory<PF>(self, provider_factory: PF) -> Pruner<PF::ProviderRW, PF>
+    where
+        PF: DatabaseProviderFactory<ProviderRW: PruneCheckpointWriter + BlockReader>
+            + StaticFileProviderFactory,
+    {
+        let segments =
+            SegmentSet::from_components(provider_factory.static_file_provider(), self.segments);
+        let static_file_path = Some(provider_factory.static_file_provider().path().to_path_buf());
+        Pruner::new_with_factory(
             provider_factory,
             segments.into_vec(),
             self.block_interval,
@@ -97,20 +99,27 @@ impl PrunerBuilder {
             self.timeout,
             self.finished_exex_height,
             self.recent_sidecars_kept_blocks,
+            static_file_path,
         )
     }
 
     /// Builds a [Pruner] from the current configuration with the given static file provider.
-    pub fn build<DB: Database>(self, static_file_provider: StaticFileProvider) -> Pruner<DB, ()> {
-        let segments = SegmentSet::<DB>::from_components(static_file_provider, self.segments);
+    pub fn build<Provider>(self, static_file_provider: StaticFileProvider) -> Pruner<Provider, ()>
+    where
+        Provider:
+            DBProvider<Tx: DbTxMut> + BlockReader + PruneCheckpointWriter + TransactionsProvider,
+    {
+        let segments =
+            SegmentSet::<Provider>::from_components(static_file_provider.clone(), self.segments);
 
-        Pruner::<_, ()>::new(
+        Pruner::new(
             segments.into_vec(),
             self.block_interval,
             self.delete_limit,
             self.timeout,
             self.finished_exex_height,
             self.recent_sidecars_kept_blocks,
+            Some(static_file_provider.path().to_path_buf()),
         )
     }
 }

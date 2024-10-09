@@ -24,6 +24,9 @@ reth-stages-types.workspace = true
 reth-tracing.workspace = true
 reth-trie-common.workspace = true
 
+# ethereum
+alloy-primitives.workspace = true
+
 # mdbx
 reth-libmdbx = { workspace = true, optional = true, features = [
     "return-borrowed",
@@ -56,7 +59,6 @@ strum = { workspace = true, features = ["derive"], optional = true }
 reth-primitives = { workspace = true, features = ["arbitrary"] }
 rand.workspace = true
 serde_json.workspace = true
-
 tempfile.workspace = true
 test-fuzz.workspace = true
 

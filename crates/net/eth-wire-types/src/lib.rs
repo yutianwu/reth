@@ -12,7 +12,7 @@ mod status;
 pub use status::{Status, StatusBuilder};
 
 pub mod version;
-pub use version::EthVersion;
+pub use version::{EthVersion, ProtocolVersion};
 
 pub mod message;
 pub use message::{EthMessage, EthMessageID, ProtocolMessage};
@@ -34,6 +34,12 @@ pub use state::*;
 
 pub mod receipts;
 pub use receipts::*;
+
+pub mod disconnect_reason;
+pub use disconnect_reason::*;
+
+pub mod capability;
+pub use capability::*;
 
 pub mod upgrade_status;
 pub use upgrade_status::*;

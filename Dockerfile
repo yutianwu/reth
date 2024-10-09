@@ -1,7 +1,7 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.79 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.80 AS chef
 WORKDIR /app
 
-LABEL org.opencontainers.image.source=https://github.com/paradigmxyz/reth
+LABEL org.opencontainers.image.source=https://github.com/bnb-chain/reth
 LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
 
 # Install system dependencies
@@ -17,15 +17,15 @@ COPY --from=planner /app/recipe.json recipe.json
 
 # Build profile, release by default
 ARG BUILD_PROFILE=release
-ENV BUILD_PROFILE $BUILD_PROFILE
+ENV BUILD_PROFILE=$BUILD_PROFILE
 
 # Extra Cargo flags
 ARG RUSTFLAGS=""
-ENV RUSTFLAGS "$RUSTFLAGS"
+ENV RUSTFLAGS="$RUSTFLAGS"
 
 # Extra Cargo features
 ARG FEATURES=""
-ENV FEATURES $FEATURES
+ENV FEATURES=$FEATURES
 
 # Builds dependencies
 RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json

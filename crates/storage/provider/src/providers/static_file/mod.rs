@@ -58,12 +58,12 @@ impl Deref for LoadedJar {
 mod tests {
     use super::*;
     use crate::{test_utils::create_test_provider_factory, HeaderProvider};
+    use alloy_primitives::{B256, U256};
     use rand::seq::SliceRandom;
     use reth_db::{CanonicalHeaders, HeaderNumbers, HeaderTerminalDifficulties, Headers, Sidecars};
     use reth_db_api::transaction::DbTxMut;
     use reth_primitives::{
-        static_file::find_fixed_range, BlobSidecar, BlobSidecars, BlobTransactionSidecar, B256,
-        U256,
+        static_file::find_fixed_range, BlobSidecar, BlobSidecars, BlobTransactionSidecar,
     };
     use reth_storage_api::SidecarsProvider;
     use reth_testing_utils::generators::{self, random_header_range};
@@ -111,7 +111,7 @@ mod tests {
             for header in headers.clone() {
                 td += header.header().difficulty;
                 let hash = header.hash();
-                writer.append_header(header.unseal(), td, hash).unwrap();
+                writer.append_header(&header.unseal(), td, &hash).unwrap();
             }
             writer.commit().unwrap();
         }
@@ -194,7 +194,7 @@ mod tests {
             for sidecars in sidecars_set.clone() {
                 let block_number = sidecars[0].block_number.to();
                 let hash = sidecars[0].block_hash;
-                writer.append_sidecars(sidecars, block_number, hash).unwrap();
+                writer.append_sidecars(&sidecars, block_number, &hash).unwrap();
             }
             writer.commit().unwrap();
         }

@@ -10,7 +10,7 @@ on:
     # Needed so we can run it manually
 
 env:
-  TOOL_CHAIN: "1.79"
+  TOOL_CHAIN: "1.81"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BRANCH: cargo-update
   TITLE: "chore(deps): weekly `cargo update`"
@@ -54,7 +54,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           add-paths: ./Cargo.lock
           commit-message: ${{ steps.msg.outputs.commit_message }}
