@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
-    parlia::{VoteAddress, VoteAttestation, VoteData},
-    Address, BlockNumber, Header, B256,
+    parlia::{VoteAddress, VoteAttestation, VoteData}, Header,
 };
+use alloy_primitives::{Address, BlockNumber, B256};
 #[cfg(any(test, feature = "reth-codec"))]
 use reth_codecs::Compact;
 use serde::{Deserialize, Serialize};

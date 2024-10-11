@@ -7,7 +7,7 @@ use std::{
     borrow::Cow,
     collections::{hash_map, HashMap, HashSet},
 };
-
+use revm::primitives::EvmState;
 use crate::{
     prefix_set::{PrefixSetMut, TriePrefixSetsMut},
     Nibbles,
@@ -53,7 +53,7 @@ impl HashedPostState {
 
     /// Initialize [`HashedPostState`] from evm state.
     pub fn from_state(
-        changes: HashMap<Address, reth_primitives::revm_primitives::Account>,
+        changes: EvmState,
     ) -> Self {
         let mut this = Self::default();
         for (address, account) in changes {
@@ -121,6 +121,36 @@ impl HashedPostState {
         self
     }
 
+    /// Returns `true` if the hashed state is empty.
+    pub fn is_empty(&self) -> bool {
+        self.accounts.is_empty() && self.storages.is_empty()
+    }
+
+    /// Construct [`TriePrefixSetsMut`] from hashed post state.
+    /// The prefix sets contain the hashed account and storage keys that have been changed in the
+    /// post state.
+    pub fn construct_prefix_sets(&self) -> TriePrefixSetsMut {
+        // Populate account prefix set.
+        let mut account_prefix_set = PrefixSetMut::with_capacity(self.accounts.len());
+        let mut destroyed_accounts = HashSet::default();
+        for (hashed_address, account) in &self.accounts {
+            account_prefix_set.insert(Nibbles::unpack(hashed_address));
+
+            if account.is_none() {
+                destroyed_accounts.insert(*hashed_address);
+            }
+        }
+
+        // Populate storage prefix sets.
+        let mut storage_prefix_sets = HashMap::with_capacity(self.storages.len());
+        for (hashed_address, hashed_storage) in &self.storages {
+            account_prefix_set.insert(Nibbles::unpack(hashed_address));
+            storage_prefix_sets.insert(*hashed_address, hashed_storage.construct_prefix_set());
+        }
+
+        TriePrefixSetsMut { account_prefix_set, storage_prefix_sets, destroyed_accounts }
+    }
+
     /// Extend this hashed post state with contents of another.
     /// Entries in the second hashed post state take precedence.
     pub fn extend(&mut self, other: Self) {
@@ -186,31 +216,6 @@ impl HashedPostState {
             .collect();
 
         HashedPostStateSorted { accounts, storages }
-    }
-
-    /// Construct [`TriePrefixSetsMut`] from hashed post state.
-    /// The prefix sets contain the hashed account and storage keys that have been changed in the
-    /// post state.
-    pub fn construct_prefix_sets(&self) -> TriePrefixSetsMut {
-        // Populate account prefix set.
-        let mut account_prefix_set = PrefixSetMut::with_capacity(self.accounts.len());
-        let mut destroyed_accounts = HashSet::default();
-        for (hashed_address, account) in &self.accounts {
-            account_prefix_set.insert(Nibbles::unpack(hashed_address));
-
-            if account.is_none() {
-                destroyed_accounts.insert(*hashed_address);
-            }
-        }
-
-        // Populate storage prefix sets.
-        let mut storage_prefix_sets = HashMap::with_capacity(self.storages.len());
-        for (hashed_address, hashed_storage) in &self.storages {
-            account_prefix_set.insert(Nibbles::unpack(hashed_address));
-            storage_prefix_sets.insert(*hashed_address, hashed_storage.construct_prefix_set());
-        }
-
-        TriePrefixSetsMut { account_prefix_set, storage_prefix_sets, destroyed_accounts }
     }
 }
 
