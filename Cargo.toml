@@ -18,7 +18,9 @@ members = [
     "crates/bsc/chainspec/",
     "crates/bsc/cli/",
     "crates/bsc/consensus/",
+    "crates/bsc/engine/",
     "crates/bsc/evm/",
+    "crates/bsc/hardforks/",
     "crates/bsc/node/",
     "crates/bsc/payload/",
     "crates/bsc/primitives/",
@@ -133,9 +135,6 @@ members = [
     "crates/trie/parallel/",
     "crates/trie/prefetch/",
     "crates/trie/trie",
-    "crates/bsc/node/",
-    "crates/bsc/engine/",
-    "crates/bsc/hardforks",
     "examples/beacon-api-sidecar-fetcher/",
     "examples/beacon-api-sse/",
     "examples/bsc-p2p",
@@ -309,6 +308,7 @@ reth-bsc-chainspec = { path = "crates/bsc/chainspec" }
 reth-bsc-forks = { path = "crates/bsc/hardforks" }
 reth-bsc-cli = { path = "crates/bsc/cli" }
 reth-bsc-consensus = { path = "crates/bsc/consensus" }
+reth-bsc-engine = { path = "crates/bsc/engine" }
 reth-bsc-evm = { path = "crates/bsc/evm" }
 reth-bsc-node = { path = "crates/bsc/node" }
 reth-bsc-payload-builder = { path = "crates/bsc/payload" }
@@ -418,7 +418,6 @@ reth-static-file-types = { path = "crates/static-file/types" }
 reth-storage-api = { path = "crates/storage/storage-api" }
 reth-storage-errors = { path = "crates/storage/errors" }
 reth-tasks = { path = "crates/tasks" }
-reth-bsc-engine = { path = "crates/bsc/engine" }
 reth-testing-utils = { path = "testing/testing-utils" }
 reth-tokio-util = { path = "crates/tokio-util" }
 reth-tracing = { path = "crates/tracing" }

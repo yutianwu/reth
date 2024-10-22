@@ -123,6 +123,7 @@ where
     provider: Provider,
     parlia: Parlia,
     snapshot_reader: SnapshotReader<SnapShotProvider>,
+    merkle_clean_threshold: u64,
     _marker: PhantomData<N>,
 }
 
@@ -146,6 +147,7 @@ where
         to_engine: UnboundedSender<BeaconEngineMessage<N::Engine>>,
         network_block_event_rx: Arc<Mutex<UnboundedReceiver<EngineMessage>>>,
         fetch_client: Client,
+        merkle_clean_threshold: u64,
         _marker: PhantomData<N>,
     ) -> Self {
         let latest_header = provider.latest_header().ok().flatten().unwrap_or_else(|| {
@@ -172,6 +174,7 @@ where
             to_engine,
             network_block_event_rx,
             fetch_client,
+            merkle_clean_threshold,
             _marker,
         }
     }
@@ -188,6 +191,7 @@ where
             provider,
             parlia,
             snapshot_reader,
+            merkle_clean_threshold,
             _marker,
         } = self;
         let parlia_client = ParliaClient::new(storage.clone(), fetch_client);
@@ -203,6 +207,7 @@ where
                 storage,
                 parlia_client.clone(),
                 period,
+                merkle_clean_threshold,
             );
         }
         parlia_client
