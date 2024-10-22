@@ -56,7 +56,7 @@ use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
 use reth_node_ethereum::{
     node::{
         EthereumAddOns, EthereumConsensusBuilder, EthereumExecutorBuilder, EthereumNetworkBuilder,
-        EthereumPoolBuilder,
+        EthereumParliaBuilder, EthereumPoolBuilder,
     },
     EthEvmConfig,
 };
@@ -240,6 +240,7 @@ where
         EthereumExecutorBuilder,
         EthereumConsensusBuilder,
         CustomEngineValidatorBuilder,
+        EthereumParliaBuilder,
     >;
     type AddOns = EthereumAddOns;
 
@@ -252,6 +253,7 @@ where
             .executor(EthereumExecutorBuilder::default())
             .consensus(EthereumConsensusBuilder::default())
             .engine_validator(CustomEngineValidatorBuilder::default())
+            .parlia(EthereumParliaBuilder::default())
     }
 
     fn add_ons(&self) -> Self::AddOns {

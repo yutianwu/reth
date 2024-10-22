@@ -1,8 +1,13 @@
-use crate::EXTRA_SEAL_LEN;
-use alloy_primitives::{keccak256, bytes::{BufMut, BytesMut}, B256, B64, U256};
+use std::env;
+
+use alloy_primitives::{
+    bytes::{BufMut, BytesMut},
+    keccak256, B256, U256,
+};
 use alloy_rlp::Encodable;
 use reth_primitives::Header;
-use std::env;
+
+use crate::EXTRA_SEAL_LEN;
 
 const SECONDS_PER_DAY: u64 = 86400; // 24 * 60 * 60
 
@@ -91,9 +96,10 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
 
 #[cfg(test)]
 mod tests {
-    use crate::{encode_header_with_chain_id, hash_with_chain_id};
     use alloy_primitives::{address, b256, hex, Bloom, Bytes, B64, U256};
     use reth_primitives::Header;
+
+    use crate::{encode_header_with_chain_id, hash_with_chain_id};
 
     #[test]
     fn test_encode_header_with_chain_id() {
@@ -123,7 +129,7 @@ mod tests {
             timestamp: 1710228451,
             extra_data: Bytes::from(extra),
             mix_hash: b256!("0000000000000000000000000000000000000000000000000000000000000000"),
-            nonce: B64::from(0),
+            nonce: B64::from(0u64),
             ..Default::default()
         };
 

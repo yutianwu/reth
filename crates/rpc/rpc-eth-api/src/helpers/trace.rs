@@ -7,10 +7,10 @@ use alloy_primitives::B256;
 use alloy_rpc_types::{BlockId, TransactionInfo};
 use cfg_if::cfg_if;
 use futures::Future;
+#[cfg(feature = "bsc")]
+use reth_bsc_primitives::system_contracts::is_system_transaction;
 use reth_chainspec::ChainSpecProvider;
 use reth_evm::{system_calls::SystemCaller, ConfigureEvm, ConfigureEvmEnv};
-#[cfg(feature = "bsc")]
-use reth_primitives::system_contracts::is_system_transaction;
 use reth_primitives::Header;
 use reth_revm::database::StateProviderDatabase;
 use reth_rpc_eth_types::{

@@ -43,7 +43,7 @@ use reth_node_core::node_config::NodeConfig;
 use reth_node_ethereum::{
     node::{
         EthereumAddOns, EthereumEngineValidatorBuilder, EthereumNetworkBuilder,
-        EthereumPayloadBuilder,
+        EthereumParliaBuilder, EthereumPayloadBuilder,
     },
     EthEngineTypes, EthEvmConfig,
 };
@@ -141,6 +141,7 @@ where
         TestExecutorBuilder,
         TestConsensusBuilder,
         EthereumEngineValidatorBuilder,
+        EthereumParliaBuilder,
     >;
     type AddOns = EthereumAddOns;
 
@@ -153,6 +154,7 @@ where
             .executor(TestExecutorBuilder::default())
             .consensus(TestConsensusBuilder::default())
             .engine_validator(EthereumEngineValidatorBuilder::default())
+            .parlia(EthereumParliaBuilder::default())
     }
 
     fn add_ons(&self) -> Self::AddOns {
@@ -293,6 +295,8 @@ pub async fn test_exex_context_with_chain_spec(
             network,
             payload_builder,
             engine_validator,
+            #[cfg(feature = "bsc")]
+            parlia: Default::default(),
         },
         task_executor,
         provider,

@@ -17,8 +17,8 @@ use reth::{
         types::engine::PayloadStatusEnum,
     },
 };
-use reth_chainspec::EthereumHardforks;
 use reth_node_builder::{NodeAddOns, NodeTypesWithEngine};
+use reth_provider::ChainSpecHardforks;
 use reth_stages_types::StageId;
 use tokio_stream::StreamExt;
 
@@ -50,7 +50,7 @@ impl<Node, Engine, AddOns> NodeTestContext<Node, AddOns>
 where
     Engine: EngineTypes,
     Node: FullNodeComponents,
-    Node::Types: NodeTypesWithEngine<ChainSpec: EthereumHardforks, Engine = Engine>,
+    Node::Types: NodeTypesWithEngine<ChainSpec: ChainSpecHardforks, Engine = Engine>,
     Node::Network: PeersHandleProvider,
     AddOns: NodeAddOns<Node>,
 {

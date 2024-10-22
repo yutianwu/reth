@@ -31,9 +31,7 @@ pub mod proofs;
 mod receipt;
 pub use reth_static_file_types as static_file;
 pub mod parlia;
-pub mod system_contracts;
 pub mod transaction;
-
 #[cfg(any(test, feature = "arbitrary"))]
 pub use block::{generate_valid_header, valid_header_strategy};
 pub use block::{
@@ -95,19 +93,10 @@ pub mod serde_bincode_compat {
         block::serde_bincode_compat::*,
         transaction::{serde_bincode_compat as transaction, serde_bincode_compat::*},
     };
-    #[cfg(feature = "opbnb")]
-    pub use reth_optimism_chainspec::{OPBNB_MAINNET, OPBNB_QA, OPBNB_TESTNET};
 }
-
-/// Bsc specific re-exports
-#[cfg(feature = "bsc")]
-mod bsc {
-    pub use reth_bsc_chainspec::{BSC_CHAPEL, BSC_MAINNET, BSC_RIALTO};
-}
-
-#[cfg(feature = "bsc")]
-pub use bsc::*;
 
 // to make lint happy
+#[cfg(feature = "bsc")]
+use reth_chainspec as _;
 #[cfg(any(feature = "bsc", feature = "opbnb"))]
 use revm as _;

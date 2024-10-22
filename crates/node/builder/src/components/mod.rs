@@ -22,7 +22,8 @@ pub use execute::*;
 pub use network::*;
 pub use payload::*;
 pub use pool::*;
-
+#[cfg(feature = "bsc")]
+use reth_bsc_consensus::Parlia;
 use reth_consensus::Consensus;
 use reth_evm::execute::BlockExecutorProvider;
 use reth_network::NetworkHandle;
@@ -39,6 +40,8 @@ use crate::{ConfigureEvm, FullNodeTypes};
 ///  - transaction pool
 ///  - network
 ///  - payload builder.
+///  - engine validator.
+///  - parlia consensus if bsc is enabled.
 pub trait NodeComponents<T: FullNodeTypes>: Clone + Unpin + Send + Sync + 'static {
     /// The transaction pool of the node.
     type Pool: TransactionPool + Unpin;
@@ -78,6 +81,10 @@ pub trait NodeComponents<T: FullNodeTypes>: Clone + Unpin + Send + Sync + 'stati
 
     /// Returns the engine validator.
     fn engine_validator(&self) -> &Self::EngineValidator;
+
+    #[cfg(feature = "bsc")]
+    /// Returns the parlia.
+    fn parlia(&self) -> &Parlia;
 }
 
 /// All the components of the node.
@@ -99,6 +106,9 @@ pub struct Components<Node: FullNodeTypes, Pool, EVM, Executor, Consensus, Valid
     pub payload_builder: PayloadBuilderHandle<<Node::Types as NodeTypesWithEngine>::Engine>,
     /// The validator for the engine API.
     pub engine_validator: Validator,
+    #[cfg(feature = "bsc")]
+    /// The parlia consensus.
+    pub parlia: Parlia,
 }
 
 impl<Node, Pool, EVM, Executor, Cons, Val> NodeComponents<Node>
@@ -147,6 +157,11 @@ where
     fn engine_validator(&self) -> &Self::EngineValidator {
         &self.engine_validator
     }
+
+    #[cfg(feature = "bsc")]
+    fn parlia(&self) -> &Parlia {
+        &self.parlia
+    }
 }
 
 impl<Node, Pool, EVM, Executor, Cons, Val> Clone
@@ -168,6 +183,8 @@ where
             network: self.network.clone(),
             payload_builder: self.payload_builder.clone(),
             engine_validator: self.engine_validator.clone(),
+            #[cfg(feature = "bsc")]
+            parlia: self.parlia.clone(),
         }
     }
 }

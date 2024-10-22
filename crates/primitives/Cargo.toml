@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 # reth
-reth-chainspec.workspace = true
 reth-primitives-traits.workspace = true
 reth-ethereum-forks.workspace = true
 reth-static-file-types.workspace = true
@@ -21,11 +20,10 @@ reth-trie-common.workspace = true
 revm = { workspace = true, optional = true }
 revm-primitives = { workspace = true, features = ["serde"] }
 reth-codecs = { workspace = true, optional = true }
+reth-chainspec = { workspace = true, optional = true }
 
 # op-reth
 reth-optimism-chainspec = { workspace = true, optional = true }
-reth-bsc-chainspec = { workspace = true, optional = true }
-reth-bsc-forks.workspace = true
 
 # ethereum
 alloy-consensus.workspace = true
@@ -65,12 +63,6 @@ zstd = { workspace = true, features = ["experimental"], optional = true }
 # arbitrary utils
 arbitrary = { workspace = true, features = ["derive"], optional = true }
 proptest = { workspace = true, optional = true }
-
-# `bsc` feature
-alloy-chains = { workspace = true, optional = true }
-include_dir = { version = "0.7.4", optional = true }
-lazy_static = { version = "1.4.0", optional = true }
-thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 # eth
@@ -129,30 +121,19 @@ optimism = [
     "reth-codecs?/optimism",
     "revm-primitives/optimism",
 ]
+opbnb = [
+    "revm/opbnb",
+]
+bsc = [
+    "reth-primitives-traits/bsc",
+    "reth-chainspec/bsc",
+    "revm/bsc",
+]
 alloy-compat = [
     "dep:alloy-rpc-types",
     "dep:alloy-serde",
     "dep:op-alloy-rpc-types",
 ]
-opbnb = [
-    "reth-chainspec/opbnb",
-    "reth-ethereum-forks/opbnb",
-    "revm/opbnb",
-    "dep:revm"
-]
-bsc = [
-    "reth-primitives-traits/bsc",
-    "reth-chainspec/bsc",
-    "reth-ethereum-forks/bsc",
-    "revm/bsc",
-    "dep:alloy-chains",
-    "dep:include_dir",
-    "dep:lazy_static",
-    "dep:revm",
-    "dep:reth-bsc-chainspec",
-    "dep:thiserror",
-]
-
 test-utils = ["reth-primitives-traits/test-utils"]
 serde-bincode-compat = [
     "alloy-consensus/serde-bincode-compat",

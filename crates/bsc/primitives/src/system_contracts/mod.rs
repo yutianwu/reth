@@ -1,16 +1,16 @@
-#![cfg(feature = "bsc")]
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
 
-use crate::{TransactionSigned};
-use alloy_primitives::{hex, Address, BlockNumber};
 use alloy_chains::Chain;
+use alloy_primitives::{hex, Address, BlockNumber};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use reth_bsc_chainspec::{BSC_CHAPEL, BSC_MAINNET, BSC_RIALTO};
-use reth_chainspec::ChainSpec;
 use reth_bsc_forks::BscHardfork;
+use reth_chainspec::{ChainSpec, EthChainSpec};
+use reth_ethereum_forks::Hardforks;
+use reth_primitives::TransactionSigned;
 use revm_primitives::Bytecode;
 use thiserror::Error;
 
@@ -231,23 +231,26 @@ fn read_all_system_contracts(
 }
 
 /// Get byte codes for a specific hardfork.
-fn get_system_contract_codes(
+fn get_system_contract_codes<ChainSpec>(
     spec: &ChainSpec,
     hardfork: &str,
-) -> Result<HashMap<String, Option<Bytecode>>, SystemContractError> {
-    return if spec.chain.eq(&Chain::bsc_mainnet()) {
+) -> Result<HashMap<String, Option<Bytecode>>, SystemContractError>
+where
+    ChainSpec: EthChainSpec,
+{
+    if spec.chain().eq(&Chain::bsc_mainnet()) {
         if let Some(m) = BSC_MAINNET_CONTRACTS.get(hardfork) {
             Ok(m.clone())
         } else {
             Ok(HashMap::new())
         }
-    } else if spec.chain.eq(&Chain::bsc_testnet()) {
+    } else if spec.chain().eq(&Chain::bsc_testnet()) {
         if let Some(m) = BSC_TESTNET_CONTRACTS.get(hardfork) {
             Ok(m.clone())
         } else {
             Ok(HashMap::new())
         }
-    } else if spec.chain.eq(&Chain::from_id(714)) {
+    } else if spec.chain().eq(&Chain::from_id(714)) {
         if let Some(m) = BSC_QA_CONTRACTS.get(hardfork) {
             Ok(m.clone())
         } else {
@@ -259,14 +262,17 @@ fn get_system_contract_codes(
 }
 
 /// Get all system contracts to be upgraded.
-pub fn get_upgrade_system_contracts(
+pub fn get_upgrade_system_contracts<ChainSpec>(
     spec: &ChainSpec,
     block_number: BlockNumber,
     block_time: u64,
     parent_block_time: u64,
-) -> Result<HashMap<Address, Option<Bytecode>>, SystemContractError> {
+) -> Result<HashMap<Address, Option<Bytecode>>, SystemContractError>
+where
+    ChainSpec: EthChainSpec + Hardforks,
+{
     let mut m = HashMap::new();
-    for (fork, condition) in spec.hardforks.forks_iter() {
+    for (fork, condition) in spec.forks_iter() {
         if condition.transitions_at_block(block_number) ||
             condition.transitions_at_timestamp(block_time, parent_block_time)
         {
@@ -307,7 +313,8 @@ mod tests {
 
     #[test]
     fn test_get_system_contract_code() {
-        let res = get_system_contract_codes(&BSC_MAINNET, BscHardfork::Feynman.name()).unwrap();
+        let res =
+            get_system_contract_codes(BSC_MAINNET.as_ref(), BscHardfork::Feynman.name()).unwrap();
         assert!(!res.is_empty());
 
         let bytes = res.get(STAKE_HUB_CONTRACT).unwrap();

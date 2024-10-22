@@ -1,7 +1,6 @@
 //! Contains RPC handler implementations specific to state.
 
-use reth_chainspec::EthereumHardforks;
-use reth_provider::{ChainSpecProvider, StateProviderFactory};
+use reth_provider::{ChainSpecHardforks, ChainSpecProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
 
 use reth_rpc_eth_api::helpers::{EthState, LoadState, SpawnBlocking};
@@ -21,13 +20,13 @@ where
 impl<Provider, Pool, Network, EvmConfig> LoadState for EthApi<Provider, Pool, Network, EvmConfig>
 where
     Self: Send + Sync,
-    Provider: StateProviderFactory + ChainSpecProvider<ChainSpec: EthereumHardforks>,
+    Provider: StateProviderFactory + ChainSpecProvider<ChainSpec: ChainSpecHardforks>,
     Pool: TransactionPool,
 {
     #[inline]
     fn provider(
         &self,
-    ) -> impl StateProviderFactory + ChainSpecProvider<ChainSpec: EthereumHardforks> {
+    ) -> impl StateProviderFactory + ChainSpecProvider<ChainSpec: ChainSpecHardforks> {
         self.inner.provider()
     }
 

@@ -35,8 +35,9 @@ reth-node-api.workspace = true
 reth-network-types.workspace = true
 reth-trie.workspace = true
 
-# bsc
-reth-bsc-forks.workspace = true
+# bsc-reth
+reth-bsc-forks= { workspace = true, optional = true }
+reth-bsc-primitives = { workspace = true, optional = true }
 
 # ethereum
 alloy-consensus.workspace = true
@@ -103,8 +104,9 @@ jsonrpsee = { workspace = true, features = ["client"] }
 [features]
 js-tracer = ["revm-inspectors/js-tracer", "reth-rpc-eth-types/js-tracer"]
 bsc = [
-    "reth-primitives/bsc",
     "reth-rpc-eth-api/bsc",
+    "dep:reth-bsc-forks",
+    "dep:reth-bsc-primitives"
 ]
 optimism = [
     "reth-primitives/optimism",

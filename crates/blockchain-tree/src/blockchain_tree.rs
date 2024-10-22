@@ -1675,7 +1675,8 @@ mod tests {
                         ommers: Vec::new(),
                         withdrawals: Some(Withdrawals::default()),
                         sidecars: None,
-                    requests: None,},
+                        requests: None,
+                    },
                 },
                 body.iter().map(|tx| tx.signer()).collect(),
             )
@@ -1764,7 +1765,6 @@ mod tests {
         let (block1, exec1) = data.blocks[0].clone();
         let (block2, exec2) = data.blocks[1].clone();
         let (block3, exec3) = data.blocks[2].clone();
-        let (block4, exec4) = data.blocks[3].clone();
         let genesis = data.genesis;
 
         // test pops execution results from vector, so order is from last to first.

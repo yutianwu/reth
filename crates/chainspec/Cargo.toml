@@ -46,7 +46,6 @@ alloy-genesis.workspace = true
 [features]
 default = ["std"]
 bsc = [
-    "reth-ethereum-forks/bsc",
     "reth-bsc-forks"
 ]
 optimism = ["reth-optimism-forks"]
@@ -56,9 +55,6 @@ std = [
     "alloy-genesis/std",
     "alloy-primitives/std",
     "alloy-trie/std",
-]
-opbnb = [
-    "reth-ethereum-forks/opbnb"
 ]
 arbitrary = ["alloy-chains/arbitrary"]
 test-utils = []

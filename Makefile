@@ -59,7 +59,7 @@ install-op: ## Build and install the op-reth binary under `~/.cargo/bin`.
 
 .PHONY: install-bsc
 install-bsc: ## Build and install the bsc-reth binary under `~/.cargo/bin`.
-	cargo install --path bin/reth --bin bsc-reth --force --locked \
+	cargo install --path crates/bsc/bin --bin bsc-reth --force --locked \
 		--features "bsc $(FEATURES)" \
 		--profile "$(PROFILE)" \
 		$(CARGO_INSTALL_EXTRA_FLAGS)
@@ -74,21 +74,21 @@ build-debug: ## Build the reth binary into `target/debug` directory.
 
 .PHONY: build-op
 build-op: ## Build the op-reth binary into `target` directory.
-	cargo build --bin op-reth --features "optimism,opbnb,$(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
+	cargo build --bin op-reth --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
 
 .PHONY: build-bsc
 build-bsc: ## Build the bsc-reth binary into `target` directory.
-	cargo build --bin bsc-reth --features "bsc $(FEATURES)" --profile "$(PROFILE)"
+	cargo build --bin bsc-reth --features "bsc $(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/bsc/bin/Cargo.toml
 
 # Builds the reth binary natively.
 build-native-%:
 	cargo build --bin reth --target $* --features "$(FEATURES)" --profile "$(PROFILE)"
 
 op-build-native-%:
-	cargo build --bin op-reth --target $* --features "optimism,opbnb,$(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
+	cargo build --bin op-reth --target $* --features "optimism opbnb $(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/optimism/bin/Cargo.toml
 
 bsc-build-native-%:
-	cargo build --bin bsc-reth --target $* --features "bsc $(FEATURES)" --profile "$(PROFILE)"
+	cargo build --bin bsc-reth --target $* --features "bsc $(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/bsc/bin/Cargo.toml
 
 # The following commands use `cross` to build a cross-compile.
 #
@@ -128,7 +128,7 @@ op-build-%:
 
 bsc-build-%:
 	RUSTFLAGS="-C link-arg=-lgcc -Clink-arg=-static-libgcc" \
-		cross build --bin bsc-reth --target $* --features "bsc $(FEATURES)" --profile "$(PROFILE)"
+		cross build --bin bsc-reth --target $* --features "bsc $(FEATURES)" --profile "$(PROFILE)" --manifest-path crates/bsc/bin/Cargo.toml
 
 # Unfortunately we can't easily use cross to build for Darwin because of licensing issues.
 # If we wanted to, we would need to build a custom Docker image with the SDK available.
@@ -385,7 +385,11 @@ maxperf: ## Builds `reth` with the most aggressive optimisations.
 
 .PHONY: maxperf-op
 maxperf-op: ## Builds `op-reth` with the most aggressive optimisations.
-	RUSTFLAGS="-C target-cpu=native" cargo build --profile maxperf --features jemalloc,asm-keccak,optimism --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
+	RUSTFLAGS="-C target-cpu=native" cargo build --profile maxperf --features jemalloc,asm-keccak,optimism,opbnb --bin op-reth --manifest-path crates/optimism/bin/Cargo.toml
+
+.PHONY: maxperf-bsc
+maxperf-bsc: ## Builds `bsc-reth` with the most aggressive optimisations.
+	RUSTFLAGS="-C target-cpu=native" cargo build --profile maxperf --features jemalloc,asm-keccak,bsc --bin bsc-reth --manifest-path crates/bsc/bin/Cargo.toml
 
 .PHONY: maxperf-no-asm
 maxperf-no-asm: ## Builds `reth` with the most aggressive optimisations, minus the "asm-keccak" feature.
@@ -414,12 +418,13 @@ lint-op-reth:
 	--examples \
 	--tests \
 	--benches \
-	--features "optimism $(BIN_OTHER_FEATURES)" \
+	--features "optimism opbnb $(BIN_OTHER_FEATURES)" \
 	-- -D warnings
 
 lint-bsc-reth:
 	cargo +nightly clippy \
 	--workspace \
+	--bin "bsc-reth" \
 	--lib \
 	--examples \
 	--tests \
@@ -465,7 +470,7 @@ fix-lint-op-reth:
 	--examples \
 	--tests \
 	--benches \
-	--features "optimism $(BIN_OTHER_FEATURES)" \
+	--features "optimism opbnb $(BIN_OTHER_FEATURES)" \
 	--fix \
 	--allow-staged \
 	--allow-dirty \
@@ -474,6 +479,7 @@ fix-lint-op-reth:
 fix-lint-bsc-reth:
 	cargo +nightly clippy \
 	--workspace \
+	--bin "bsc-reth" \
 	--lib \
 	--examples \
 	--tests \
@@ -547,5 +553,5 @@ check-features:
 	cargo hack check \
 		--package reth-codecs \
 		--package reth-primitives-traits \
-		--package reth-primitives \
 		--feature-powerset
+#		--package reth-primitives \

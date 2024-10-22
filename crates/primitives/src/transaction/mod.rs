@@ -2110,7 +2110,7 @@ mod tests {
         assert_eq!(tx.to(), Some(address!("D9e1459A7A482635700cBc20BBAF52D495Ab9C96")));
         assert_eq!(tx.input().as_ref(), hex!("1b55ba3a"));
         let encoded = tx.encoded_2718();
-        assert_eq!(encoded.as_ref(), data.to_vec());
+        assert_eq!(encoded, data.to_vec());
     }
 
     // <https://github.com/paradigmxyz/reth/issues/7750>

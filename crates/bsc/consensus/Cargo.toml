@@ -25,7 +25,9 @@ reth-network-p2p.workspace = true
 reth-network-peers.workspace = true
 
 # bsc
+reth-bsc-chainspec.workspace = true
 reth-bsc-forks.workspace = true
+reth-bsc-primitives.workspace = true
 
 # eth
 alloy-rlp.workspace = true

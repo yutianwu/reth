@@ -17,14 +17,12 @@ use cfg_if::cfg_if;
 use futures::Future;
 #[cfg(feature = "bsc")]
 use reth_bsc_forks::BscHardforks;
+#[cfg(feature = "bsc")]
+use reth_bsc_primitives::system_contracts::{get_upgrade_system_contracts, is_system_transaction};
 use reth_chainspec::{EthChainSpec, MIN_TRANSACTION_GAS};
 #[cfg(feature = "bsc")]
 use reth_errors::RethError;
 use reth_evm::{ConfigureEvm, ConfigureEvmEnv};
-#[cfg(feature = "bsc")]
-use reth_primitives::system_contracts::get_upgrade_system_contracts;
-#[cfg(feature = "bsc")]
-use reth_primitives::system_contracts::is_system_transaction;
 use reth_primitives::{
     revm_primitives::{
         BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ExecutionResult, HaltReason,

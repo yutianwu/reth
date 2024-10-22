@@ -31,8 +31,9 @@ reth-rpc-server-types.workspace = true
 reth-network-api.workspace = true
 reth-trie.workspace = true
 
-# bsc
-reth-bsc-forks.workspace = true
+# bsc-reth
+reth-bsc-primitives = { workspace = true, optional = true }
+reth-bsc-forks = { workspace = true, optional = true }
 
 # ethereum
 alloy-eips.workspace = true
@@ -65,4 +66,7 @@ js-tracer = ["revm-inspectors/js-tracer", "reth-rpc-eth-types/js-tracer"]
 client = ["jsonrpsee/client", "jsonrpsee/async-client"]
 bsc = [
     "reth-primitives/bsc",
+    "reth-provider/bsc",
+    "dep:reth-bsc-primitives",
+    "dep:reth-bsc-forks",
 ]

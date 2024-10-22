@@ -91,7 +91,7 @@ rayon.workspace = true
 tracing.workspace = true
 
 ## bsc
-reth-bsc-consensus = { workspace = true, optional = true }
+reth-bsc-consensus.workspace = true
 reth-bsc-engine = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -103,4 +103,5 @@ test-utils = ["reth-db/test-utils"]
 bsc = [
     "reth-bsc-engine/bsc",
     "reth-beacon-consensus/bsc",
+    "reth-bsc-consensus/bsc",
 ]
