@@ -23,9 +23,8 @@ use reth_bsc_forks::BscHardforks;
 use reth_chainspec::{ChainSpec, EthChainSpec, EthereumHardforks};
 use reth_consensus::{Consensus, ConsensusError, PostExecutionInput};
 use reth_consensus_common::validation::{
-    validate_against_parent_4844, validate_against_parent_eip1559_base_fee,
-    validate_against_parent_hash_number, validate_against_parent_timestamp,
-    validate_header_base_fee, validate_header_gas,
+    validate_against_parent_4844, validate_against_parent_hash_number,
+    validate_against_parent_timestamp, validate_header_base_fee, validate_header_gas,
 };
 use reth_primitives::{
     constants::EMPTY_MIX_HASH,
@@ -54,7 +53,11 @@ pub use abi::*;
 use reth_bsc_chainspec::BscChainSpec;
 
 mod validation;
-pub use validation::{validate_4844_header_of_bsc, validate_block_post_execution};
+pub use validation::{
+    validate_4844_header_of_bsc, validate_against_parent_eip1559_base_fee_of_bsc,
+    validate_block_post_execution_of_bsc,
+};
+
 mod system_tx;
 
 const RECOVERED_PROPOSER_CACHE_NUM: usize = 4096;
@@ -534,7 +537,7 @@ impl Parlia {
     ) -> Result<(), ConsensusError> {
         validate_against_parent_hash_number(header, parent)?;
         validate_against_parent_timestamp(header, parent)?;
-        validate_against_parent_eip1559_base_fee(header, parent, &self.chain_spec)?;
+        validate_against_parent_eip1559_base_fee_of_bsc(header, parent, &self.chain_spec)?;
 
         // ensure that the blob gas fields for this block
         if self.chain_spec.is_cancun_active_at_timestamp(header.timestamp) {
@@ -600,7 +603,7 @@ impl Consensus for Parlia {
         block: &BlockWithSenders,
         input: PostExecutionInput<'_>,
     ) -> Result<(), ConsensusError> {
-        validate_block_post_execution(block, &self.chain_spec, input.receipts)
+        validate_block_post_execution_of_bsc(block, &self.chain_spec, input.receipts)
     }
 }
 

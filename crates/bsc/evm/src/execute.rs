@@ -9,7 +9,8 @@ use lru::LruCache;
 use parking_lot::RwLock;
 use reth_bsc_chainspec::BscChainSpec;
 use reth_bsc_consensus::{
-    is_breathe_block, validate_block_post_execution, Parlia, ValidatorElectionInfo, ValidatorsInfo,
+    is_breathe_block, validate_block_post_execution_of_bsc, Parlia, ValidatorElectionInfo,
+    ValidatorsInfo,
 };
 use reth_bsc_forks::BscHardforks;
 use reth_bsc_primitives::system_contracts::{
@@ -886,7 +887,7 @@ where
         let BscExecuteOutput { receipts, gas_used: _, snapshot } =
             self.executor.execute_without_verification(block, total_difficulty, None)?;
 
-        validate_block_post_execution(block, self.executor.chain_spec(), &receipts)?;
+        validate_block_post_execution_of_bsc(block, self.executor.chain_spec(), &receipts)?;
 
         // prepare the state according to the prune mode
         let retention = self.batch_record.bundle_retention(block.number);
