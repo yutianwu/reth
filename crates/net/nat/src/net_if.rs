@@ -36,9 +36,8 @@ pub fn resolve_net_if_ip(if_name: &str) -> Result<IpAddr, NetInterfaceError> {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use super::*;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn read_docker_if_addr() {
