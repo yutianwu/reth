@@ -5,7 +5,8 @@
 
 use super::externals::TreeExternals;
 use crate::BundleStateDataRef;
-use alloy_primitives::{BlockHash, BlockNumber, U256};
+use alloy_eips::ForkBlock;
+use alloy_primitives::{map::HashMap, BlockHash, BlockNumber, B256, U256};
 use reth_blockchain_tree_api::{
     error::{BlockchainTreeError, InsertBlockErrorKind},
     BlockAttachment, BlockValidationKind,
@@ -15,8 +16,7 @@ use reth_evm::execute::{BlockExecutorProvider, Executor};
 use reth_execution_errors::BlockExecutionError;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_primitives::{
-    revm_primitives::EvmState, ForkBlock, GotExpected, Header, SealedBlockWithSenders,
-    SealedHeader, B256,
+    revm_primitives::EvmState, GotExpected, Header, SealedBlockWithSenders, SealedHeader,
 };
 use reth_provider::{
     providers::{BundleStateProvider, ConsistentDbView, ProviderNodeTypes},
@@ -28,9 +28,8 @@ use reth_trie_parallel::parallel_root::ParallelStateRoot;
 use reth_trie_prefetch::TriePrefetch;
 use std::{
     clone::Clone,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     ops::{Deref, DerefMut},
-    sync::Arc,
     time::Instant,
 };
 
@@ -231,14 +230,9 @@ impl AppendableChain {
 
         let initial_execution_outcome = ExecutionOutcome::from((state, block.number));
 
-        // stop the prefetch task.
-        if let Some(interrupt_tx) = interrupt_tx {
-            let _ = interrupt_tx.send(());
-        }
-
         // check state root if the block extends the canonical chain __and__ if state root
         // validation was requested.
-        if block_validation_kind.is_exhaustive() {
+        let result = if block_validation_kind.is_exhaustive() {
             // calculate and check state root
             let start = Instant::now();
             let (state_root, trie_updates) = if block_attachment.is_canonical() {
@@ -283,7 +277,14 @@ impl AppendableChain {
             Ok((initial_execution_outcome, trie_updates))
         } else {
             Ok((initial_execution_outcome, None))
-        }
+        };
+
+        // stop the prefetch task.
+        if let Some(interrupt_tx) = interrupt_tx {
+            let _ = interrupt_tx.send(());
+        };
+
+        result
     }
 
     /// Validate and execute the given block, and append it to this chain.
@@ -356,18 +357,11 @@ impl AppendableChain {
         let (interrupt_tx, interrupt_rx) = tokio::sync::oneshot::channel();
 
         let mut trie_prefetch = TriePrefetch::new();
-        let consistent_view = if let Ok(view) =
-            ConsistentDbView::new_with_latest_tip(externals.provider_factory.clone())
-        {
-            view
-        } else {
-            tracing::debug!("Failed to create consistent view for trie prefetch");
-            return (None, None)
-        };
+        let provider_factory = externals.provider_factory.clone();
 
         tokio::spawn({
             async move {
-                trie_prefetch.run(Arc::new(consistent_view), prefetch_rx, interrupt_rx).await;
+                trie_prefetch.run(provider_factory, prefetch_rx, interrupt_rx).await;
             }
         });
 
