@@ -26,14 +26,19 @@ pub trait OptimismHardforks: EthereumHardforks {
         self.fork(OptimismHardfork::Bedrock).active_at_block(block_number)
     }
 
+    /// Returns `true` if [`Canyon`](OptimismHardfork::Canyon) is active at given block timestamp.
+    fn is_canyon_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.fork(OptimismHardfork::Canyon).active_at_timestamp(timestamp)
+    }
+
     /// Returns `true` if [`Ecotone`](OptimismHardfork::Ecotone) is active at given block timestamp.
     fn is_ecotone_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.fork(OptimismHardfork::Ecotone).active_at_timestamp(timestamp)
     }
 
-    /// Returns `true` if [`Ecotone`](OptimismHardfork::Ecotone) is active at given block timestamp.
+    /// Returns `true` if [`Fjord`](OptimismHardfork::Fjord) is active at given block timestamp.
     fn is_fjord_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.fork(OptimismHardfork::Ecotone).active_at_timestamp(timestamp)
+        self.fork(OptimismHardfork::Fjord).active_at_timestamp(timestamp)
     }
 
     /// Returns `true` if [`Granite`](OptimismHardfork::Granite) is active at given block timestamp.
@@ -41,9 +46,22 @@ pub trait OptimismHardforks: EthereumHardforks {
         self.fork(OptimismHardfork::Granite).active_at_timestamp(timestamp)
     }
 
+<<<<<<< HEAD
     /// Convenience method to check if [`OptimismHardfork::Wright`] is active at a given block
     /// number.
     fn is_wright_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.fork(OptimismHardfork::Wright).active_at_timestamp(timestamp)
+=======
+    /// Returns `true` if [`Holocene`](OptimismHardfork::Holocene) is active at given block
+    /// timestamp.
+    fn is_holocene_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.fork(OptimismHardfork::Holocene).active_at_timestamp(timestamp)
+    }
+
+    /// Returns `true` if [`Regolith`](OptimismHardfork::Regolith) is active at given block
+    /// timestamp.
+    fn is_regolith_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.fork(OptimismHardfork::Regolith).active_at_timestamp(timestamp)
+>>>>>>> v1.1.1
     }
 }

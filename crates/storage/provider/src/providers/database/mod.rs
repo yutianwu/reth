@@ -3,12 +3,11 @@ use crate::{
     to_range,
     traits::{BlockSource, ReceiptProvider},
     BlockHashReader, BlockNumReader, BlockReader, ChainSpecProvider, DatabaseProviderFactory,
-    EvmEnvProvider, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, ParliaSnapshotReader,
-    ProviderError, PruneCheckpointReader, RequestsProvider, StageCheckpointReader,
-    StateProviderBox, StaticFileProviderFactory, TransactionVariant, TransactionsProvider,
-    WithdrawalsProvider,
+    EvmEnvProvider, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, ProviderError,
+    PruneCheckpointReader, StageCheckpointReader, StateProviderBox, StaticFileProviderFactory,
+    TransactionVariant, TransactionsProvider, WithdrawalsProvider, ParliaSnapshotReader,
 };
-use alloy_eips::BlockHashOrNumber;
+use alloy_eips::{eip4895::Withdrawal, BlockHashOrNumber};
 use alloy_primitives::{Address, BlockHash, BlockNumber, TxHash, TxNumber, B256, U256};
 use core::fmt;
 use reth_chainspec::{ChainInfo, EthereumHardforks};
@@ -18,9 +17,8 @@ use reth_errors::{RethError, RethResult};
 use reth_evm::ConfigureEvmEnv;
 use reth_node_types::NodeTypesWithDB;
 use reth_primitives::{
-    parlia::Snapshot, BlobSidecars, Block, BlockWithSenders, Header, Receipt, SealedBlock,
-    SealedBlockWithSenders, SealedHeader, StaticFileSegment, TransactionMeta, TransactionSigned,
-    TransactionSignedNoHash, Withdrawal, Withdrawals,
+    parlia::Snapshot, BlobSidecars, Block, BlockWithSenders, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader,
+    StaticFileSegment, TransactionMeta, TransactionSigned, TransactionSignedNoHash, Withdrawals,
 };
 use reth_prune_types::{PruneCheckpoint, PruneModes, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
@@ -131,7 +129,7 @@ impl<N: ProviderNodeTypes> ProviderFactory<N> {
     /// This sets the [`PruneModes`] to [`None`], because they should only be relevant for writing
     /// data.
     #[track_caller]
-    pub fn provider(&self) -> ProviderResult<DatabaseProviderRO<N::DB, N::ChainSpec>> {
+    pub fn provider(&self) -> ProviderResult<DatabaseProviderRO<N::DB, N>> {
         Ok(DatabaseProvider::new(
             self.db.tx()?,
             self.chain_spec.clone(),
@@ -145,7 +143,7 @@ impl<N: ProviderNodeTypes> ProviderFactory<N> {
     /// [`BlockHashReader`].  This may fail if the inner read/write database transaction fails to
     /// open.
     #[track_caller]
-    pub fn provider_rw(&self) -> ProviderResult<DatabaseProviderRW<N::DB, N::ChainSpec>> {
+    pub fn provider_rw(&self) -> ProviderResult<DatabaseProviderRW<N::DB, N>> {
         Ok(DatabaseProviderRW(DatabaseProvider::new_rw(
             self.db.tx_mut()?,
             self.chain_spec.clone(),
@@ -187,8 +185,8 @@ impl<N: ProviderNodeTypes> ProviderFactory<N> {
 
 impl<N: ProviderNodeTypes> DatabaseProviderFactory for ProviderFactory<N> {
     type DB = N::DB;
-    type Provider = DatabaseProvider<<N::DB as Database>::TX, N::ChainSpec>;
-    type ProviderRW = DatabaseProvider<<N::DB as Database>::TXMut, N::ChainSpec>;
+    type Provider = DatabaseProvider<<N::DB as Database>::TX, N>;
+    type ProviderRW = DatabaseProvider<<N::DB as Database>::TXMut, N>;
 
     fn database_provider_ro(&self) -> ProviderResult<Self::Provider> {
         self.provider()
@@ -532,16 +530,6 @@ impl<N: ProviderNodeTypes> SidecarsProvider for ProviderFactory<N> {
             |static_file| static_file.sidecars_by_number(num),
             || self.provider()?.sidecars_by_number(num),
         )
-    }
-}
-
-impl<N: ProviderNodeTypes> RequestsProvider for ProviderFactory<N> {
-    fn requests_by_block(
-        &self,
-        id: BlockHashOrNumber,
-        timestamp: u64,
-    ) -> ProviderResult<Option<reth_primitives::Requests>> {
-        self.provider()?.requests_by_block(id, timestamp)
     }
 }
 

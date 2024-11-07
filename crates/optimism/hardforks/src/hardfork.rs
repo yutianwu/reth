@@ -39,6 +39,8 @@ hardfork!(
         Fjord,
         /// Granite: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#granite>
         Granite,
+        /// Holocene: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#holocene>
+        Holocene,
     }
 );
 
@@ -233,7 +235,11 @@ impl OptimismHardfork {
                 Self::Ecotone => Some(1708534800),
                 Self::Fjord => Some(1716998400),
                 Self::Granite => Some(1723478400),
+<<<<<<< HEAD
                 _ => None,
+=======
+                Self::Holocene => None,
+>>>>>>> v1.1.1
             },
         )
     }
@@ -268,6 +274,7 @@ impl OptimismHardfork {
                 Self::Ecotone => Some(1710374401),
                 Self::Fjord => Some(1720627201),
                 Self::Granite => Some(1726070401),
+<<<<<<< HEAD
                 _ => None,
             },
         )
@@ -309,6 +316,9 @@ impl OptimismHardfork {
                 Self::Ecotone => Some(1715754600),
                 Self::Haber => Some(1717048800),
                 _ => None,
+=======
+                Self::Holocene => None,
+>>>>>>> v1.1.1
             },
         )
     }

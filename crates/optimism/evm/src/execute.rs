@@ -1,21 +1,34 @@
-//! Optimism block executor.
+//! Optimism block execution strategy.
 
+<<<<<<< HEAD
 use crate::{
     l1::ensure_create2_deployer, OpChainSpec, OptimismBlockExecutionError, OptimismEvmConfig,
 };
 use alloy_primitives::{Address, BlockNumber, U256};
 use reth_chainspec::{ChainSpec, EthereumHardforks};
+=======
+use crate::{l1::ensure_create2_deployer, OpEvmConfig, OptimismBlockExecutionError};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloy_consensus::Transaction as _;
+use alloy_eips::eip7685::Requests;
+use core::fmt::Display;
+use op_alloy_consensus::DepositTransaction;
+use reth_chainspec::EthereumHardforks;
+use reth_consensus::ConsensusError;
+>>>>>>> v1.1.1
 use reth_evm::{
     execute::{
-        BatchExecutor, BlockExecutionError, BlockExecutionInput, BlockExecutionOutput,
-        BlockExecutorProvider, BlockValidationError, Executor, ProviderError,
+        BasicBlockExecutorProvider, BlockExecutionError, BlockExecutionStrategy,
+        BlockExecutionStrategyFactory, BlockValidationError, ExecuteOutput, ProviderError,
     },
-    system_calls::{NoopHook, OnStateHook, SystemCaller},
+    state_change::post_block_balance_increments,
+    system_calls::{OnStateHook, SystemCaller},
     ConfigureEvm,
 };
-use reth_execution_types::ExecutionOutcome;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::validate_block_post_execution;
 use reth_optimism_forks::OptimismHardfork;
+<<<<<<< HEAD
 use reth_primitives::{BlockWithSenders, Header, Receipt, Receipts, TxType};
 use reth_prune_types::PruneModes;
 use reth_revm::{
@@ -31,9 +44,18 @@ use revm_primitives::{
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
+=======
+use reth_primitives::{BlockWithSenders, Header, Receipt, TxType};
+use reth_revm::{Database, State};
+use revm_primitives::{
+    db::DatabaseCommit, BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ResultAndState, U256,
+};
+use tracing::trace;
+>>>>>>> v1.1.1
 
-/// Provides executors to execute regular optimism blocks
+/// Factory for [`OpExecutionStrategy`].
 #[derive(Debug, Clone)]
+<<<<<<< HEAD
 pub struct OpExecutorProvider<EvmConfig = OptimismEvmConfig> {
     chain_spec: Arc<OpChainSpec>,
     evm_config: EvmConfig,
@@ -122,16 +144,35 @@ where
 /// Helper container type for EVM with chain spec.
 #[derive(Debug, Clone)]
 pub struct OpEvmExecutor<EvmConfig> {
+=======
+pub struct OpExecutionStrategyFactory<EvmConfig = OpEvmConfig> {
+>>>>>>> v1.1.1
     /// The chainspec
     chain_spec: Arc<OpChainSpec>,
     /// How to create an EVM.
     evm_config: EvmConfig,
 }
 
-impl<EvmConfig> OpEvmExecutor<EvmConfig>
+impl OpExecutionStrategyFactory {
+    /// Creates a new default optimism executor strategy factory.
+    pub fn optimism(chain_spec: Arc<OpChainSpec>) -> Self {
+        Self::new(chain_spec.clone(), OpEvmConfig::new(chain_spec))
+    }
+}
+
+impl<EvmConfig> OpExecutionStrategyFactory<EvmConfig> {
+    /// Creates a new executor strategy factory.
+    pub const fn new(chain_spec: Arc<OpChainSpec>, evm_config: EvmConfig) -> Self {
+        Self { chain_spec, evm_config }
+    }
+}
+
+impl<EvmConfig> BlockExecutionStrategyFactory for OpExecutionStrategyFactory<EvmConfig>
 where
-    EvmConfig: ConfigureEvm<Header = Header>,
+    EvmConfig:
+        Clone + Unpin + Sync + Send + 'static + ConfigureEvm<Header = alloy_consensus::Header>,
 {
+<<<<<<< HEAD
     /// Executes the transactions in the block and returns the receipts.
     ///
     /// This applies the pre-execution changes, and executes the transactions.
@@ -148,24 +189,91 @@ where
         state_hook: Option<F>,
         tx: Option<UnboundedSender<EvmState>>,
     ) -> Result<(Vec<Receipt>, u64), BlockExecutionError>
+=======
+    type Strategy<DB: Database<Error: Into<ProviderError> + Display>> =
+        OpExecutionStrategy<DB, EvmConfig>;
+
+    fn create_strategy<DB>(&self, db: DB) -> Self::Strategy<DB>
+>>>>>>> v1.1.1
     where
         DB: Database<Error: Into<ProviderError> + Display>,
-        F: OnStateHook,
     {
-        let mut system_caller =
-            SystemCaller::new(&self.evm_config, &self.chain_spec).with_state_hook(state_hook);
+        let state =
+            State::builder().with_database(db).with_bundle_update().without_state_clear().build();
+        OpExecutionStrategy::new(state, self.chain_spec.clone(), self.evm_config.clone())
+    }
+}
 
-        // apply pre execution changes
-        system_caller.apply_beacon_root_contract_call(
+/// Block execution strategy for Optimism.
+#[allow(missing_debug_implementations)]
+pub struct OpExecutionStrategy<DB, EvmConfig>
+where
+    EvmConfig: Clone,
+{
+    /// The chainspec
+    chain_spec: Arc<OpChainSpec>,
+    /// How to create an EVM.
+    evm_config: EvmConfig,
+    /// Current state for block execution.
+    state: State<DB>,
+    /// Utility to call system smart contracts.
+    system_caller: SystemCaller<EvmConfig, OpChainSpec>,
+}
+
+impl<DB, EvmConfig> OpExecutionStrategy<DB, EvmConfig>
+where
+    EvmConfig: Clone,
+{
+    /// Creates a new [`OpExecutionStrategy`]
+    pub fn new(state: State<DB>, chain_spec: Arc<OpChainSpec>, evm_config: EvmConfig) -> Self {
+        let system_caller = SystemCaller::new(evm_config.clone(), chain_spec.clone());
+        Self { state, chain_spec, evm_config, system_caller }
+    }
+}
+
+impl<DB, EvmConfig> OpExecutionStrategy<DB, EvmConfig>
+where
+    DB: Database<Error: Into<ProviderError> + Display>,
+    EvmConfig: ConfigureEvm<Header = alloy_consensus::Header>,
+{
+    /// Configures a new evm configuration and block environment for the given block.
+    ///
+    /// Caution: this does not initialize the tx environment.
+    fn evm_env_for_block(&self, header: &Header, total_difficulty: U256) -> EnvWithHandlerCfg {
+        let mut cfg = CfgEnvWithHandlerCfg::new(Default::default(), Default::default());
+        let mut block_env = BlockEnv::default();
+        self.evm_config.fill_cfg_and_block_env(&mut cfg, &mut block_env, header, total_difficulty);
+
+        EnvWithHandlerCfg::new_with_cfg_env(cfg, block_env, Default::default())
+    }
+}
+
+impl<DB, EvmConfig> BlockExecutionStrategy<DB> for OpExecutionStrategy<DB, EvmConfig>
+where
+    DB: Database<Error: Into<ProviderError> + Display>,
+    EvmConfig: ConfigureEvm<Header = alloy_consensus::Header>,
+{
+    type Error = BlockExecutionError;
+
+    fn apply_pre_execution_changes(
+        &mut self,
+        block: &BlockWithSenders,
+        total_difficulty: U256,
+    ) -> Result<(), Self::Error> {
+        // Set state clear flag if the block is after the Spurious Dragon hardfork.
+        let state_clear_flag =
+            (*self.chain_spec).is_spurious_dragon_active_at_block(block.header.number);
+        self.state.set_state_clear_flag(state_clear_flag);
+
+        let env = self.evm_env_for_block(&block.header, total_difficulty);
+        let mut evm = self.evm_config.evm_with_env(&mut self.state, env);
+
+        self.system_caller.apply_beacon_root_contract_call(
             block.timestamp,
             block.number,
             block.parent_beacon_block_root,
             &mut evm,
         )?;
-
-        // execute transactions
-        let is_regolith =
-            self.chain_spec.fork(OptimismHardfork::Regolith).active_at_timestamp(block.timestamp);
 
         // Ensure that the create2deployer is force-deployed at the canyon transition. Optimism
         // blocks will always have at least a single transaction in them (the L1 info transaction),
@@ -173,6 +281,20 @@ where
         // the above check for empty blocks will never be hit on OP chains.
         ensure_create2_deployer(self.chain_spec.clone(), block.timestamp, evm.db_mut())
             .map_err(|_| OptimismBlockExecutionError::ForceCreate2DeployerFail)?;
+
+        Ok(())
+    }
+
+    fn execute_transactions(
+        &mut self,
+        block: &BlockWithSenders,
+        total_difficulty: U256,
+    ) -> Result<ExecuteOutput, Self::Error> {
+        let env = self.evm_env_for_block(&block.header, total_difficulty);
+        let mut evm = self.evm_config.evm_with_env(&mut self.state, env);
+
+        let is_regolith =
+            self.chain_spec.fork(OptimismHardfork::Regolith).active_at_timestamp(block.timestamp);
 
         let mut cumulative_gas_used = 0;
         let mut receipts = Vec::with_capacity(block.body.transactions.len());
@@ -226,8 +348,12 @@ where
                 ?transaction,
                 "Executed transaction"
             );
+<<<<<<< HEAD
 
             system_caller.on_state(&result_and_state);
+=======
+            self.system_caller.on_state(&result_and_state);
+>>>>>>> v1.1.1
             let ResultAndState { result, state } = result_and_state;
 
             if let Some(tx) = tx.as_ref() {
@@ -259,8 +385,8 @@ where
                 .then_some(1),
             });
         }
-        drop(evm);
 
+<<<<<<< HEAD
         Ok((receipts, cumulative_gas_used))
     }
 }
@@ -298,47 +424,16 @@ impl<EvmConfig, DB> OpBlockExecutor<EvmConfig, DB> {
         tx: UnboundedSender<EvmState>,
     ) -> Self {
         Self { executor: OpEvmExecutor { chain_spec, evm_config }, state, prefetch_tx: Some(tx) }
+=======
+        Ok(ExecuteOutput { receipts, gas_used: cumulative_gas_used })
+>>>>>>> v1.1.1
     }
 
-    /// Returns the chain spec.
-    #[inline]
-    pub fn chain_spec(&self) -> &ChainSpec {
-        &self.executor.chain_spec
-    }
-
-    /// Returns mutable reference to the state that wraps the underlying database.
-    pub fn state_mut(&mut self) -> &mut State<DB> {
-        &mut self.state
-    }
-}
-
-impl<EvmConfig, DB> OpBlockExecutor<EvmConfig, DB>
-where
-    EvmConfig: ConfigureEvm<Header = Header>,
-    DB: Database<Error: Into<ProviderError> + Display>,
-{
-    /// Configures a new evm configuration and block environment for the given block.
-    ///
-    /// Caution: this does not initialize the tx environment.
-    fn evm_env_for_block(&self, header: &Header, total_difficulty: U256) -> EnvWithHandlerCfg {
-        let mut cfg = CfgEnvWithHandlerCfg::new(Default::default(), Default::default());
-        let mut block_env = BlockEnv::default();
-        self.executor.evm_config.fill_cfg_and_block_env(
-            &mut cfg,
-            &mut block_env,
-            header,
-            total_difficulty,
-        );
-
-        EnvWithHandlerCfg::new_with_cfg_env(cfg, block_env, Default::default())
-    }
-
-    /// Convenience method to invoke `execute_without_verification_with_state_hook` setting the
-    /// state hook as `None`.
-    fn execute_without_verification(
+    fn apply_post_execution_changes(
         &mut self,
         block: &BlockWithSenders,
         total_difficulty: U256,
+<<<<<<< HEAD
     ) -> Result<(Vec<Receipt>, u64), BlockExecutionError> {
         self.execute_without_verification_with_state_hook(block, total_difficulty, None::<NoopHook>)
     }
@@ -439,15 +534,43 @@ where
                 (governance_token_contract_address, governance_token_change),
             ]);
         }
+=======
+        _receipts: &[Receipt],
+    ) -> Result<Requests, Self::Error> {
+        let balance_increments =
+            post_block_balance_increments(&self.chain_spec.clone(), block, total_difficulty);
+>>>>>>> v1.1.1
         // increment balances
         self.state
             .increment_balances(balance_increments)
             .map_err(|_| BlockValidationError::IncrementBalanceFailed)?;
 
-        Ok(())
+        Ok(Requests::default())
+    }
+
+    fn state_ref(&self) -> &State<DB> {
+        &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut State<DB> {
+        &mut self.state
+    }
+
+    fn with_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {
+        self.system_caller.with_state_hook(hook);
+    }
+
+    fn validate_block_post_execution(
+        &self,
+        block: &BlockWithSenders,
+        receipts: &[Receipt],
+        _requests: &Requests,
+    ) -> Result<(), ConsensusError> {
+        validate_block_post_execution(block, &self.chain_spec.clone(), receipts)
     }
 }
 
+<<<<<<< HEAD
 impl<EvmConfig, DB> Executor<DB> for OpBlockExecutor<EvmConfig, DB>
 where
     EvmConfig: ConfigureEvm<Header = Header>,
@@ -535,14 +658,13 @@ where
 /// An executor for a batch of blocks.
 ///
 /// State changes are tracked until the executor is finalized.
+=======
+/// Helper type with backwards compatible methods to obtain executor providers.
+>>>>>>> v1.1.1
 #[derive(Debug)]
-pub struct OpBatchExecutor<EvmConfig, DB> {
-    /// The executor used to execute blocks.
-    executor: OpBlockExecutor<EvmConfig, DB>,
-    /// Keeps track of the batch and record receipts based on the configured prune mode
-    batch_record: BlockBatchRecord,
-}
+pub struct OpExecutorProvider;
 
+<<<<<<< HEAD
 impl<EvmConfig, DB> OpBatchExecutor<EvmConfig, DB> {
     /// Returns the receipts of the executed blocks.
     pub const fn receipts(&self) -> &Receipts {
@@ -604,6 +726,14 @@ where
 
     fn size_hint(&self) -> Option<usize> {
         Some(self.executor.state.bundle_state.size_hint())
+=======
+impl OpExecutorProvider {
+    /// Creates a new default optimism executor strategy factory.
+    pub fn optimism(
+        chain_spec: Arc<OpChainSpec>,
+    ) -> BasicBlockExecutorProvider<OpExecutionStrategyFactory> {
+        BasicBlockExecutorProvider::new(OpExecutionStrategyFactory::optimism(chain_spec))
+>>>>>>> v1.1.1
     }
 }
 
@@ -612,10 +742,12 @@ mod tests {
     use super::*;
     use crate::OpChainSpec;
     use alloy_consensus::TxEip1559;
-    use alloy_primitives::{b256, Address, StorageKey, StorageValue};
-    use reth_chainspec::{ChainSpecBuilder, MIN_TRANSACTION_GAS};
-    use reth_optimism_chainspec::{optimism_deposit_tx_signature, BASE_MAINNET};
-    use reth_primitives::{Account, Block, BlockBody, Signature, Transaction, TransactionSigned};
+    use alloy_primitives::{b256, Address, Signature, StorageKey, StorageValue};
+    use op_alloy_consensus::TxDeposit;
+    use reth_chainspec::MIN_TRANSACTION_GAS;
+    use reth_evm::execute::{BasicBlockExecutorProvider, BatchExecutor, BlockExecutorProvider};
+    use reth_optimism_chainspec::OpChainSpecBuilder;
+    use reth_primitives::{Account, Block, BlockBody, Transaction, TransactionSigned};
     use reth_revm::{
         database::StateProviderDatabase, test_utils::StateProviderTest, L1_BLOCK_CONTRACT,
     };
@@ -648,9 +780,13 @@ mod tests {
         db
     }
 
-    fn executor_provider(chain_spec: Arc<ChainSpec>) -> OpExecutorProvider<OptimismEvmConfig> {
-        let chain_spec = Arc::new(OpChainSpec::new(Arc::unwrap_or_clone(chain_spec)));
-        OpExecutorProvider { evm_config: OptimismEvmConfig::new(chain_spec.clone()), chain_spec }
+    fn executor_provider(
+        chain_spec: Arc<OpChainSpec>,
+    ) -> BasicBlockExecutorProvider<OpExecutionStrategyFactory> {
+        let strategy_factory =
+            OpExecutionStrategyFactory::new(chain_spec.clone(), OpEvmConfig::new(chain_spec));
+
+        BasicBlockExecutorProvider::new(strategy_factory)
     }
 
     #[test]
@@ -672,11 +808,7 @@ mod tests {
         let account = Account { balance: U256::MAX, ..Account::default() };
         db.insert_account(addr, account, None, HashMap::default());
 
-        let chain_spec = Arc::new(
-            ChainSpecBuilder::from(&Arc::new(BASE_MAINNET.inner.clone()))
-                .regolith_activated()
-                .build(),
-        );
+        let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
 
         let tx = TransactionSigned::from_transaction_and_signature(
             Transaction::Eip1559(TxEip1559 {
@@ -702,7 +834,10 @@ mod tests {
         let provider = executor_provider(chain_spec);
         let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
 
-        executor.state_mut().load_cache_account(L1_BLOCK_CONTRACT).unwrap();
+        // make sure the L1 block contract state is preloaded.
+        executor.with_state_mut(|state| {
+            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
+        });
 
         // Attempt to execute a block with one deposit and one non-deposit transaction
         executor
@@ -725,8 +860,9 @@ mod tests {
             )
             .unwrap();
 
-        let tx_receipt = executor.receipts()[0][0].as_ref().unwrap();
-        let deposit_receipt = executor.receipts()[0][1].as_ref().unwrap();
+        let receipts = executor.receipts();
+        let tx_receipt = receipts[0][0].as_ref().unwrap();
+        let deposit_receipt = receipts[0][1].as_ref().unwrap();
 
         // deposit_receipt_version is not present in pre canyon transactions
         assert!(deposit_receipt.deposit_receipt_version.is_none());
@@ -757,11 +893,7 @@ mod tests {
 
         db.insert_account(addr, account, None, HashMap::default());
 
-        let chain_spec = Arc::new(
-            ChainSpecBuilder::from(&Arc::new(BASE_MAINNET.inner.clone()))
-                .canyon_activated()
-                .build(),
-        );
+        let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().canyon_activated().build());
 
         let tx = TransactionSigned::from_transaction_and_signature(
             Transaction::Eip1559(TxEip1559 {
@@ -781,13 +913,16 @@ mod tests {
                 gas_limit: MIN_TRANSACTION_GAS,
                 ..Default::default()
             }),
-            optimism_deposit_tx_signature(),
+            TxDeposit::signature(),
         );
 
         let provider = executor_provider(chain_spec);
         let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
 
-        executor.state_mut().load_cache_account(L1_BLOCK_CONTRACT).unwrap();
+        // make sure the L1 block contract state is preloaded.
+        executor.with_state_mut(|state| {
+            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
+        });
 
         // attempt to execute an empty block with parent beacon block root, this should not fail
         executor
@@ -810,8 +945,9 @@ mod tests {
             )
             .expect("Executing a block while canyon is active should not fail");
 
-        let tx_receipt = executor.receipts()[0][0].as_ref().unwrap();
-        let deposit_receipt = executor.receipts()[0][1].as_ref().unwrap();
+        let receipts = executor.receipts();
+        let tx_receipt = receipts[0][0].as_ref().unwrap();
+        let deposit_receipt = receipts[0][1].as_ref().unwrap();
 
         // deposit_receipt_version is set to 1 for post canyon deposit transactions
         assert_eq!(deposit_receipt.deposit_receipt_version, Some(1));
