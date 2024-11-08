@@ -29,8 +29,9 @@ use revm_primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, EvmState, ResultAndState,
 };
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
+use alloy_consensus::BlockHeader;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 /// Provides executors to execute regular optimism blocks
 #[derive(Debug, Clone)]
@@ -470,6 +471,12 @@ where
 
         // NOTE: we need to merge keep the reverts for the bundle retention
         self.state.merge_transitions(BundleRetention::Reverts);
+
+        let block_number = block.number;
+        let bundle = self.state.take_bundle();
+        info!(target: "optimism", ?block_number, ?receipts, "receipt");
+        info!(target: "optimism", ?block_number, ?gas_used, "gas used");
+        info!(target: "optimism", ?block_number, ?bundle, "bundle");
 
         Ok(BlockExecutionOutput {
             state: self.state.take_bundle(),
