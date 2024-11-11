@@ -615,9 +615,9 @@ tikv-jemallocator = "0.6"
 tracy-client = "0.17.3"
 
 [patch.crates-io]
-revm = { git = "https://github.com/bnb-chain/revm", rev = "v1.0.4" }
-revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "v1.0.4" }
-revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "v1.0.4" }
+revm = { git = "https://github.com/bnb-chain/revm", rev = "36c058ad25f6dbdc7d7a93389f7e41e948e7810b" }
+revm-interpreter = { git = "https://github.com/bnb-chain/revm", rev = "36c058ad25f6dbdc7d7a93389f7e41e948e7810b" }
+revm-primitives = { git = "https://github.com/bnb-chain/revm", rev = "36c058ad25f6dbdc7d7a93389f7e41e948e7810b" }
 alloy-rpc-types-eth = { git = "https://github.com/bnb-chain/alloy", rev = "718060680134e6bb40d97d3c6fb56fd1950ced36" }
 alloy-consensus = { git = "https://github.com/bnb-chain/alloy", rev = "718060680134e6bb40d97d3c6fb56fd1950ced36" }
 alloy-eips = { git = "https://github.com/bnb-chain/alloy", rev = "718060680134e6bb40d97d3c6fb56fd1950ced36" }
