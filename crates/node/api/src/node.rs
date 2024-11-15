@@ -4,6 +4,7 @@ use std::{future::Future, marker::PhantomData};
 
 use alloy_rpc_types_engine::JwtSecret;
 use reth_beacon_consensus::BeaconConsensusEngineHandle;
+use reth_bsc_consensus::BscTraceHelper;
 use reth_consensus::Consensus;
 use reth_evm::execute::BlockExecutorProvider;
 use reth_network_api::FullNetwork;
@@ -14,8 +15,6 @@ use reth_primitives::Header;
 use reth_provider::FullProvider;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::TransactionPool;
-#[cfg(feature = "bsc")]
-use reth_bsc_consensus::BscTraceHelper;
 
 use crate::ConfigureEvm;
 
@@ -106,7 +105,6 @@ pub struct AddOnsContext<'a, N: FullNodeComponents> {
     pub jwt_secret: JwtSecret,
 
     /// Handle bsc trace rpc calls.
-    #[cfg(feature = "bsc")]
     pub bsc_trace_helper: Option<BscTraceHelper>,
 }
 

@@ -12,14 +12,8 @@ use reth_node_api::{
 };
 use reth_node_builder::{
     components::{
-<<<<<<< HEAD
-        ComponentsBuilder, ConsensusBuilder, EngineValidatorBuilder, ExecutorBuilder,
-        NetworkBuilder, ParliaBuilder, PayloadServiceBuilder, PoolBuilder,
-        PoolBuilderConfigOverrides,
-=======
-        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder, ParliaBuilder,
         PayloadServiceBuilder, PoolBuilder, PoolBuilderConfigOverrides,
->>>>>>> v1.1.1
     },
     node::{FullNodeTypes, NodeTypes, NodeTypesWithEngine},
     rpc::{EngineValidatorBuilder, RethRpcAddOns, RpcAddOns, RpcHandle},
@@ -73,21 +67,12 @@ impl OptimismNode {
         args: RollupArgs,
     ) -> ComponentsBuilder<
         Node,
-<<<<<<< HEAD
-        OptimismPoolBuilder,
-        OptimismPayloadBuilder,
-        OptimismNetworkBuilder,
-        OptimismExecutorBuilder,
-        OptimismConsensusBuilder,
-        OptimismEngineValidatorBuilder,
-        OptimismParliaBuilder,
-=======
         OpPoolBuilder,
         OpPayloadBuilder,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
->>>>>>> v1.1.1
+        OptimismParliaBuilder,
     >
     where
         Node: FullNodeTypes<
@@ -103,15 +88,9 @@ impl OptimismNode {
                 disable_txpool_gossip,
                 disable_discovery_v4: !discovery_v4,
             })
-<<<<<<< HEAD
-            .executor(OptimismExecutorBuilder::default())
-            .consensus(OptimismConsensusBuilder::default())
-            .engine_validator(OptimismEngineValidatorBuilder::default())
-            .parlia(OptimismParliaBuilder::default())
-=======
             .executor(OpExecutorBuilder::default())
             .consensus(OpConsensusBuilder::default())
->>>>>>> v1.1.1
+            .parlia(OptimismParliaBuilder::default())
     }
 }
 
@@ -121,21 +100,12 @@ where
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,
-<<<<<<< HEAD
-        OptimismPoolBuilder,
-        OptimismPayloadBuilder,
-        OptimismNetworkBuilder,
-        OptimismExecutorBuilder,
-        OptimismConsensusBuilder,
-        OptimismEngineValidatorBuilder,
-        OptimismParliaBuilder,
-=======
         OpPoolBuilder,
         OpPayloadBuilder,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
->>>>>>> v1.1.1
+        OptimismParliaBuilder,
     >;
 
     type AddOns = OptimismAddOns<

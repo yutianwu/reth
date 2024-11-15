@@ -11,6 +11,7 @@ mod builder;
 mod consensus;
 mod execute;
 mod network;
+mod parlia;
 mod payload;
 mod pool;
 
@@ -18,6 +19,7 @@ pub use builder::*;
 pub use consensus::*;
 pub use execute::*;
 pub use network::*;
+pub use parlia::*;
 pub use payload::*;
 pub use pool::*;
 #[cfg(feature = "bsc")]

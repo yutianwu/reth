@@ -217,17 +217,13 @@ impl OpReceiptBuilder {
             .deposit_version(receipt.deposit_receipt_version)
             .build();
 
-<<<<<<< HEAD
         if chain_spec.is_wright_active_at_timestamp(meta.timestamp) &&
             transaction.effective_gas_price(meta.base_fee) == 0
         {
             op_receipt_fields.l1_block_info.l1_fee = Some(0);
         }
 
-        Ok(Self { core_receipt, tx_type, op_receipt_fields })
-=======
         Ok(Self { core_receipt, op_receipt_fields })
->>>>>>> v1.1.1
     }
 
     /// Builds [`OpTransactionReceipt`] by combing core (l1) receipt fields and additional OP

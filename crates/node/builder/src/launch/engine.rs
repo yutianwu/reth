@@ -236,6 +236,9 @@ where
                 Box::pin(consensus_engine_stream),
                 mining_mode,
                 LocalPayloadAttributesBuilder::new(ctx.chain_spec()),
+                ctx.node_config().skip_state_root_validation,
+                ctx.node_config().enable_prefetch,
+                ctx.node_config().enable_execution_cache,
             );
 
             Either::Left(eth_service)
@@ -261,12 +264,12 @@ where
                     ctx.node_config().enable_prefetch,
                     ctx.node_config().enable_execution_cache,
                 );
-    
+
                 Either::Right(eth_service)
             }
             #[cfg(feature = "bsc")]
             {
-                let engine_rx = ctx.node_adapter().components.network().get_to_engine_rx();
+                let engine_rx = ctx.components().network().get_to_engine_rx();
                 let client = ParliaEngineBuilder::new(
                     ctx.chain_spec(),
                     ctx.blockchain_db().clone(),
@@ -342,7 +345,6 @@ where
         #[cfg(feature = "bsc")]
         let bsc_trace_helper =
             Some(BscTraceHelper::new(Arc::new(ctx.components().parlia().clone())));
-
 
         let add_ons_ctx = AddOnsContext {
             node: ctx.node_adapter().clone(),

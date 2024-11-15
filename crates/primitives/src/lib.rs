@@ -42,8 +42,8 @@ pub use receipt::{
     gas_spent_by_transactions, Receipt, ReceiptWithBloom, ReceiptWithBloomRef, Receipts,
 };
 pub use reth_primitives_traits::{
-    logs_bloom, Account, BlobSidecar, BlobSidecars, Bytecode, GotExpected, GotExpectedBoxed, Header, HeaderError, Log,
-    LogData, SealedHeader, StorageEntry, Withdrawals,
+    logs_bloom, Account, BlobSidecar, BlobSidecars, Bytecode, GotExpected, GotExpectedBoxed,
+    Header, HeaderError, Log, LogData, SealedHeader, StorageEntry, Withdrawals,
 };
 pub use static_file::StaticFileSegment;
 
@@ -84,7 +84,5 @@ pub mod serde_bincode_compat {
 }
 
 // to make lint happy
-#[cfg(feature = "bsc")]
-use reth_chainspec as _;
 #[cfg(any(feature = "bsc", feature = "opbnb"))]
 use revm as _;

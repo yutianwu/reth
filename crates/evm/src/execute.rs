@@ -1,23 +1,25 @@
 //! Traits for execution.
 
 // Re-export execution types
-pub use reth_execution_errors::{
-    BlockExecutionError, BlockValidationError, InternalBlockExecutionError,
-};
-pub use reth_execution_types::{BlockExecutionInput, BlockExecutionOutput, ExecutionOutcome};
-pub use reth_storage_errors::provider::ProviderError;
-use revm::db::states::bundle_state::BundleRetention;
 use crate::system_calls::OnStateHook;
 use alloc::{boxed::Box, vec::Vec};
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::BlockNumber;
 use core::{fmt::Display, marker::PhantomData};
 use reth_consensus::ConsensusError;
+pub use reth_execution_errors::{
+    BlockExecutionError, BlockValidationError, InternalBlockExecutionError,
+};
+pub use reth_execution_types::{BlockExecutionInput, BlockExecutionOutput, ExecutionOutcome};
 use reth_primitives::{BlockWithSenders, Header, Receipt};
 use reth_prune_types::PruneModes;
 use reth_revm::batch::BlockBatchRecord;
-use revm::{db::BundleState, State};
-use revm_primitives::{db::Database, U256, EvmState};
+pub use reth_storage_errors::provider::ProviderError;
+use revm::{
+    db::{states::bundle_state::BundleRetention, BundleState},
+    State,
+};
+use revm_primitives::{db::Database, EvmState, U256};
 use tokio::sync::mpsc::UnboundedSender;
 
 /// A general purpose executor trait that executes an input (e.g. block) and produces an output
@@ -157,7 +159,7 @@ pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     fn executor<DB>(
         &self,
         db: DB,
-        prefetch_rx: Option<UnboundedSender<EvmState>>,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
     ) -> Self::Executor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>;
@@ -166,7 +168,11 @@ pub trait BlockExecutorProvider: Send + Sync + Clone + Unpin + 'static {
     ///
     /// Batch executor is used to execute multiple blocks in sequence and keep track of the state
     /// during historical sync which involves executing multiple blocks in sequence.
-    fn batch_executor<DB>(&self, db: DB) -> Self::BatchExecutor<DB>
+    fn batch_executor<DB>(
+        &self,
+        db: DB,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
+    ) -> Self::BatchExecutor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>;
 }
@@ -200,6 +206,7 @@ where
         &mut self,
         block: &BlockWithSenders,
         total_difficulty: U256,
+        tx: Option<UnboundedSender<EvmState>>,
     ) -> Result<ExecuteOutput, Self::Error>;
 
     /// Applies any necessary changes after executing the block's transactions.
@@ -282,21 +289,29 @@ where
     type BatchExecutor<DB: Database<Error: Into<ProviderError> + Display>> =
         BasicBatchExecutor<F::Strategy<DB>, DB>;
 
-    fn executor<DB>(&self, db: DB) -> Self::Executor<DB>
+    fn executor<DB>(
+        &self,
+        db: DB,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
+    ) -> Self::Executor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>,
     {
         let strategy = self.strategy_factory.create_strategy(db);
-        BasicBlockExecutor::new(strategy)
+        BasicBlockExecutor::new(strategy, prefetch_tx)
     }
 
-    fn batch_executor<DB>(&self, db: DB) -> Self::BatchExecutor<DB>
+    fn batch_executor<DB>(
+        &self,
+        db: DB,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
+    ) -> Self::BatchExecutor<DB>
     where
         DB: Database<Error: Into<ProviderError> + Display>,
     {
         let strategy = self.strategy_factory.create_strategy(db);
         let batch_record = BlockBatchRecord::default();
-        BasicBatchExecutor::new(strategy, batch_record)
+        BasicBatchExecutor::new(strategy, batch_record, prefetch_tx)
     }
 }
 
@@ -310,6 +325,8 @@ where
 {
     /// Block execution strategy.
     pub(crate) strategy: S,
+    /// Channel to send prefetch requests.
+    pub(crate) prefetch_tx: Option<UnboundedSender<EvmState>>,
     _phantom: PhantomData<DB>,
 }
 
@@ -319,31 +336,32 @@ where
     DB: Database,
 {
     /// Creates a new `BasicBlockExecutor` with the given strategy.
-    pub const fn new(strategy: S) -> Self {
-        Self { strategy, _phantom: PhantomData }
+    pub const fn new(strategy: S, prefetch_tx: Option<UnboundedSender<EvmState>>) -> Self {
+        Self { strategy, prefetch_tx, _phantom: PhantomData }
     }
 }
 
+// TODO: FIX BasicBlockExecutor and remove this comment
 impl<S, DB> Executor<DB> for BasicBlockExecutor<S, DB>
 where
     S: BlockExecutionStrategy<DB>,
     DB: Database<Error: Into<ProviderError> + Display>,
 {
-    type Input<'a> = BlockExecutionInput<'a, BlockWithSenders>;
+    type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
     type Output = BlockExecutionOutput<Receipt>;
     type Error = S::Error;
 
     fn execute(mut self, input: Self::Input<'_>) -> Result<Self::Output, Self::Error> {
-        let BlockExecutionInput { block, total_difficulty } = input;
+        let BlockExecutionInput { block, total_difficulty, .. } = input;
 
         self.strategy.apply_pre_execution_changes(block, total_difficulty)?;
         let ExecuteOutput { receipts, gas_used } =
-            self.strategy.execute_transactions(block, total_difficulty)?;
+            self.strategy.execute_transactions(block, total_difficulty, self.prefetch_tx)?;
         let requests =
             self.strategy.apply_post_execution_changes(block, total_difficulty, &receipts)?;
         let state = self.strategy.finish();
 
-        Ok(BlockExecutionOutput { state, receipts, requests, gas_used })
+        Ok(BlockExecutionOutput { state, receipts, requests, gas_used, snapshot: None })
     }
 
     fn execute_with_state_closure<F>(
@@ -354,11 +372,11 @@ where
     where
         F: FnMut(&State<DB>),
     {
-        let BlockExecutionInput { block, total_difficulty } = input;
+        let BlockExecutionInput { block, total_difficulty, .. } = input;
 
         self.strategy.apply_pre_execution_changes(block, total_difficulty)?;
         let ExecuteOutput { receipts, gas_used } =
-            self.strategy.execute_transactions(block, total_difficulty)?;
+            self.strategy.execute_transactions(block, total_difficulty, self.prefetch_tx)?;
         let requests =
             self.strategy.apply_post_execution_changes(block, total_difficulty, &receipts)?;
 
@@ -366,7 +384,7 @@ where
 
         let state = self.strategy.finish();
 
-        Ok(BlockExecutionOutput { state, receipts, requests, gas_used })
+        Ok(BlockExecutionOutput { state, receipts, requests, gas_used, snapshot: None })
     }
 
     fn execute_with_state_hook<H>(
@@ -377,19 +395,19 @@ where
     where
         H: OnStateHook + 'static,
     {
-        let BlockExecutionInput { block, total_difficulty } = input;
+        let BlockExecutionInput { block, total_difficulty, .. } = input;
 
         self.strategy.with_state_hook(Some(Box::new(state_hook)));
 
         self.strategy.apply_pre_execution_changes(block, total_difficulty)?;
         let ExecuteOutput { receipts, gas_used } =
-            self.strategy.execute_transactions(block, total_difficulty)?;
+            self.strategy.execute_transactions(block, total_difficulty, self.prefetch_tx)?;
         let requests =
             self.strategy.apply_post_execution_changes(block, total_difficulty, &receipts)?;
 
         let state = self.strategy.finish();
 
-        Ok(BlockExecutionOutput { state, receipts, requests, gas_used })
+        Ok(BlockExecutionOutput { state, receipts, requests, gas_used, snapshot: None })
     }
 }
 
@@ -405,6 +423,8 @@ where
     pub(crate) strategy: S,
     /// Keeps track of batch execution receipts and requests.
     pub(crate) batch_record: BlockBatchRecord,
+    /// Channel to send prefetch requests.
+    pub(crate) prefetch_tx: Option<UnboundedSender<EvmState>>,
     _phantom: PhantomData<DB>,
 }
 
@@ -414,8 +434,12 @@ where
     DB: Database,
 {
     /// Creates a new `BasicBatchExecutor` with the given strategy.
-    pub const fn new(strategy: S, batch_record: BlockBatchRecord) -> Self {
-        Self { strategy, batch_record, _phantom: PhantomData }
+    pub const fn new(
+        strategy: S,
+        batch_record: BlockBatchRecord,
+        prefetch_tx: Option<UnboundedSender<EvmState>>,
+    ) -> Self {
+        Self { strategy, batch_record, prefetch_tx, _phantom: PhantomData }
     }
 }
 
@@ -424,20 +448,23 @@ where
     S: BlockExecutionStrategy<DB, Error = BlockExecutionError>,
     DB: Database<Error: Into<ProviderError> + Display>,
 {
-    type Input<'a> = BlockExecutionInput<'a, BlockWithSenders>;
+    type Input<'a> = BlockExecutionInput<'a, BlockWithSenders, Header>;
     type Output = ExecutionOutcome;
     type Error = BlockExecutionError;
 
     fn execute_and_verify_one(&mut self, input: Self::Input<'_>) -> Result<(), Self::Error> {
-        let BlockExecutionInput { block, total_difficulty } = input;
+        let BlockExecutionInput { block, total_difficulty, .. } = input;
 
         if self.batch_record.first_block().is_none() {
             self.batch_record.set_first_block(block.number);
         }
 
         self.strategy.apply_pre_execution_changes(block, total_difficulty)?;
-        let ExecuteOutput { receipts, .. } =
-            self.strategy.execute_transactions(block, total_difficulty)?;
+        let ExecuteOutput { receipts, .. } = self.strategy.execute_transactions(
+            block,
+            total_difficulty,
+            self.prefetch_tx.clone(),
+        )?;
         let requests =
             self.strategy.apply_post_execution_changes(block, total_difficulty, &receipts)?;
 
@@ -505,7 +532,11 @@ mod tests {
             TestExecutor(PhantomData)
         }
 
-        fn batch_executor<DB>(&self, _db: DB) -> Self::BatchExecutor<DB>
+        fn batch_executor<DB>(
+            &self,
+            _db: DB,
+            _: Option<UnboundedSender<EvmState>>,
+        ) -> Self::BatchExecutor<DB>
         where
             DB: Database<Error: Into<ProviderError> + Display>,
         {
@@ -636,6 +667,7 @@ mod tests {
             &mut self,
             _block: &BlockWithSenders,
             _total_difficulty: U256,
+            _tx: Option<UnboundedSender<EvmState>>,
         ) -> Result<ExecuteOutput, Self::Error> {
             Ok(self.execute_transactions_result.clone())
         }
@@ -701,8 +733,9 @@ mod tests {
         };
         let provider = BasicBlockExecutorProvider::new(strategy_factory);
         let db = CacheDB::<EmptyDBTyped<ProviderError>>::default();
-        let executor = provider.executor(db);
-        let result = executor.execute(BlockExecutionInput::new(&Default::default(), U256::ZERO));
+        let executor = provider.executor(db, None);
+        let result =
+            executor.execute(BlockExecutionInput::new(&Default::default(), U256::ZERO, None));
 
         assert!(result.is_ok());
         let block_execution_output = result.unwrap();

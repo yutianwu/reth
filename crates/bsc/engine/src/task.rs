@@ -5,6 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use alloy_eips::BlockHashOrNumber;
 use alloy_primitives::{Sealable, B256};
 use alloy_rpc_types::{engine::ForkchoiceState, BlockId, RpcBlockHash};
 use reth_beacon_consensus::{
@@ -13,13 +14,14 @@ use reth_beacon_consensus::{
 use reth_bsc_consensus::Parlia;
 use reth_bsc_evm::SnapshotReader;
 use reth_chainspec::EthChainSpec;
+use reth_engine_primitives::EngineApiMessageVersion;
 use reth_network_api::events::EngineMessage;
 use reth_network_p2p::{
     headers::client::{HeadersClient, HeadersDirection, HeadersRequest},
     priority::Priority,
     BlockClient,
 };
-use reth_primitives::{Block, BlockBody, BlockHashOrNumber, SealedHeader};
+use reth_primitives::{Block, BlockBody, SealedHeader};
 use reth_provider::{BlockReaderIdExt, CanonChainTracker, ParliaProvider};
 use tokio::{
     signal,
@@ -421,21 +423,20 @@ impl<
                 }
                 for header in disconnected_headers {
                     storage.insert_new_header(header.clone());
-                    let result =
-                        fork_choice_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
-                            header: header.clone(),
-                            // if the pipeline sync is true, the fork choice will not use the safe
-                            // and finalized hash.
-                            // this can make Block Sync Engine to use pipeline sync mode.
-                            pipeline_sync,
-                            local_header: latest_unsafe_header.clone(),
-                        }));
-                    if result.is_err() {
-                        error!(target: "consensus::parlia", "Failed to send new block event to
-                    fork choice");
-                    }
                 }
                 drop(storage);
+                let result = fork_choice_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
+                    header: sealed_header.clone(),
+                    // if the pipeline sync is true, the fork choice will not use the safe
+                    // and finalized hash.
+                    // this can make Block Sync Engine to use pipeline sync mode.
+                    pipeline_sync,
+                    local_header: latest_unsafe_header.clone(),
+                }));
+                if result.is_err() {
+                    error!(target: "consensus::parlia", "Failed to send new block event to
+                fork choice");
+                }
 
                 let result = chain_tracker_tx.send(ForkChoiceMessage::NewHeader(NewHeaderEvent {
                     header: sealed_header.clone(),
@@ -489,6 +490,7 @@ impl<
                                     state,
                                     payload_attrs: None,
                                     tx,
+                                    version: EngineApiMessageVersion::default(),
                                 });
                                 debug!(target: "consensus::parlia", ?state, "Sent fork choice update");
 

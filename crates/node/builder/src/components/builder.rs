@@ -10,12 +10,10 @@ use reth_transaction_pool::TransactionPool;
 use crate::{
     components::{
         Components, ConsensusBuilder, ExecutorBuilder, NetworkBuilder, NodeComponents,
-        PayloadServiceBuilder, PoolBuilder,
+        ParliaBuilder, PayloadServiceBuilder, PoolBuilder,
     },
     BuilderContext, ConfigureEvm, FullNodeTypes,
 };
-
-use super::ParliaBuilder;
 
 /// A generic, general purpose and customizable [`NodeComponentsBuilder`] implementation.
 ///
@@ -138,6 +136,19 @@ impl<Node, PoolB, PayloadB, NetworkB, ExecB, ConsB, ParliaB>
             executor_builder: self.executor_builder,
             consensus_builder: f(self.consensus_builder),
             parlia_builder: self.parlia_builder,
+            _marker: self._marker,
+        }
+    }
+
+    /// Apply a function to the parlia builder.
+    pub fn map_parlia(self, f: impl FnOnce(ParliaB) -> ParliaB) -> Self {
+        Self {
+            pool_builder: self.pool_builder,
+            payload_builder: self.payload_builder,
+            network_builder: self.network_builder,
+            executor_builder: self.executor_builder,
+            consensus_builder: self.consensus_builder,
+            parlia_builder: f(self.parlia_builder),
             _marker: self._marker,
         }
     }
@@ -297,6 +308,37 @@ where
             executor_builder,
             consensus_builder: _,
             parlia_builder,
+            _marker,
+        } = self;
+        ComponentsBuilder {
+            pool_builder,
+            payload_builder,
+            network_builder,
+            executor_builder,
+            consensus_builder,
+            parlia_builder,
+            _marker,
+        }
+    }
+
+    /// Configures the parlia builder.
+    ///
+    /// This accepts a [`ParliaBuilder`] instance that will be used to create the node's components
+    /// for parlia.
+    pub fn parlia<PB>(
+        self,
+        parlia_builder: PB,
+    ) -> ComponentsBuilder<Node, PoolB, PayloadB, NetworkB, ExecB, ConsB, PB>
+    where
+        PB: ParliaBuilder<Node>,
+    {
+        let Self {
+            pool_builder,
+            payload_builder,
+            network_builder,
+            executor_builder,
+            consensus_builder,
+            parlia_builder: _,
             _marker,
         } = self;
         ComponentsBuilder {

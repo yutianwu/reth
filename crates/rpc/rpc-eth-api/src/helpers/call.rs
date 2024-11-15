@@ -617,7 +617,7 @@ pub trait Call: LoadState<Evm: ConfigureEvm<Header = Header>> + SpawnBlocking {
             // block the transaction is included in
             let parent_block = block.parent_hash;
             let parent_timestamp = self
-                .block(parent_block.into())
+                .block_with_senders(parent_block.into())
                 .await?
                 .map(|block| block.timestamp)
                 .ok_or(EthApiError::UnknownParentBlock)?;
@@ -637,7 +637,7 @@ pub trait Call: LoadState<Evm: ConfigureEvm<Header = Header>> + SpawnBlocking {
                     parent_timestamp,
                 )?;
 
-                let tx_env = Call::evm_config(&this).tx_env(&tx);
+                let tx_env = RpcNodeCore::evm_config(&this).tx_env(tx.as_signed(), tx.signer());
                 #[cfg(feature = "bsc")]
                 let tx_env = {
                     let mut tx_env = tx_env;
@@ -647,11 +647,7 @@ pub trait Call: LoadState<Evm: ConfigureEvm<Header = Header>> + SpawnBlocking {
                     tx_env
                 };
 
-                let env = EnvWithHandlerCfg::new_with_cfg_env(
-                    cfg,
-                    block_env,
-                    RpcNodeCore::evm_config(&this).tx_env(tx.as_signed(), tx.signer()),
-                );
+                let env = EnvWithHandlerCfg::new_with_cfg_env(cfg, block_env, tx_env);
 
                 let (res, _) = this.transact(&mut db, env)?;
                 f(tx_info, res, db)

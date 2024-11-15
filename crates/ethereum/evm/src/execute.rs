@@ -154,6 +154,7 @@ where
         &mut self,
         block: &BlockWithSenders,
         total_difficulty: U256,
+        tx: Option<UnboundedSender<EvmState>>,
     ) -> Result<ExecuteOutput, Self::Error> {
         let env = self.evm_env_for_block(&block.header, total_difficulty);
         let mut evm = self.evm_config.evm_with_env(&mut self.state, env);
@@ -186,9 +187,11 @@ where
             self.system_caller.on_state(&result_and_state);
             let ResultAndState { result, state } = result_and_state;
 
+            // Send post state to prefetch channel.
             if let Some(tx) = tx.as_ref() {
                 tx.send(state.clone()).unwrap_or_else(|err| {
-                    debug!(target: "evm_executor", ?err, "Failed to send post state to prefetch channel")
+                    debug!(target: "evm_executor", ?err, "Failed to send post state to prefetch
+            channel")
                 });
             }
 
@@ -390,7 +393,7 @@ mod tests {
 
         let provider = executor_provider(chain_spec);
 
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute a block without parent beacon block root, expect err
         let err = executor
@@ -442,6 +445,7 @@ mod tests {
                         senders: vec![],
                     },
                     U256::ZERO,
+                    None,
                 )
                     .into(),
             )
@@ -497,7 +501,7 @@ mod tests {
 
         // attempt to execute an empty block with parent beacon block root, this should not fail
         provider
-            .batch_executor(StateProviderDatabase::new(&db))
+            .batch_executor(StateProviderDatabase::new(&db), None)
             .execute_and_verify_one(
                 (
                     &BlockWithSenders {
@@ -550,7 +554,7 @@ mod tests {
             ..Header::default()
         };
 
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute an empty block with parent beacon block root, this should not fail
         executor
@@ -597,7 +601,7 @@ mod tests {
 
         let mut header = chain_spec.genesis_header().clone();
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute the genesis block with non-zero parent beacon block root, expect err
         header.parent_beacon_block_root = Some(B256::with_last_byte(0x69));
@@ -675,7 +679,7 @@ mod tests {
         let provider = executor_provider(chain_spec);
 
         // execute header
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // Now execute a block with the fixed header, ensure that it does not fail
         executor
@@ -749,7 +753,7 @@ mod tests {
         );
 
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // construct the header for block one
         let header = Header { timestamp: 1, number: 1, ..Header::default() };
@@ -796,7 +800,7 @@ mod tests {
 
         let header = chain_spec.genesis_header().clone();
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute genesis block, this should not fail
         executor
@@ -847,7 +851,7 @@ mod tests {
             ..Header::default()
         };
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute the fork activation block, this should not fail
         executor
@@ -896,7 +900,7 @@ mod tests {
         );
 
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         let header = Header {
             parent_hash: B256::random(),
@@ -953,7 +957,7 @@ mod tests {
         let header_hash = header.hash_slow();
 
         let provider = executor_provider(chain_spec);
-        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db), None);
 
         // attempt to execute the genesis block, this should not fail
         executor

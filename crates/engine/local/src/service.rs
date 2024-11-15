@@ -76,6 +76,9 @@ where
         from_engine: EngineMessageStream<N::Engine>,
         mode: MiningMode,
         payload_attributes_builder: B,
+        skip_state_root_validation: bool,
+        enable_prefetch: bool,
+        enable_execution_cache: bool,
     ) -> Self
     where
         B: PayloadAttributesBuilder<<N::Engine as PayloadTypes>::PayloadAttributes>,
@@ -85,7 +88,7 @@ where
             if chain_spec.is_optimism() { EngineApiKind::OpStack } else { EngineApiKind::Ethereum };
 
         let persistence_handle =
-        PersistenceHandle::spawn_service(provider, pruner, sync_metrics_tx, false);
+            PersistenceHandle::spawn_service(provider, pruner, sync_metrics_tx, false);
         let payload_validator = ExecutionPayloadValidator::new(chain_spec);
 
         let canonical_in_memory_state = blockchain_db.canonical_in_memory_state();
@@ -101,6 +104,9 @@ where
             tree_config,
             invalid_block_hook,
             engine_kind,
+            skip_state_root_validation,
+            enable_prefetch,
+            enable_execution_cache,
         );
 
         let handler = EngineApiRequestHandler::new(to_tree_tx, from_tree);

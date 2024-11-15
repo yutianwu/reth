@@ -95,6 +95,7 @@ where
     }
 
     /// Trace the entire block asynchronously
+    #[allow(clippy::too_many_arguments)]
     async fn trace_block(
         &self,
         at: BlockId,
@@ -178,7 +179,8 @@ where
                         before_system_tx = false;
                     }
 
-                    let tx_env = Call::evm_config(this.eth_api()).tx_env(&tx);
+                    let tx_env =
+                        RpcNodeCore::evm_config(this.eth_api()).tx_env(tx.as_signed(), tx.signer());
                     #[cfg(feature = "bsc")]
                     let tx_env = {
                         let mut tx_env = tx_env;
@@ -189,13 +191,7 @@ where
                     };
 
                     let env = EnvWithHandlerCfg {
-                        env: Env::boxed(
-                            cfg.cfg_env.clone(),
-                            block_env.clone(),
-                            tx_env,
-                            RpcNodeCore::evm_config(this.eth_api())
-                                .tx_env(tx.as_signed(), tx.signer()),
-                        ),
+                        env: Env::boxed(cfg.cfg_env.clone(), block_env.clone(), tx_env),
                         handler_cfg: cfg.handler_cfg,
                     };
                     let (result, state_changes) = this.trace_transaction(
@@ -244,7 +240,7 @@ where
         let parent = block.parent_hash;
         let parent_timestamp = self
             .eth_api()
-            .block(parent.into())
+            .block_with_senders(parent.into())
             .await?
             .map(|block| block.timestamp)
             .ok_or(EthApiError::UnknownParentBlock)?;
@@ -314,7 +310,7 @@ where
         let state_at = block.parent_hash;
         let parent_timestamp = self
             .eth_api()
-            .block(state_at.into())
+            .block_with_senders(state_at.into())
             .await?
             .map(|block| block.timestamp)
             .ok_or(EthApiError::UnknownParentBlock)?;
@@ -351,7 +347,7 @@ where
         let block_hash = block.hash();
         let parent_timestamp = self
             .eth_api()
-            .block(state_at)
+            .block_with_senders(block.parent_hash.into())
             .await?
             .map(|block| block.timestamp)
             .ok_or(EthApiError::UnknownParentBlock)?;
@@ -394,7 +390,8 @@ where
                     parent_timestamp,
                 )?;
 
-                let tx_env = Call::evm_config(this.eth_api()).tx_env(&tx);
+                let tx_env =
+                    RpcNodeCore::evm_config(this.eth_api()).tx_env(tx.as_signed(), tx.signer());
                 #[cfg(feature = "bsc")]
                 let tx_env = {
                     let mut tx_env = tx_env;
@@ -405,12 +402,7 @@ where
                 };
 
                 let env = EnvWithHandlerCfg {
-                    env: Env::boxed(
-                        cfg.cfg_env.clone(),
-                        block_env,
-                        tx_env,
-                        RpcNodeCore::evm_config(this.eth_api()).tx_env(tx.as_signed(), tx.signer()),
-                    ),
+                    env: Env::boxed(cfg.cfg_env.clone(), block_env, tx_env),
                     handler_cfg: cfg.handler_cfg,
                 };
 

@@ -10,10 +10,11 @@ use crate::{
     BundleStateInit, ChainStateBlockReader, ChainStateBlockWriter, DBProvider, EvmEnvProvider,
     HashingWriter, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider, HistoricalStateProvider,
     HistoricalStateProviderRef, HistoryWriter, LatestStateProvider, LatestStateProviderRef,
-    OriginalValuesKnown, ProviderError, PruneCheckpointReader, PruneCheckpointWriter, RevertsInit,
-    StageCheckpointReader, StateChangeWriter, StateProviderBox, StateReader, StateWriter,
-    StaticFileProviderFactory, StatsReader, StorageReader, StorageTrieWriter, TransactionVariant,
-    TransactionsProvider, TransactionsProviderExt, TrieWriter, WithdrawalsProvider, ParliaSnapshotReader,
+    OriginalValuesKnown, ParliaSnapshotReader, ProviderError, PruneCheckpointReader,
+    PruneCheckpointWriter, RevertsInit, SidecarsProvider, StageCheckpointReader, StateChangeWriter,
+    StateProviderBox, StateReader, StateWriter, StaticFileProviderFactory, StatsReader,
+    StorageReader, StorageTrieWriter, TransactionVariant, TransactionsProvider,
+    TransactionsProviderExt, TrieWriter, WithdrawalsProvider,
 };
 use alloy_eips::{eip4895::Withdrawal, BlockHashOrNumber};
 use alloy_primitives::{keccak256, Address, BlockHash, BlockNumber, TxHash, TxNumber, B256, U256};
@@ -40,10 +41,10 @@ use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_network_p2p::headers::downloader::SyncTarget;
 use reth_node_types::NodeTypes;
 use reth_primitives::{
-    parlia::Snapshot, Account, BlobSidecars, Block, BlockBody, BlockWithSenders, Bytecode, GotExpected, Header, Receipt,
-    SealedBlock, SealedBlockWithSenders, SealedHeader, StaticFileSegment, StorageEntry,
-    TransactionMeta, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
-    Withdrawals,
+    parlia::Snapshot, Account, BlobSidecars, Block, BlockBody, BlockWithSenders, Bytecode,
+    GotExpected, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader,
+    StaticFileSegment, StorageEntry, TransactionMeta, TransactionSigned,
+    TransactionSignedEcRecovered, TransactionSignedNoHash, Withdrawals,
 };
 use reth_prune_types::{PruneCheckpoint, PruneModes, PruneSegment};
 use reth_stages_types::{StageCheckpoint, StageId};
@@ -536,6 +537,7 @@ impl<TX: DbTx, N: NodeTypes> DatabaseProvider<TX, N> {
             })
             .collect();
 
+        // the sidecars will always be None as this is not needed
         construct_block(header, body, senders, ommers, withdrawals)
     }
 
@@ -612,10 +614,8 @@ impl<TX: DbTx, N: NodeTypes> DatabaseProvider<TX, N> {
                             .unwrap_or_default()
                     };
 
-                let sidecars = Some(Default::default()); // no need to read sidecars
-
                 if let Ok(b) =
-                    assemble_block(header, tx_range, ommers, withdrawals, sidecars)
+                    assemble_block(header, tx_range, ommers, withdrawals, Some(Default::default()))
                 {
                     blocks.push(b);
                 }
@@ -672,24 +672,24 @@ impl<TX: DbTx, N: NodeTypes> DatabaseProvider<TX, N> {
                         .walk_range(tx_range.clone())?
                         .collect::<Result<HashMap<_, _>, _>>()?;
 
-                    let mut senders = Vec::with_capacity(body.len());
-                    for (tx_num, tx) in tx_range.zip(body.iter()) {
-                        match known_senders.get(&tx_num) {
-                            None => {
-                                // recover the sender from the transaction if not found
-                                let sender = tx
-                                    .recover_signer_unchecked()
-                                    .ok_or(ProviderError::SenderRecoveryError)?;
-                                senders.push(sender);
-                            }
-                            Some(sender) => senders.push(*sender),
+                let mut senders = Vec::with_capacity(body.len());
+                for (tx_num, tx) in tx_range.zip(body.iter()) {
+                    match known_senders.get(&tx_num) {
+                        None => {
+                            // recover the sender from the transaction if not found
+                            let sender = tx
+                                .recover_signer_unchecked()
+                                .ok_or(ProviderError::SenderRecoveryError)?;
+                            senders.push(sender);
                         }
+                        Some(sender) => senders.push(*sender),
                     }
+                }
 
-                    (body, senders)
-                };
+                (body, senders)
+            };
 
-            assemble_block(header, body, ommers, withdrawals, senders)
+            assemble_block(header, body, ommers, withdrawals, sidecars, senders)
         })
     }
 
@@ -1127,11 +1127,9 @@ impl<TX: DbTxMut + DbTx, N: NodeTypes> DatabaseProvider<TX, N> {
         let mut block_ommers_iter = block_ommers.into_iter();
         let mut block_withdrawals_iter = block_withdrawals.into_iter();
         let mut block_sidecars_iter = block_sidecars.into_iter();
-
         let mut block_ommers = block_ommers_iter.next();
         let mut block_withdrawals = block_withdrawals_iter.next();
         let mut block_sidecars = block_sidecars_iter.next();
-
 
         for ((main_block_number, header), (_, header_hash), (_, tx)) in
             izip!(block_header_iter, block_header_hashes_iter, block_tx_iter)
@@ -1181,7 +1179,7 @@ impl<TX: DbTxMut + DbTx, N: NodeTypes> DatabaseProvider<TX, N> {
             blocks.push(SealedBlockWithSenders {
                 block: SealedBlock {
                     header,
-                    body: BlockBody { transactions, ommers, withdrawals, sidecars, requests },
+                    body: BlockBody { transactions, ommers, withdrawals, sidecars },
                 },
                 senders,
             })
@@ -1624,13 +1622,21 @@ impl<TX: DbTx, N: NodeTypes<ChainSpec: EthereumHardforks>> BlockReader for Datab
             transaction_kind,
             |block_number| self.header_by_number(block_number),
             |header, transactions, senders, ommers, withdrawals| {
-                Block { header, body: BlockBody { transactions, ommers, withdrawals, sidecars: Some(Default::default()) } }
-                    // Note: we're using unchecked here because we know the block contains valid txs
-                    // wrt to its height and can ignore the s value check so pre
-                    // EIP-2 txs are allowed
-                    .try_with_senders_unchecked(senders)
-                    .map(Some)
-                    .map_err(|_| ProviderError::SenderRecoveryError)
+                Block {
+                    header,
+                    body: BlockBody {
+                        transactions,
+                        ommers,
+                        withdrawals,
+                        sidecars: Some(Default::default()),
+                    },
+                }
+                // Note: we're using unchecked here because we know the block contains valid txs
+                // wrt to its height and can ignore the s value check so pre
+                // EIP-2 txs are allowed
+                .try_with_senders_unchecked(senders)
+                .map(Some)
+                .map_err(|_| ProviderError::SenderRecoveryError)
             },
         )
     }
@@ -1645,13 +1651,21 @@ impl<TX: DbTx, N: NodeTypes<ChainSpec: EthereumHardforks>> BlockReader for Datab
             transaction_kind,
             |block_number| self.sealed_header(block_number),
             |header, transactions, senders, ommers, withdrawals| {
-                SealedBlock { header, body: BlockBody { transactions, ommers, withdrawals, sidecars: Some(Default::default()) } }
-                    // Note: we're using unchecked here because we know the block contains valid txs
-                    // wrt to its height and can ignore the s value check so pre
-                    // EIP-2 txs are allowed
-                    .try_with_senders_unchecked(senders)
-                    .map(Some)
-                    .map_err(|_| ProviderError::SenderRecoveryError)
+                SealedBlock {
+                    header,
+                    body: BlockBody {
+                        transactions,
+                        ommers,
+                        withdrawals,
+                        sidecars: Some(Default::default()),
+                    },
+                }
+                // Note: we're using unchecked here because we know the block contains valid txs
+                // wrt to its height and can ignore the s value check so pre
+                // EIP-2 txs are allowed
+                .try_with_senders_unchecked(senders)
+                .map(Some)
+                .map_err(|_| ProviderError::SenderRecoveryError)
             },
         )
     }
@@ -1670,7 +1684,10 @@ impl<TX: DbTx, N: NodeTypes<ChainSpec: EthereumHardforks>> BlockReader for Datab
                         .map(Into::into)
                         .collect()
                 };
-                Ok(Block { header, body: BlockBody { transactions, ommers, withdrawals, sidecars } })
+                Ok(Block {
+                    header,
+                    body: BlockBody { transactions, ommers, withdrawals, sidecars },
+                })
             },
         )
     }
@@ -1699,7 +1716,10 @@ impl<TX: DbTx, N: NodeTypes<ChainSpec: EthereumHardforks>> BlockReader for Datab
             |range| self.sealed_headers_range(range),
             |header, transactions, ommers, withdrawals, sidecars, senders| {
                 SealedBlockWithSenders::new(
-                    SealedBlock { header, body: BlockBody { transactions, ommers, withdrawals, sidecars } },
+                    SealedBlock {
+                        header,
+                        body: BlockBody { transactions, ommers, withdrawals, sidecars },
+                    },
                     senders,
                 )
                 .ok_or(ProviderError::SenderRecoveryError)
@@ -3554,7 +3574,7 @@ impl<TX: DbTxMut, N: NodeTypes> ChainStateBlockWriter for DatabaseProvider<TX, N
     }
 }
 
-impl<TX: DbTxMut, N: NodeTypes> ParliaSnapshotReader for DatabaseProvider<TX, N> {
+impl<TX: DbTx, N: NodeTypes> ParliaSnapshotReader for DatabaseProvider<TX, N> {
     fn get_parlia_snapshot(&self, block_hash: B256) -> ProviderResult<Option<Snapshot>> {
         Ok(self.tx.get::<tables::ParliaSnapshot>(block_hash)?)
     }
